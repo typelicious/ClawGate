@@ -1,0 +1,239 @@
+# ClawGate – Routing-Konfiguration
+# Schichtweises Routing: static → heuristic → llm-classify
+
+server:
+  host: "127.0.0.1"
+  port: 8090
+  log_level: "info"
+
+# ── Provider-Definitionen ──────────────────────────────────────
+providers:
+  deepseek-chat:
+    backend: openai-compat
+    base_url: "${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}"
+    api_key: "${DEEPSEEK_API_KEY}"
+    model: "deepseek-chat"
+    max_tokens: 8000
+    tier: default          # Alltags-Modell
+    pricing:               # USD pro 1M Tokens
+      input: 0.27
+      output: 1.10
+      cache_read: 0.07
+
+  deepseek-reasoner:
+    backend: openai-compat
+    base_url: "${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}"
+    api_key: "${DEEPSEEK_API_KEY}"
+    model: "deepseek-reasoner"
+    max_tokens: 8000
+    tier: reasoning        # Komplexe Aufgaben
+    pricing:
+      input: 0.55
+      output: 2.19
+      cache_read: 0.14
+
+  gemini-flash-lite:
+    backend: google-genai
+    base_url: "${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}"
+    api_key: "${GEMINI_API_KEY}"
+    model: "gemini-2.5-flash-lite"
+    max_tokens: 8000
+    tier: cheap            # Heartbeats, einfache Checks
+    pricing:
+      input: 0.075
+      output: 0.30
+      cache_read: 0.02
+
+  gemini-flash:
+    backend: google-genai
+    base_url: "${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}"
+    api_key: "${GEMINI_API_KEY}"
+    model: "gemini-2.5-flash"
+    max_tokens: 8000
+    tier: mid              # Vision, mittel-komplexe Tasks
+    pricing:
+      input: 0.15
+      output: 0.60
+      cache_read: 0.04
+
+  openrouter-fallback:
+    backend: openai-compat
+    base_url: "https://openrouter.ai/api/v1"
+    api_key: "${OPENROUTER_API_KEY}"
+    model: "deepseek/deepseek-chat"
+    max_tokens: 8000
+    tier: fallback
+    pricing:
+      input: 0.27
+      output: 1.10
+      cache_read: 0.07
+
+# ── Fallback-Kette ─────────────────────────────────────────────
+fallback_chain:
+  - deepseek-chat
+  - deepseek-reasoner
+  - gemini-flash
+  - openrouter-fallback
+
+# ── Layer 1: Statische Regeln ──────────────────────────────────
+# Schnellste Schicht – Pattern-Matching auf bekannte Muster
+static_rules:
+  enabled: true
+  rules:
+    # OpenClaw Heartbeat-Checks
+    - name: heartbeat
+      match:
+        any:
+          - system_prompt_contains: ["heartbeat", "health check", "status check", "are you there"]
+          - model_requested: ["heartbeat", "cheap", "flash-lite"]
+      route_to: gemini-flash-lite
+
+    # Explizite Modell-Anfragen via model-Feld
+    - name: explicit-reasoner
+      match:
+        model_requested: ["reasoner", "r1", "think", "deepseek-reasoner"]
+      route_to: deepseek-reasoner
+
+    - name: explicit-flash
+      match:
+        model_requested: ["flash", "gemini", "vision"]
+      route_to: gemini-flash
+
+    - name: explicit-chat
+      match:
+        model_requested: ["chat", "ds", "default", "deepseek-chat"]
+      route_to: deepseek-chat
+
+    # Subagent-Erkennung
+    - name: subagent
+      match:
+        any:
+          - system_prompt_contains: ["sub-agent", "subagent", "parallel task", "delegated task"]
+          - header_contains:
+              x-openclaw-source: ["subagent", "sub-agent"]
+      route_to: deepseek-chat
+
+# ── Layer 2: Heuristik-Klassifikation ──────────────────────────
+# Mittlere Schicht – regelbasierte Analyse des Request-Inhalts
+heuristic_rules:
+  enabled: true
+  rules:
+    # Mathematik / Logik → Reasoner (multilingual, ClawRouter-inspired)
+    - name: math-reasoning
+      match:
+        message_keywords:
+          any_of: ["prove", "beweis", "beweise", "theorem", "integral", "derivative",
+                   "equation", "gleichung", "induction", "induktion",
+                   "\\boxed", "\\frac", "\\sum", "\\int", "latex",
+                   "step by step", "schritt für schritt",
+                   "warum", "why does", "explain why", "erkläre warum",
+                   "证明", "定理", "証明", "доказать"]
+          min_matches: 2
+      route_to: deepseek-reasoner
+
+    # Code-Analyse / Debugging → Reasoner
+    - name: complex-code
+      match:
+        message_keywords:
+          any_of: ["refactor", "debug", "architecture", "design pattern",
+                   "race condition", "memory leak", "optimize", "complexity",
+                   "security vulnerability", "code review",
+                   "performance bottleneck", "type error", "deadlock"]
+          min_matches: 2
+      route_to: deepseek-reasoner
+
+    # Einfache Anfragen → Flash-Lite (günstigster Tier)
+    # ClawRouter-Insight: "what is", "define", "translate" brauchen keinen Reasoner
+    - name: simple-query
+      match:
+        message_keywords:
+          any_of: ["what is", "was ist", "define", "definiere",
+                   "translate", "übersetze", "hi", "hello", "hallo",
+                   "thanks", "danke", "yes", "ja", "no", "nein",
+                   "что такое", "你好", "こんにちは"]
+          min_matches: 1
+      route_to: gemini-flash-lite
+
+    # Tool-Calls vorhanden → Chat (non-thinking optimal für OpenClaw)
+    - name: tool-use
+      match:
+        has_tools: true
+      route_to: deepseek-chat
+
+    # Kurze Nachrichten (< 100 tokens) → Chat
+    - name: short-message
+      match:
+        estimated_tokens:
+          less_than: 100
+      route_to: deepseek-chat
+
+    # Lange Kontext-Fenster (> 50k tokens) → Chat (billiger als Reasoner)
+    - name: long-context
+      match:
+        estimated_tokens:
+          greater_than: 50000
+      route_to: deepseek-chat
+
+    # Mittlere Komplexität ohne klare Signale → Chat
+    - name: general-default
+      match:
+        fallthrough: true
+      route_to: deepseek-chat
+
+# ── Layer 3: LLM-Klassifikation (optional) ─────────────────────
+# Langsamste Schicht – ein billiges Modell entscheidet
+llm_classifier:
+  enabled: false           # Auf true setzen wenn gewünscht
+  classifier_provider: gemini-flash-lite
+  max_classify_tokens: 50
+  timeout_ms: 3000
+  fallback_on_timeout: deepseek-chat
+  prompt: |
+    Classify this task into exactly one category. Reply with ONLY the category name.
+    Categories:
+    - REASONING: math proofs, logic puzzles, complex analysis, debugging
+    - CODING: code generation, refactoring, architecture decisions
+    - SIMPLE: greetings, status checks, short lookups, translations
+    - AGENT: tool use, file operations, search, API calls
+
+    User message: {last_user_message}
+
+    Category:
+  category_routing:
+    REASONING: deepseek-reasoner
+    CODING: deepseek-chat
+    SIMPLE: gemini-flash-lite
+    AGENT: deepseek-chat
+
+# ── Health-Check-Einstellungen ─────────────────────────────────
+health:
+  check_interval_seconds: 300
+  timeout_seconds: 10
+  consecutive_failures_before_skip: 3
+  recovery_check_interval_seconds: 60
+
+# ── Prompt Caching ─────────────────────────────────────────────
+# DeepSeek: Automatisch server-seitig (prefix-basiert, 64-token Granularität)
+#   - Cache Hit: $0.014/M tokens (10x billiger als Input $0.14/M)
+#   - Prefix muss identisch sein (ab Token 0)
+#   - Cache baut sich in Sekunden auf, best-effort
+# Gemini: Implizites Caching für 2.5 Flash/Pro (min 1028 Tokens)
+#   - Cached tokens: 0.25x des normalen Input-Preises
+#   - TTL ~3-5 Minuten
+# Optimierungs-Tipps:
+#   - System-Prompt stabil halten (identischer Prefix zwischen Requests)
+#   - Variable Inhalte ans Ende der Messages schieben
+#   - Few-Shot-Beispiele konsistent wiederverwenden
+#   - NICHT: System-Prompt pro Request randomisieren
+prompt_caching:
+  # ClawGate reordert Messages nicht, aber trackt Cache-Metriken
+  track_metrics: true
+  # Optionaler Prefix-Stabilizer: fixiert System-Prompt Reihenfolge
+  stabilize_prefix: false
+
+# ── Logging & Metriken ─────────────────────────────────────────
+metrics:
+  enabled: true
+  db_path: "./clawgate.db"
+  log_requests: true
+  log_routing_decisions: true

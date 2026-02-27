@@ -1,0 +1,89 @@
+// OpenClaw Integration – ClawGate
+// =========================================
+//
+// Füge diesen Block in deine ~/.openclaw/openclaw.json ein.
+//
+// Option A: ClawGate als einziger Provider (empfohlen)
+// -------------------------------------------------
+// Der Dispatcher übernimmt alles: Routing, Fallback, Modellauswahl.
+// OpenClaw sieht nur einen Provider.
+
+{
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "clawgate": {
+        "baseUrl": "http://127.0.0.1:8090/v1",
+        "apiKey": "local",
+        "auth": "api-key",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "auto",
+            "name": "ClawGate Auto-Router",
+            "contextWindow": 128000,
+            "maxTokens": 8000
+          },
+          {
+            "id": "deepseek-chat",
+            "name": "DeepSeek Chat (via ClawGate)",
+            "contextWindow": 128000,
+            "maxTokens": 8000
+          },
+          {
+            "id": "deepseek-reasoner",
+            "name": "DeepSeek Reasoner (via ClawGate)",
+            "contextWindow": 128000,
+            "maxTokens": 8000
+          },
+          {
+            "id": "gemini-flash-lite",
+            "name": "Gemini Flash-Lite (via ClawGate)",
+            "contextWindow": 1000000,
+            "maxTokens": 8000
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "clawgate/auto",
+        "fallbacks": []
+      },
+      "models": {
+        "clawgate/auto": { "alias": "auto" },
+        "clawgate/deepseek-chat": { "alias": "ds" },
+        "clawgate/deepseek-reasoner": { "alias": "r1" },
+        "clawgate/gemini-flash-lite": { "alias": "lite" }
+      },
+      "imageModel": {
+        "primary": "clawgate/gemini-flash-lite",
+        "fallbacks": []
+      },
+      "heartbeat": {
+        "every": "12h",
+        "model": "clawgate/gemini-flash-lite",
+        "suppressToolErrorWarnings": true
+      },
+      "subagents": {
+        "model": "clawgate/auto",
+        "maxConcurrent": 10
+      }
+    }
+  }
+}
+
+
+// Option B: ClawGate als zusätzlicher Provider neben Direkt-Providern
+// ---------------------------------------------------------------
+// Nutze ClawGate für auto-routing, behalte aber auch direkte Provider
+// als manuelle Override-Möglichkeit.
+
+// In "models.providers" zusätzlich:
+//   "clawgate": { ... wie oben ... }
+//
+// In "agents.defaults.model":
+//   "primary": "clawgate/auto",
+//   "fallbacks": ["deepseek/deepseek-chat", "google/gemini-2.5-flash"]
