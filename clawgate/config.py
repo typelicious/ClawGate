@@ -1,4 +1,20 @@
-"""Configuration loader with environment variable expansion."""
+"""Configuration loader with environment variable expansion.
+
+DB path resolution
+------------------
+The metrics database path is resolved in this priority order:
+
+1. CLAWGATE_DB_PATH environment variable  (explicit override)
+2. metrics.db_path in config.yaml         (if set)
+3. XDG_DATA_HOME / clawgate / clawgate.db (Linux/XDG default)
+4. ~/.local/share/clawgate/clawgate.db    (fallback for non-XDG systems)
+
+The path NEVER defaults to ./clawgate.db in the repo working directory.
+This ensures no database files are accidentally committed.
+
+On Nexus / systemd the recommended path is /var/lib/clawgate/clawgate.db,
+set via CLAWGATE_DB_PATH in the service environment.
+"""
 
 from __future__ import annotations
 
@@ -35,13 +51,42 @@ def _walk_expand(obj: Any) -> Any:
     return obj
 
 
+def _safe_db_path(configured: str | None = None) -> str:
+    """Return a safe, out-of-repo default DB path.
+
+    Priority:
+      1. CLAWGATE_DB_PATH env var
+      2. configured value from config.yaml (if not empty / not a relative ./)
+      3. XDG_DATA_HOME/clawgate/clawgate.db
+      4. ~/.local/share/clawgate/clawgate.db
+    """
+    # 1. Env var always wins
+    env_path = os.environ.get("CLAWGATE_DB_PATH", "").strip()
+    if env_path:
+        return env_path
+
+    # 2. Explicit config value – but reject ./clawgate.db* to prevent repo pollution
+    if configured:
+        p = configured.strip()
+        if p and not p.startswith("./clawgate.db") and p != "clawgate.db":
+            return p
+
+    # 3. XDG_DATA_HOME
+    xdg = os.environ.get("XDG_DATA_HOME", "").strip()
+    if xdg:
+        return str(Path(xdg) / "clawgate" / "clawgate.db")
+
+    # 4. ~/.local/share/clawgate/clawgate.db
+    return str(Path.home() / ".local" / "share" / "clawgate" / "clawgate.db")
+
+
 class Config:
     """Holds the parsed and expanded configuration."""
 
     def __init__(self, data: dict):
         self._data = data
 
-    # ── Accessors ──────────────────────────────────────────────
+    # ── Accessors ──────────────────────────────────────────────────────────
 
     @property
     def server(self) -> dict:
@@ -73,7 +118,13 @@ class Config:
 
     @property
     def metrics(self) -> dict:
-        return self._data.get("metrics", {"enabled": False})
+        raw = self._data.get("metrics", {"enabled": False})
+        # Patch in a safe DB path so callers never see ./clawgate.db
+        configured = raw.get("db_path") if isinstance(raw, dict) else None
+        safe = _safe_db_path(configured)
+        if isinstance(raw, dict):
+            return {**raw, "db_path": safe}
+        return {"enabled": False, "db_path": safe}
 
     def provider(self, name: str) -> dict | None:
         return self.providers.get(name)
