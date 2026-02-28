@@ -198,12 +198,17 @@ class ProviderBackend:
     ) -> dict:
         """Convert OpenAI format → Google GenAI format → back."""
 
-        # Convert messages to Google format
+        # Convert messages to Google format.
+        # Google rejects payloads where parts[*].text is null/None, so we
+        # coerce content=None (valid in OpenAI tool/assistant messages) → "".
         contents = []
         system_instruction = None
         for msg in messages:
             role = msg.get("role", "user")
-            text = msg.get("content", "")
+            text = msg.get("content") or ""  # coerce None → ""
+            if isinstance(text, list):
+                # Multimodal content array → flatten to plain text for Gemini
+                text = " ".join(part.get("text") or "" for part in text if isinstance(part, dict))
             if role == "system":
                 system_instruction = text
             elif role == "assistant":

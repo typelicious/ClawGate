@@ -54,7 +54,7 @@ CREATE INDEX IF NOT EXISTS idx_req_layer    ON requests(layer);
 class MetricsStore:
     """Synchronous SQLite store with cost tracking."""
 
-    def __init__(self, db_path: str = "./clawgate.db"):
+    def __init__(self, db_path: str = "/var/lib/clawgate/clawgate.db"):
         self._db_path = db_path
         self._conn: sqlite3.Connection | None = None
 

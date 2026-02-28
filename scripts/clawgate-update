@@ -2,25 +2,45 @@
 set -euo pipefail
 
 # update code from repo + restart service
-cd /opt/clawgate
-git fetch --all --prune
-git reset --hard origin/main
-git clean -fd
+#
+# Git operations run as the clawgate service user (owner of /opt/clawgate).
+# systemd operations require sudo.
+#
+# Usage:
+#   clawgate-update          # normal update from any user with sudo rights
+#   sudo -u clawgate bash -c '/opt/clawgate/scripts/clawgate-update'  # explicit
 
-# venv deps optional (nur wenn requirements / pyproject changed)
-if [ -f venv/bin/pip ]; then
-  venv/bin/pip install -U pip >/dev/null
-  if [ -f requirements.txt ]; then
-    venv/bin/pip install -r requirements.txt
+CLAWGATE_DIR=/opt/clawgate
+SERVICE_USER=clawgate
+
+# ── Git update ────────────────────────────────────────────────────────────────
+# Run as the service user so .git/ metadata stays owned correctly.
+if [ "$(id -un)" != "$SERVICE_USER" ] && command -v sudo >/dev/null 2>&1; then
+  GIT_CMD="sudo -u $SERVICE_USER"
+else
+  GIT_CMD=""
+fi
+
+$GIT_CMD git -C "$CLAWGATE_DIR" fetch --all --prune
+$GIT_CMD git -C "$CLAWGATE_DIR" reset --hard origin/main
+$GIT_CMD git -C "$CLAWGATE_DIR" clean -fd
+
+# ── venv deps (optional) ──────────────────────────────────────────────────────
+if [ -f "$CLAWGATE_DIR/venv/bin/pip" ]; then
+  $GIT_CMD "$CLAWGATE_DIR/venv/bin/pip" install -U pip >/dev/null
+  if [ -f "$CLAWGATE_DIR/requirements.txt" ]; then
+    $GIT_CMD "$CLAWGATE_DIR/venv/bin/pip" install -r "$CLAWGATE_DIR/requirements.txt"
   fi
 fi
 
-sudo install -m 644 clawgate.service /etc/systemd/system/clawgate.service
+# ── systemd ───────────────────────────────────────────────────────────────────
+sudo install -m 644 "$CLAWGATE_DIR/clawgate.service" /etc/systemd/system/clawgate.service
 sudo systemctl daemon-reload
 sudo systemctl restart clawgate.service
 
+# ── health check ──────────────────────────────────────────────────────────────
 for attempt in 1 2 3 4 5; do
-  if ./scripts/clawgate-health; then
+  if "$CLAWGATE_DIR/scripts/clawgate-health"; then
     exit 0
   fi
   sleep 2

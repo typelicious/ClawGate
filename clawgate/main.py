@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI):
     _router = Router(_config)
 
     # Metrics
-    _metrics = MetricsStore(db_path=_config.metrics.get("db_path", "./clawgate.db"))
+    _metrics = MetricsStore(db_path=_config.metrics["db_path"])
     if _config.metrics.get("enabled"):
         _metrics.init()
 
