@@ -64,17 +64,21 @@ class TestCostCalculation:
         # 80% cache hit should be cheaper
         no_cache = calc_cost(1000, 1000, {"input": 0.27, "output": 1.10})
         with_cache = calc_cost(
-            1000, 1000,
+            1000,
+            1000,
             {"input": 0.27, "output": 1.10, "cache_read": 0.07},
-            cache_hit=800, cache_miss=200,
+            cache_hit=800,
+            cache_miss=200,
         )
         assert with_cache < no_cache
 
     def test_100pct_cache_hit(self):
         cost = calc_cost(
-            1000, 0,
+            1000,
+            0,
             {"input": 0.27, "output": 1.10, "cache_read": 0.07},
-            cache_hit=1000, cache_miss=0,
+            cache_hit=1000,
+            cache_miss=0,
         )
         # Should use cache_read rate: 1000 * 0.07 / 1M
         assert abs(cost - 0.00007) < 0.000001

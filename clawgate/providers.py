@@ -41,8 +41,12 @@ class ProviderHealth:
         self.last_error = error
         if self.consecutive_failures >= max_failures:
             self.healthy = False
-            logger.warning("Provider %s marked unhealthy after %d failures: %s",
-                           self.name, self.consecutive_failures, error)
+            logger.warning(
+                "Provider %s marked unhealthy after %d failures: %s",
+                self.name,
+                self.consecutive_failures,
+                error,
+            )
 
     def to_dict(self) -> dict:
         return {
@@ -95,8 +99,11 @@ class ProviderBackend:
 
         if self.backend_type == "google-genai":
             return await self._complete_google(
-                messages, model=model, stream=stream,
-                temperature=temperature, max_tokens=max_tokens,
+                messages,
+                model=model,
+                stream=stream,
+                temperature=temperature,
+                max_tokens=max_tokens,
             )
 
         # OpenAI-compatible path (DeepSeek, OpenRouter, etc.)

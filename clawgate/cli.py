@@ -83,8 +83,10 @@ def _bar(ratio: float, width: int = 20, char: str = "█") -> str:
 def _table(headers: list[str], rows: list[list[str]], col_widths: list[int] | None = None):
     """Print a simple aligned table."""
     if not col_widths:
-        col_widths = [max(len(h), max((len(str(r[i])) for r in rows), default=0)) + 2
-                      for i, h in enumerate(headers)]
+        col_widths = [
+            max(len(h), max((len(str(r[i])) for r in rows), default=0)) + 2
+            for i, h in enumerate(headers)
+        ]
 
     # Header
     hdr = ""
@@ -102,6 +104,7 @@ def _table(headers: list[str], rows: list[list[str]], col_widths: list[int] | No
 
 
 # ── Commands ───────────────────────────────────────────────────
+
 
 def cmd_overview(metrics: MetricsStore):
     totals = metrics.get_totals()
@@ -122,13 +125,17 @@ def cmd_overview(metrics: MetricsStore):
     fl = totals.get("total_failures", 0) or 0
     al = totals.get("avg_latency_ms", 0) or 0
 
-    print(f"  {_c('Requests:', DIM)}  {_c(str(tr), BOLD)}     "
-          f"{_c('Cost:', DIM)}  {_usd(tc)}     "
-          f"{_c('Tokens:', DIM)}  {_tok(pt)} in / {_tok(ct)} out     "
-          f"{_c('Failures:', DIM)}  {_c(str(fl), RED if fl else DIM)}")
-    print(f"  {_c('Avg latency:', DIM)}  {_ms(al)}     "
-          f"{_c('First:', DIM)}  {_ago(totals.get('first_request'))}     "
-          f"{_c('Last:', DIM)}  {_ago(totals.get('last_request'))}")
+    print(
+        f"  {_c('Requests:', DIM)}  {_c(str(tr), BOLD)}     "
+        f"{_c('Cost:', DIM)}  {_usd(tc)}     "
+        f"{_c('Tokens:', DIM)}  {_tok(pt)} in / {_tok(ct)} out     "
+        f"{_c('Failures:', DIM)}  {_c(str(fl), RED if fl else DIM)}"
+    )
+    print(
+        f"  {_c('Avg latency:', DIM)}  {_ms(al)}     "
+        f"{_c('First:', DIM)}  {_ago(totals.get('first_request'))}     "
+        f"{_c('Last:', DIM)}  {_ago(totals.get('last_request'))}"
+    )
     print()
 
     # Provider breakdown
@@ -138,17 +145,22 @@ def cmd_overview(metrics: MetricsStore):
         rows = []
         for p in providers:
             ratio = p["requests"] / max_req if max_req else 0
-            rows.append([
-                _c(p["provider"], BOLD),
-                str(p["requests"]),
-                _tok(p.get("total_tokens", 0)),
-                _usd(p.get("cost_usd", 0)),
-                str(p.get("failures", 0)),
-                _ms(p.get("avg_latency_ms", 0)),
-                _bar(ratio, 15),
-            ])
-        _table(["Provider", "Reqs", "Tokens", "Cost", "Fail", "Latency", "Share"],
-               rows, [22, 8, 10, 12, 6, 10, 18])
+            rows.append(
+                [
+                    _c(p["provider"], BOLD),
+                    str(p["requests"]),
+                    _tok(p.get("total_tokens", 0)),
+                    _usd(p.get("cost_usd", 0)),
+                    str(p.get("failures", 0)),
+                    _ms(p.get("avg_latency_ms", 0)),
+                    _bar(ratio, 15),
+                ]
+            )
+        _table(
+            ["Provider", "Reqs", "Tokens", "Cost", "Fail", "Latency", "Share"],
+            rows,
+            [22, 8, 10, 12, 6, 10, 18],
+        )
         print()
 
     # Routing breakdown
@@ -157,18 +169,22 @@ def cmd_overview(metrics: MetricsStore):
         rows = []
         for r in routing[:12]:
             layer_color = {
-                "static": MAGENTA, "heuristic": GREEN,
-                "direct": YELLOW, "llm-classify": CYAN, "fallback": RED,
+                "static": MAGENTA,
+                "heuristic": GREEN,
+                "direct": YELLOW,
+                "llm-classify": CYAN,
+                "fallback": RED,
             }.get(r["layer"], WHITE)
-            rows.append([
-                _c(r["layer"], layer_color),
-                r["rule_name"],
-                r["provider"],
-                str(r["requests"]),
-                _usd(r.get("cost_usd", 0)),
-            ])
-        _table(["Layer", "Rule", "Provider", "Reqs", "Cost"],
-               rows, [14, 24, 22, 8, 12])
+            rows.append(
+                [
+                    _c(r["layer"], layer_color),
+                    r["rule_name"],
+                    r["provider"],
+                    str(r["requests"]),
+                    _usd(r.get("cost_usd", 0)),
+                ]
+            )
+        _table(["Layer", "Rule", "Provider", "Reqs", "Cost"], rows, [14, 24, 22, 8, 12])
         print()
 
 
@@ -183,18 +199,23 @@ def cmd_recent(metrics: MetricsStore, limit: int):
     rows = []
     for r in recent:
         ok = "✓" if r.get("success") else _c("✗", RED)
-        rows.append([
-            _ago(r.get("timestamp")),
-            r.get("provider", ""),
-            r.get("layer", ""),
-            r.get("rule_name", ""),
-            _tok((r.get("prompt_tok", 0) or 0) + (r.get("compl_tok", 0) or 0)),
-            _usd(r.get("cost_usd", 0)),
-            _ms(r.get("latency_ms", 0)),
-            ok,
-        ])
-    _table(["When", "Provider", "Layer", "Rule", "Tokens", "Cost", "Latency", "OK"],
-           rows, [12, 20, 12, 20, 8, 12, 10, 4])
+        rows.append(
+            [
+                _ago(r.get("timestamp")),
+                r.get("provider", ""),
+                r.get("layer", ""),
+                r.get("rule_name", ""),
+                _tok((r.get("prompt_tok", 0) or 0) + (r.get("compl_tok", 0) or 0)),
+                _usd(r.get("cost_usd", 0)),
+                _ms(r.get("latency_ms", 0)),
+                ok,
+            ]
+        )
+    _table(
+        ["When", "Provider", "Layer", "Rule", "Tokens", "Cost", "Latency", "OK"],
+        rows,
+        [12, 20, 12, 20, 8, 12, 10, 4],
+    )
     print()
 
 
@@ -211,27 +232,31 @@ def cmd_daily(metrics: MetricsStore, days: int):
     for d in daily:
         cost = d.get("cost_usd", 0) or 0
         ratio = cost / max_cost if max_cost else 0
-        rows.append([
-            d.get("day", ""),
-            str(d.get("requests", 0)),
-            _tok(d.get("tokens", 0)),
-            _usd(cost),
-            str(d.get("failures", 0)),
-            _bar(ratio, 20),
-        ])
-    _table(["Day", "Reqs", "Tokens", "Cost", "Fail", "Cost Bar"],
-           rows, [14, 8, 10, 12, 6, 24])
+        rows.append(
+            [
+                d.get("day", ""),
+                str(d.get("requests", 0)),
+                _tok(d.get("tokens", 0)),
+                _usd(cost),
+                str(d.get("failures", 0)),
+                _bar(ratio, 20),
+            ]
+        )
+    _table(["Day", "Reqs", "Tokens", "Cost", "Fail", "Cost Bar"], rows, [14, 8, 10, 12, 6, 24])
 
     total_cost = sum((d.get("cost_usd", 0) or 0) for d in daily)
     avg_daily = total_cost / len(daily) if daily else 0
     print()
-    print(f"  {_c('Total:', DIM)} {_usd(total_cost)}   "
-          f"{_c('Avg/day:', DIM)} {_usd(avg_daily)}   "
-          f"{_c('Projected/month:', DIM)} {_usd(avg_daily * 30)}")
+    print(
+        f"  {_c('Total:', DIM)} {_usd(total_cost)}   "
+        f"{_c('Avg/day:', DIM)} {_usd(avg_daily)}   "
+        f"{_c('Projected/month:', DIM)} {_usd(avg_daily * 30)}"
+    )
     print()
 
 
 # ── Main ───────────────────────────────────────────────────────
+
 
 def main():
     parser = argparse.ArgumentParser(

@@ -17,10 +17,10 @@ class RoutingDecision:
     """Result of the routing process."""
 
     provider_name: str
-    layer: str          # "static", "heuristic", "llm-classify", "fallback"
-    rule_name: str      # Which rule matched
-    confidence: float   # 0.0–1.0
-    reason: str         # Human-readable explanation
+    layer: str  # "static", "heuristic", "llm-classify", "fallback"
+    rule_name: str  # Which rule matched
+    confidence: float  # 0.0–1.0
+    reason: str  # Human-readable explanation
     elapsed_ms: float = 0.0
 
     def to_dict(self) -> dict:
@@ -49,9 +49,7 @@ def _extract_text(messages: list[dict]) -> tuple[str, str, str]:
         content = msg.get("content", "")
         if isinstance(content, list):
             # Handle multimodal content arrays
-            content = " ".join(
-                p.get("text", "") for p in content if isinstance(p, dict)
-            )
+            content = " ".join(p.get("text", "") for p in content if isinstance(p, dict))
         if role == "system":
             system = content
         elif role == "user":
@@ -117,11 +115,7 @@ class Router:
 
         # Fallback: first healthy provider in the chain
         elapsed = (time.time() - t0) * 1000
-        fallback = (
-            self.config.fallback_chain[0]
-            if self.config.fallback_chain
-            else "deepseek-chat"
-        )
+        fallback = self.config.fallback_chain[0] if self.config.fallback_chain else "deepseek-chat"
         return RoutingDecision(
             provider_name=fallback,
             layer="fallback",
@@ -304,9 +298,15 @@ class _RoutingContext:
     """Bundle of extracted request features for routing."""
 
     __slots__ = (
-        "system_prompt", "last_user_message", "full_text",
-        "total_tokens", "model_requested", "has_tools",
-        "headers", "provider_health", "_classify_fn",
+        "system_prompt",
+        "last_user_message",
+        "full_text",
+        "total_tokens",
+        "model_requested",
+        "has_tools",
+        "headers",
+        "provider_health",
+        "_classify_fn",
     )
 
     def __init__(self, **kwargs: Any):
