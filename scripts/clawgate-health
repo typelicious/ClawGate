@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+URL="${URL:-http://127.0.0.1:8090/health}"
+
+for i in $(seq 1 40); do
+  if curl -fsS -m 1 "$URL" >/dev/null 2>&1; then
+    echo "OK: $URL"
+    curl -fsS -m 1 "$URL" | head -c 800; echo
+    exit 0
+  fi
+  sleep 0.25
+done
+
+echo "NOT OK: $URL"
+exit 1

@@ -1,33 +1,25 @@
 # Python
 __pycache__/
-*.py[cod]
-*.egg-info/
-dist/
-build/
-*.egg
-.venv/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual env
 venv/
+.venv/
 
-# Environment
-.env
-
-# Database
+# Local runtime / artifacts
 *.db
-*.db-wal
-*.db-shm
+*.sqlite*
+*.sqlite3
+clawgate.db*
+*.log
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+# Secrets / local config
+.env
+.env.*
+*.key
+*.pem
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
+# Never commit SSH
+.ssh/

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CG_DIR="${CG_DIR:-/opt/clawgate}"
+CG_VENV="${CG_VENV:-${CG_DIR}/venv}"
+
+sudo -v
+sudo systemctl stop clawgate.service || true
+
+cd "$CG_DIR"
+git pull --ff-only
+
+source "${CG_VENV}/bin/activate"
+python -m pip install -U pip
+[ -f requirements.txt ] && pip install -r requirements.txt
+
+sudo systemctl start clawgate.service

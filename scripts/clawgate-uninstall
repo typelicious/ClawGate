@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+sudo -v
+
+sudo systemctl disable --now clawgate.service || true
+sudo systemctl reset-failed clawgate.service || true
+sudo rm -f /etc/systemd/system/clawgate.service
+sudo systemctl daemon-reload
+
+echo "OK: clawgate.service removed. Data kept in /opt/clawgate and /var/lib/clawgate"

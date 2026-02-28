@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+N="${N:-200}"
+sudo journalctl -u clawgate.service -n "$N" --no-pager -o cat
