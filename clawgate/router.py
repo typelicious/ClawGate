@@ -40,16 +40,20 @@ def _estimate_tokens(text: str) -> int:
 
 
 def _extract_text(messages: list[dict]) -> tuple[str, str, str]:
-    """Extract system prompt, last user message, and full conversation text."""
+    """Extract system prompt, last user message, and full conversation text.
+
+    Handles content=None (valid in OpenAI tool/assistant messages) by treating
+    it as an empty string so downstream str operations never receive NoneType.
+    """
     system = ""
     last_user = ""
     full = []
     for msg in messages:
         role = msg.get("role", "")
-        content = msg.get("content", "")
+        content = msg.get("content") or ""  # coerce None → ""
         if isinstance(content, list):
-            # Handle multimodal content arrays
-            content = " ".join(p.get("text", "") for p in content if isinstance(p, dict))
+            # Handle multimodal content arrays; parts may also have None text
+            content = " ".join(p.get("text") or "" for p in content if isinstance(p, dict))
         if role == "system":
             system = content
         elif role == "user":

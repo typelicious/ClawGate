@@ -234,3 +234,63 @@ class TestHealthFallback:
         # Should fall through to next healthy provider
         assert d.provider_name != "deepseek-reasoner"
         assert "fallback" in d.rule_name
+
+
+# ── Regression: content=None handling (GitHub: fix/runtime-bugs) ──────────────
+
+
+class TestNoneContentHandling:
+    """Regression tests for TypeError: sequence item N: expected str, NoneType.
+
+    The OpenAI spec allows content=null on tool/assistant messages.
+    ClawGate must not crash when these arrive in the messages array.
+    """
+
+    @pytest.mark.asyncio
+    async def test_null_system_content(self, router):
+        """content=null on a system message must not raise TypeError."""
+        d = await router.route(
+            [
+                {"role": "system", "content": None},
+                {"role": "user", "content": "ping"},
+            ],
+            model_requested="auto",
+        )
+        assert d.provider_name  # any provider is fine — just must not crash
+
+    @pytest.mark.asyncio
+    async def test_null_assistant_content(self, router):
+        """content=null on an assistant message (tool-call turn) must not raise TypeError."""
+        d = await router.route(
+            [
+                {"role": "user", "content": "call the tool"},
+                {"role": "assistant", "content": None, "tool_calls": [{"id": "x"}]},
+                {"role": "tool", "content": "result", "tool_call_id": "x"},
+                {"role": "user", "content": "ok now answer"},
+            ],
+            model_requested="auto",
+        )
+        assert d.provider_name
+
+    @pytest.mark.asyncio
+    async def test_null_user_content(self, router):
+        """content=null on the user message itself must not raise TypeError."""
+        d = await router.route(
+            [{"role": "user", "content": None}],
+            model_requested="auto",
+        )
+        assert d.provider_name
+
+    @pytest.mark.asyncio
+    async def test_mixed_null_and_real_content(self, router):
+        """Mixed None and real content in the same messages list."""
+        d = await router.route(
+            [
+                {"role": "system", "content": None},
+                {"role": "user", "content": "Prove this theorem step by step"},
+                {"role": "assistant", "content": None},
+                {"role": "user", "content": "continue"},
+            ],
+            model_requested="auto",
+        )
+        assert d.provider_name
