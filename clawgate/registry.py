@@ -34,16 +34,16 @@ from typing import TypedDict
 
 
 class ProviderDef(TypedDict, total=False):
-    backend: str            # "openai-compat" | "anthropic-compat" | "google-genai"
-    base_url: str           # Default base URL (may be overridden by env var)
-    base_url_env: str       # Env var that overrides base_url (optional)
-    api_key_env: str        # Primary env var for the API key
-    api_key_env_alt: str    # Fallback env var (e.g. GOOGLE_API_KEY as fallback)
-    auth_optional: bool     # True = no key required (local servers)
-    tier: str               # "default" | "reasoning" | "cheap" | "mid" | "fallback" | "local"
-    example_model: str      # Suggested default model id
-    pricing: dict           # {"input": float, "output": float, "cache_read": float}
-    notes: str              # One-liner description
+    backend: str  # "openai-compat" | "anthropic-compat" | "google-genai"
+    base_url: str  # Default base URL (may be overridden by env var)
+    base_url_env: str  # Env var that overrides base_url (optional)
+    api_key_env: str  # Primary env var for the API key
+    api_key_env_alt: str  # Fallback env var (e.g. GOOGLE_API_KEY as fallback)
+    auth_optional: bool  # True = no key required (local servers)
+    tier: str  # "default" | "reasoning" | "cheap" | "mid" | "fallback" | "local"
+    example_model: str  # Suggested default model id
+    pricing: dict  # {"input": float, "output": float, "cache_read": float}
+    notes: str  # One-liner description
 
 
 # ---------------------------------------------------------------------------
@@ -62,7 +62,6 @@ BUILTIN: dict[str, ProviderDef] = {
         pricing={"input": 2.50, "output": 10.00, "cache_read": 1.25},
         notes="OpenAI – GPT-4o, GPT-4.1 series",
     ),
-
     # ── Anthropic ──────────────────────────────────────────────────────────
     "anthropic": ProviderDef(
         backend="anthropic-compat",
@@ -74,21 +73,19 @@ BUILTIN: dict[str, ProviderDef] = {
         pricing={"input": 15.00, "output": 75.00, "cache_read": 1.50},
         notes="Anthropic – Claude Opus/Sonnet/Haiku",
     ),
-
     # ── OpenAI Code / Codex (OAuth via ChatGPT) ────────────────────────────
     # Auth is OAuth-based; users must run: openclaw models auth login --provider openai-codex
     # No static API key env var. Documented only.
     "openai-codex": ProviderDef(
         backend="openai-compat",
         base_url="https://api.openai.com/v1",
-        api_key_env="OPENAI_CODEX_TOKEN",   # token injected after OAuth login
+        api_key_env="OPENAI_CODEX_TOKEN",  # token injected after OAuth login
         auth_optional=True,
         tier="default",
         example_model="openai-codex/gpt-5.3-codex",
         pricing={"input": 0.0, "output": 0.0},
         notes="OpenAI Codex (OAuth via ChatGPT) – requires interactive login",
     ),
-
     # ── OpenCode Zen ───────────────────────────────────────────────────────
     "opencode": ProviderDef(
         backend="anthropic-compat",
@@ -100,7 +97,6 @@ BUILTIN: dict[str, ProviderDef] = {
         pricing={"input": 0.0, "output": 0.0},
         notes="OpenCode Zen – Anthropic-compatible gateway",
     ),
-
     # ── Google Gemini (API key) ────────────────────────────────────────────
     "google": ProviderDef(
         backend="google-genai",
@@ -113,7 +109,6 @@ BUILTIN: dict[str, ProviderDef] = {
         pricing={"input": 0.15, "output": 0.60, "cache_read": 0.04},
         notes="Google Gemini via API key – Flash / Pro / Flash-Lite",
     ),
-
     # ── Z.AI / GLM ────────────────────────────────────────────────────────
     "zai": ProviderDef(
         backend="openai-compat",
@@ -125,7 +120,6 @@ BUILTIN: dict[str, ProviderDef] = {
         pricing={"input": 0.0, "output": 0.0},
         notes="Z.AI / GLM models (aliases: z.ai/*, z-ai/*)",
     ),
-
     # ── Vercel AI Gateway ─────────────────────────────────────────────────
     "vercel-ai-gateway": ProviderDef(
         backend="openai-compat",
@@ -137,7 +131,6 @@ BUILTIN: dict[str, ProviderDef] = {
         pricing={"input": 0.0, "output": 0.0},
         notes="Vercel AI Gateway – multi-model proxy",
     ),
-
     # ── Kilo Gateway ──────────────────────────────────────────────────────
     "kilocode": ProviderDef(
         backend="openai-compat",
@@ -149,7 +142,6 @@ BUILTIN: dict[str, ProviderDef] = {
         pricing={"input": 0.0, "output": 0.0},
         notes="Kilo Gateway – expanded catalog incl. GLM-5, MiniMax, Kimi K2.5",
     ),
-
     # ── OpenRouter ────────────────────────────────────────────────────────
     "openrouter": ProviderDef(
         backend="openai-compat",
@@ -161,7 +153,6 @@ BUILTIN: dict[str, ProviderDef] = {
         pricing={"input": 0.27, "output": 1.10},
         notes="OpenRouter – unified API to many providers",
     ),
-
     # ── xAI / Grok ────────────────────────────────────────────────────────
     "xai": ProviderDef(
         backend="openai-compat",
@@ -173,7 +164,6 @@ BUILTIN: dict[str, ProviderDef] = {
         pricing={"input": 3.00, "output": 15.00},
         notes="xAI / Grok models",
     ),
-
     # ── Mistral ───────────────────────────────────────────────────────────
     "mistral": ProviderDef(
         backend="openai-compat",
@@ -185,7 +175,6 @@ BUILTIN: dict[str, ProviderDef] = {
         pricing={"input": 2.00, "output": 6.00},
         notes="Mistral AI – Mistral Large, Codestral, etc.",
     ),
-
     # ── Groq ──────────────────────────────────────────────────────────────
     "groq": ProviderDef(
         backend="openai-compat",
@@ -197,7 +186,6 @@ BUILTIN: dict[str, ProviderDef] = {
         pricing={"input": 0.05, "output": 0.10},
         notes="Groq – ultra-fast inference (LPU), Llama / DeepSeek",
     ),
-
     # ── Cerebras ──────────────────────────────────────────────────────────
     "cerebras": ProviderDef(
         backend="openai-compat",
@@ -209,7 +197,6 @@ BUILTIN: dict[str, ProviderDef] = {
         pricing={"input": 0.10, "output": 0.10},
         notes="Cerebras – fast inference, zai-glm-4.7 / zai-glm-4.6 compatible",
     ),
-
     # ── GitHub Copilot ────────────────────────────────────────────────────
     # Auth via GitHub token (COPILOT_GITHUB_TOKEN / GH_TOKEN / GITHUB_TOKEN)
     "github-copilot": ProviderDef(
@@ -224,7 +211,6 @@ BUILTIN: dict[str, ProviderDef] = {
         pricing={"input": 0.0, "output": 0.0},
         notes="GitHub Copilot – requires GH_TOKEN / COPILOT_GITHUB_TOKEN",
     ),
-
     # ── Hugging Face Inference ────────────────────────────────────────────
     "huggingface": ProviderDef(
         backend="openai-compat",
@@ -254,9 +240,11 @@ CUSTOM: dict[str, ProviderDef] = {
         tier="default",
         example_model="moonshot/kimi-k2.5",
         pricing={"input": 0.0, "output": 0.0},
-        notes="Moonshot AI / Kimi – OpenAI-compat; models: kimi-k2.5, kimi-k2-0905-preview, kimi-k2-turbo-preview, kimi-k2-thinking, kimi-k2-thinking-turbo",
+        notes=(
+            "Moonshot AI / Kimi – OpenAI-compat; models: kimi-k2.5, kimi-k2-0905-preview,"
+            " kimi-k2-turbo-preview, kimi-k2-thinking, kimi-k2-thinking-turbo"
+        ),
     ),
-
     # ── Kimi Coding ───────────────────────────────────────────────────────
     # Uses Moonshot's Anthropic-compatible endpoint
     "kimi-coding": ProviderDef(
@@ -269,7 +257,6 @@ CUSTOM: dict[str, ProviderDef] = {
         pricing={"input": 0.0, "output": 0.0},
         notes="Kimi Coding – Anthropic-compat endpoint via Moonshot",
     ),
-
     # ── Volcano Engine / Doubao (China) ───────────────────────────────────
     "volcengine": ProviderDef(
         backend="openai-compat",
@@ -281,7 +268,6 @@ CUSTOM: dict[str, ProviderDef] = {
         pricing={"input": 0.0, "output": 0.0},
         notes="Volcano Engine – Doubao, Kimi K2.5, GLM 4.7, DeepSeek V3.2 (CN)",
     ),
-
     # ── Volcano Engine plan (coding models) ───────────────────────────────
     "volcengine-plan": ProviderDef(
         backend="openai-compat",
@@ -291,9 +277,11 @@ CUSTOM: dict[str, ProviderDef] = {
         tier="default",
         example_model="volcengine-plan/ark-code-latest",
         pricing={"input": 0.0, "output": 0.0},
-        notes="Volcano Engine – coding models (ark-code-latest, doubao-seed-code, kimi-k2.5, kimi-k2-thinking, glm-4.7)",
+        notes=(
+            "Volcano Engine – coding models"
+            " (ark-code-latest, doubao-seed-code, kimi-k2.5, kimi-k2-thinking, glm-4.7)"
+        ),
     ),
-
     # ── BytePlus (international equivalent of Volcano Engine) ─────────────
     "byteplus": ProviderDef(
         backend="openai-compat",
@@ -305,7 +293,6 @@ CUSTOM: dict[str, ProviderDef] = {
         pricing={"input": 0.0, "output": 0.0},
         notes="BytePlus ARK – international access to Volcano Engine models",
     ),
-
     # ── BytePlus plan (coding models) ─────────────────────────────────────
     "byteplus-plan": ProviderDef(
         backend="openai-compat",
@@ -315,9 +302,11 @@ CUSTOM: dict[str, ProviderDef] = {
         tier="default",
         example_model="byteplus-plan/ark-code-latest",
         pricing={"input": 0.0, "output": 0.0},
-        notes="BytePlus ARK – coding models (ark-code-latest, doubao-seed-code, kimi-k2.5, kimi-k2-thinking, glm-4.7)",
+        notes=(
+            "BytePlus ARK – coding models"
+            " (ark-code-latest, doubao-seed-code, kimi-k2.5, kimi-k2-thinking, glm-4.7)"
+        ),
     ),
-
     # ── Synthetic ─────────────────────────────────────────────────────────
     "synthetic": ProviderDef(
         backend="anthropic-compat",
@@ -329,7 +318,6 @@ CUSTOM: dict[str, ProviderDef] = {
         pricing={"input": 0.0, "output": 0.0},
         notes="Synthetic – Anthropic-compat; exposes HuggingFace models (MiniMax, etc.)",
     ),
-
     # ── MiniMax ───────────────────────────────────────────────────────────
     "minimax": ProviderDef(
         backend="anthropic-compat",
@@ -361,7 +349,6 @@ LOCAL: dict[str, ProviderDef] = {
         pricing={"input": 0.0, "output": 0.0},
         notes="Ollama – local LLM runtime, OpenAI-compat at :11434",
     ),
-
     # ── vLLM ──────────────────────────────────────────────────────────────
     "vllm": ProviderDef(
         backend="openai-compat",
@@ -374,7 +361,6 @@ LOCAL: dict[str, ProviderDef] = {
         pricing={"input": 0.0, "output": 0.0},
         notes="vLLM – local/self-hosted OpenAI-compat server at :8000",
     ),
-
     # ── LM Studio ─────────────────────────────────────────────────────────
     "lmstudio": ProviderDef(
         backend="openai-compat",
@@ -387,7 +373,6 @@ LOCAL: dict[str, ProviderDef] = {
         pricing={"input": 0.0, "output": 0.0},
         notes="LM Studio – local OpenAI-compat server at :1234",
     ),
-
     # ── LiteLLM proxy ─────────────────────────────────────────────────────
     "litellm": ProviderDef(
         backend="openai-compat",
@@ -422,7 +407,6 @@ OAUTH: dict[str, ProviderDef] = {
         pricing={"input": 0.0, "output": 0.0},
         notes="Google Vertex AI – uses gcloud ADC; interactive setup required",
     ),
-
     # ── Qwen OAuth (free tier) ────────────────────────────────────────────
     "qwen-portal": ProviderDef(
         backend="openai-compat",
@@ -432,7 +416,10 @@ OAUTH: dict[str, ProviderDef] = {
         tier="default",
         example_model="qwen-portal/coder-model",
         pricing={"input": 0.0, "output": 0.0},
-        notes="Qwen OAuth (free tier) – device-code flow; requires: openclaw plugins enable qwen-portal-auth",
+        notes=(
+            "Qwen OAuth (free tier) – device-code flow;"
+            " requires: openclaw plugins enable qwen-portal-auth"
+        ),
     ),
 }
 
