@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CG_DIR="${CG_DIR:-/opt/clawgate}"
-CG_VENV="${CG_VENV:-${CG_DIR}/venv}"
+# update code from repo + restart service
+cd /opt/clawgate
+git fetch --all --prune
+git reset --hard origin/main
+git clean -fd
 
-sudo -v
-sudo systemctl stop clawgate.service || true
+# venv deps optional (nur wenn requirements / pyproject changed)
+if [ -f venv/bin/pip ]; then
+  venv/bin/pip install -U pip >/dev/null
+  if [ -f requirements.txt ]; then
+    venv/bin/pip install -r requirements.txt
+  fi
+fi
 
-cd "$CG_DIR"
-git pull --ff-only
-
-source "${CG_VENV}/bin/activate"
-python -m pip install -U pip
-[ -f requirements.txt ] && pip install -r requirements.txt
-
-sudo systemctl start clawgate.service
+sudo systemctl restart clawgate.service
+./scripts/clawgate-health
