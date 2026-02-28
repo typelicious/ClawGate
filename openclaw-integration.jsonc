@@ -1,12 +1,12 @@
 // OpenClaw Integration – ClawGate
 // =========================================
 //
-// Füge diesen Block in deine ~/.openclaw/openclaw.json ein.
+// Add this block to your ~/.openclaw/openclaw.json.
 //
-// Option A: ClawGate als einziger Provider (empfohlen)
-// -------------------------------------------------
-// Der Dispatcher übernimmt alles: Routing, Fallback, Modellauswahl.
-// OpenClaw sieht nur einen Provider.
+// Option A: ClawGate as your primary provider (recommended)
+// ---------------------------------------------------------
+// ClawGate handles routing, fallback, and model selection.
+// OpenClaw only needs to talk to one provider entry.
 
 {
   "models": {
@@ -89,15 +89,14 @@
   }
 }
 
+// Option B: ClawGate alongside direct providers
+// ---------------------------------------------
+// Use ClawGate for auto-routing while keeping direct providers
+// available for manual overrides.
 
-// Option B: ClawGate als zusätzlicher Provider neben Direkt-Providern
-// ---------------------------------------------------------------
-// Nutze ClawGate für auto-routing, behalte aber auch direkte Provider
-// als manuelle Override-Möglichkeit.
-
-// In "models.providers" zusätzlich:
-//   "clawgate": { ... wie oben ... }
+// Add this to "models.providers":
+//   "clawgate": { ... same as above ... }
 //
-// In "agents.defaults.model":
+// Then set "agents.defaults.model":
 //   "primary": "clawgate/auto",
 //   "fallbacks": ["deepseek/deepseek-chat", "google/gemini-2.5-flash"]
