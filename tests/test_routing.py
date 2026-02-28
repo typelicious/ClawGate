@@ -1,6 +1,7 @@
 """Tests for ClawGate routing engine and cost calculation."""
 
-import asyncio
+# ruff: noqa: E402
+
 import sys
 import types
 from pathlib import Path
@@ -147,7 +148,12 @@ class TestHeuristicRouting:
     @pytest.mark.asyncio
     async def test_complex_code(self, router):
         d = await router.route(
-            [{"role": "user", "content": "debug this race condition and refactor the architecture"}],
+            [
+                {
+                    "role": "user",
+                    "content": "debug this race condition and refactor the architecture",
+                }
+            ],
             model_requested="auto",
         )
         assert d.provider_name == "deepseek-reasoner"
@@ -192,7 +198,13 @@ class TestHeuristicRouting:
         """Critical: system prompt keywords must NOT trigger reasoning tier."""
         d = await router.route(
             [
-                {"role": "system", "content": "You are expert at proving theorems step by step with complex reasoning and debugging race conditions"},
+                {
+                    "role": "system",
+                    "content": (
+                        "You are expert at proving theorems step by step with "
+                        "complex reasoning and debugging race conditions"
+                    ),
+                },
                 {"role": "user", "content": "find my file"},
             ],
             model_requested="auto",

@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import time
 import logging
 import sqlite3
-from typing import Any
+import time
 
 logger = logging.getLogger("clawgate.metrics")
 

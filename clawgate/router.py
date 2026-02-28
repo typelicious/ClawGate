@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import re
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -118,8 +117,13 @@ class Router:
 
         # Fallback: first healthy provider in the chain
         elapsed = (time.time() - t0) * 1000
+        fallback = (
+            self.config.fallback_chain[0]
+            if self.config.fallback_chain
+            else "deepseek-chat"
+        )
         return RoutingDecision(
-            provider_name=self.config.fallback_chain[0] if self.config.fallback_chain else "deepseek-chat",
+            provider_name=fallback,
             layer="fallback",
             rule_name="no-match",
             confidence=0.3,

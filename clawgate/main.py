@@ -4,20 +4,20 @@ OpenAI-compatible /v1/chat/completions proxy that routes requests
 through a 3-layer classification engine to the optimal provider.
 """
 
+# ruff: noqa: E501
+
 from __future__ import annotations
 
 import logging
-import time
 from contextlib import asynccontextmanager
-from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, StreamingResponse, HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
-from .config import load_config, Config
+from .config import Config, load_config
+from .metrics import MetricsStore, calc_cost
 from .providers import ProviderBackend, ProviderError
 from .router import Router, RoutingDecision
-from .metrics import MetricsStore
 
 logger = logging.getLogger("clawgate")
 
@@ -225,8 +225,8 @@ async def chat_completions(request: Request):
                 ct = usage.get("completion_tokens", 0)
                 ch = cg.get("cache_hit_tokens", 0)
                 cm = cg.get("cache_miss_tokens", 0)
-                pricing = _config.provider(provider_name).get("pricing", {}) if _config.provider(provider_name) else {}
-                from .metrics import calc_cost
+                provider_cfg = _config.provider(provider_name)
+                pricing = provider_cfg.get("pricing", {}) if provider_cfg else {}
                 cost = calc_cost(pt, ct, pricing, cache_hit=ch, cache_miss=cm)
                 _metrics.log_request(
                     provider=provider_name,
