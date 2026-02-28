@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
-import time
 import logging
 import sqlite3
-from typing import Any
+import time
 
 logger = logging.getLogger("clawgate.metrics")
 
 
-def calc_cost(prompt_tokens: int, completion_tokens: int, pricing: dict,
-              cache_hit: int = 0, cache_miss: int = 0) -> float:
+def calc_cost(
+    prompt_tokens: int,
+    completion_tokens: int,
+    pricing: dict,
+    cache_hit: int = 0,
+    cache_miss: int = 0,
+) -> float:
     """Calculate USD cost. If cache_hit/miss provided, use cache pricing."""
     out = pricing.get("output", 0)
     if cache_hit or cache_miss:
@@ -90,10 +94,21 @@ class MetricsStore:
                     prompt_tok,compl_tok,cache_hit,cache_miss,
                     cost_usd,latency_ms,success,error)
                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (time.time(), provider, model, layer, rule_name,
-                 prompt_tokens, completion_tokens, cache_hit, cache_miss,
-                 cost_usd, latency_ms,
-                 1 if success else 0, error),
+                (
+                    time.time(),
+                    provider,
+                    model,
+                    layer,
+                    rule_name,
+                    prompt_tokens,
+                    completion_tokens,
+                    cache_hit,
+                    cache_miss,
+                    cost_usd,
+                    latency_ms,
+                    1 if success else 0,
+                    error,
+                ),
             )
             self._conn.commit()
         except Exception as e:
@@ -129,18 +144,22 @@ class MetricsStore:
 
     def get_hourly_series(self, hours: int = 24) -> list[dict]:
         cutoff = time.time() - hours * 3600
-        return self._q("""
+        return self._q(
+            """
             SELECT CAST((timestamp-?)/3600 AS INTEGER) AS hour_offset,
                 COUNT(*)                    AS requests,
                 ROUND(SUM(cost_usd),6)      AS cost_usd,
                 SUM(prompt_tok+compl_tok)    AS tokens
             FROM requests WHERE timestamp>=?
             GROUP BY hour_offset ORDER BY hour_offset
-        """, (cutoff, cutoff))
+        """,
+            (cutoff, cutoff),
+        )
 
     def get_daily_totals(self, days: int = 30) -> list[dict]:
         cutoff = time.time() - days * 86400
-        return self._q("""
+        return self._q(
+            """
             SELECT DATE(timestamp,'unixepoch','localtime') AS day,
                 COUNT(*)                                    AS requests,
                 ROUND(SUM(cost_usd),6)                      AS cost_usd,
@@ -148,11 +167,12 @@ class MetricsStore:
                 SUM(CASE WHEN success=0 THEN 1 ELSE 0 END)  AS failures
             FROM requests WHERE timestamp>=?
             GROUP BY day ORDER BY day
-        """, (cutoff,))
+        """,
+            (cutoff,),
+        )
 
     def get_recent(self, limit: int = 50) -> list[dict]:
-        return self._q(
-            "SELECT * FROM requests ORDER BY timestamp DESC LIMIT ?", (limit,))
+        return self._q("SELECT * FROM requests ORDER BY timestamp DESC LIMIT ?", (limit,))
 
     def get_totals(self) -> dict:
         rows = self._q("""

@@ -4,20 +4,20 @@ OpenAI-compatible /v1/chat/completions proxy that routes requests
 through a 3-layer classification engine to the optimal provider.
 """
 
+# ruff: noqa: E501
+
 from __future__ import annotations
 
 import logging
-import time
 from contextlib import asynccontextmanager
-from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, StreamingResponse, HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
-from .config import load_config, Config
+from .config import Config, load_config
+from .metrics import MetricsStore, calc_cost
 from .providers import ProviderBackend, ProviderError
 from .router import Router, RoutingDecision
-from .metrics import MetricsStore
 
 logger = logging.getLogger("clawgate")
 
@@ -57,9 +57,11 @@ async def lifespan(app: FastAPI):
     if _config.metrics.get("enabled"):
         _metrics.init()
 
-    logger.info("ClawGate ready on %s:%s",
-                _config.server.get("host", "127.0.0.1"),
-                _config.server.get("port", 8090))
+    logger.info(
+        "ClawGate ready on %s:%s",
+        _config.server.get("host", "127.0.0.1"),
+        _config.server.get("port", 8090),
+    )
 
     yield
 
@@ -80,13 +82,12 @@ app = FastAPI(
 
 # ── Health / Info endpoints ────────────────────────────────────
 
+
 @app.get("/health")
 async def health():
     return {
         "status": "ok",
-        "providers": {
-            name: p.health.to_dict() for name, p in _providers.items()
-        },
+        "providers": {name: p.health.to_dict() for name, p in _providers.items()},
     }
 
 
@@ -95,19 +96,23 @@ async def list_models():
     """OpenAI-compatible model listing."""
     models = []
     # Expose a virtual "auto" model + each real provider
-    models.append({
-        "id": "auto",
-        "object": "model",
-        "owned_by": "clawgate",
-        "description": "Auto-routed to optimal provider",
-    })
-    for name, p in _providers.items():
-        models.append({
-            "id": name,
+    models.append(
+        {
+            "id": "auto",
             "object": "model",
-            "owned_by": p.backend_type,
-            "description": f"{p.model} ({p.tier})",
-        })
+            "owned_by": "clawgate",
+            "description": "Auto-routed to optimal provider",
+        }
+    )
+    for name, p in _providers.items():
+        models.append(
+            {
+                "id": name,
+                "object": "model",
+                "owned_by": p.backend_type,
+                "description": f"{p.model} ({p.tier})",
+            }
+        )
     return {"object": "list", "data": models}
 
 
@@ -137,6 +142,7 @@ async def dashboard():
 
 # ── Main completion endpoint ───────────────────────────────────
 
+
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request):
     """
@@ -159,9 +165,7 @@ async def chat_completions(request: Request):
 
     # Extract headers that OpenClaw might send
     headers = {
-        k.lower(): v
-        for k, v in request.headers.items()
-        if k.lower().startswith("x-openclaw")
+        k.lower(): v for k, v in request.headers.items() if k.lower().startswith("x-openclaw")
     }
 
     # ── Routing ────────────────────────────────────────────
@@ -177,9 +181,7 @@ async def chat_completions(request: Request):
         )
     else:
         # Run the routing engine
-        health_map = {
-            name: p.health.to_dict() for name, p in _providers.items()
-        }
+        health_map = {name: p.health.to_dict() for name, p in _providers.items()}
         decision = await _router.route(
             messages,
             model_requested=model_requested,
@@ -188,9 +190,13 @@ async def chat_completions(request: Request):
             provider_health=health_map,
         )
 
-    logger.info("Route: %s [%s/%s] %.1fms",
-                decision.provider_name, decision.layer, decision.rule_name,
-                decision.elapsed_ms)
+    logger.info(
+        "Route: %s [%s/%s] %.1fms",
+        decision.provider_name,
+        decision.layer,
+        decision.rule_name,
+        decision.elapsed_ms,
+    )
 
     # ── Execute with fallback ──────────────────────────────
 
@@ -225,8 +231,8 @@ async def chat_completions(request: Request):
                 ct = usage.get("completion_tokens", 0)
                 ch = cg.get("cache_hit_tokens", 0)
                 cm = cg.get("cache_miss_tokens", 0)
-                pricing = _config.provider(provider_name).get("pricing", {}) if _config.provider(provider_name) else {}
-                from .metrics import calc_cost
+                provider_cfg = _config.provider(provider_name)
+                pricing = provider_cfg.get("pricing", {}) if provider_cfg else {}
                 cost = calc_cost(pt, ct, pricing, cache_hit=ch, cache_miss=cm)
                 _metrics.log_request(
                     provider=provider_name,
@@ -283,6 +289,7 @@ async def chat_completions(request: Request):
 
 
 # ── CLI entry point ────────────────────────────────────────────
+
 
 def main():
     """Run with: python -m clawgate"""

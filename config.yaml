@@ -234,6 +234,6 @@ prompt_caching:
 # ── Logging & Metriken ─────────────────────────────────────────
 metrics:
   enabled: true
-  db_path: "./clawgate.db"
+  db_path: "${CLAWGATE_DB_PATH:-./clawgate.db}"
   log_requests: true
   log_routing_decisions: true

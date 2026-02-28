@@ -5,8 +5,8 @@ Danke für dein Interesse! Beiträge sind willkommen.
 ## Development Setup
 
 ```bash
-git clone https://github.com/langenetwork/clawgate.git
-cd clawgate
+git clone https://github.com/typelicious/ClawGate.git
+cd ClawGate
 python3 -m venv venv && source venv/bin/activate
 pip install -e ".[dev]"
 ```
@@ -14,6 +14,7 @@ pip install -e ".[dev]"
 ## Running Tests
 
 ```bash
+python -m compileall .
 pytest tests/ -v
 ```
 
@@ -24,6 +25,13 @@ Tests mocken `httpx` und brauchen keine API-Keys.
 ```bash
 ruff check .
 ruff format .
+```
+
+## Repo Safety
+
+```bash
+git ls-files | egrep '(^\.ssh/|\.db($|-)|\.sqlite|\.log$)' && echo "forbidden tracked files"
+git rev-list --objects --all | egrep '(^|/)(\.ssh/|.*\.db($|-)|.*\.sqlite|.*\.log$)' && echo "forbidden history artifacts"
 ```
 
 ## Adding a New Provider

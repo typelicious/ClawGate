@@ -41,6 +41,18 @@
             "name": "Gemini Flash-Lite (via ClawGate)",
             "contextWindow": 1000000,
             "maxTokens": 8000
+          },
+          {
+            "id": "gemini-flash",
+            "name": "Gemini Flash (via ClawGate)",
+            "contextWindow": 1000000,
+            "maxTokens": 8000
+          },
+          {
+            "id": "openrouter-fallback",
+            "name": "OpenRouter Fallback (via ClawGate)",
+            "contextWindow": 128000,
+            "maxTokens": 8000
           }
         ]
       }
@@ -56,7 +68,9 @@
         "clawgate/auto": { "alias": "auto" },
         "clawgate/deepseek-chat": { "alias": "ds" },
         "clawgate/deepseek-reasoner": { "alias": "r1" },
-        "clawgate/gemini-flash-lite": { "alias": "lite" }
+        "clawgate/gemini-flash-lite": { "alias": "lite" },
+        "clawgate/gemini-flash": { "alias": "flash" },
+        "clawgate/openrouter-fallback": { "alias": "or" }
       },
       "imageModel": {
         "primary": "clawgate/gemini-flash-lite",
