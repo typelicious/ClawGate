@@ -4,22 +4,25 @@ __pycache__/
 *.pyo
 *.pyd
 
-# Virtual env
+# venv
 venv/
 .venv/
 
-# Local runtime / artifacts
+# local runtime / artifacts
 *.db
+*.db-*
 *.sqlite*
 *.sqlite3
-clawgate.db*
 *.log
 
-# Secrets / local config
+# uvicorn / temp
+*.pid
+
+# secrets
 .env
 .env.*
 *.key
 *.pem
 
-# Never commit SSH
+# never commit ssh
 .ssh/
