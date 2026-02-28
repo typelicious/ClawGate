@@ -8,6 +8,8 @@ Usage:
     python -m clawgate.cli --json       # JSON output (pipe-friendly)
 """
 
+# ruff: noqa: I001
+
 from __future__ import annotations
 
 import argparse
