@@ -115,7 +115,11 @@ class Router:
 
         # Fallback: first healthy provider in the chain
         elapsed = (time.time() - t0) * 1000
-        fallback = self.config.fallback_chain[0] if self.config.fallback_chain else "deepseek-chat"
+        fallback = (
+            self.config.fallback_chain[0]
+            if self.config.fallback_chain
+            else "deepseek-chat"
+        )
         return RoutingDecision(
             provider_name=fallback,
             layer="fallback",
