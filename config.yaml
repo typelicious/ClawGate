@@ -1,13 +1,46 @@
 # ClawGate – Routing-Konfiguration
 # Schichtweises Routing: static → heuristic → llm-classify
+#
+# Provider reference: https://docs.openclaw.ai/concepts/model-providers
+# Every provider supported by the current OpenClaw version is listed below.
+# Uncomment + set the required env var to activate any provider.
+#
+# API-key env vars → see .env.example
 
 server:
   host: "127.0.0.1"
   port: 8090
   log_level: "info"
 
-# ── Provider-Definitionen ──────────────────────────────────────
+# ── Provider-Definitionen ──────────────────────────────────────────────────
+#
+# Fields:
+#   backend      : openai-compat | google-genai | anthropic-compat
+#   base_url     : API endpoint (supports ${VAR:-default} expansion)
+#   api_key      : ${ENV_VAR} – leave blank to skip provider at startup
+#   model        : upstream model id
+#   max_tokens   : default max output tokens
+#   tier         : default | reasoning | cheap | mid | fallback | local
+#   timeout      : per-provider timeouts in seconds (optional)
+#     connect_s  : connection timeout  (default: 10)
+#     read_s     : read/response timeout (default: 120)
+#   pricing      : USD per 1 000 000 tokens (input / output / cache_read)
+#                  Used for cost tracking only – not enforced.
+#
+# Sections
+# ─────────
+# A. YOUR ACTIVE PROVIDERS  – currently used on Nexus, all enabled
+# B. BUILT-IN (pi-ai)       – one entry per OpenClaw built-in provider;
+#                             commented out if no key is set
+# C. CUSTOM / PROXY         – providers via models.providers in OpenClaw
+# D. LOCAL RUNTIMES         – Ollama, vLLM, LM Studio, LiteLLM
+
 providers:
+
+  # ────────────────────────────────────────────────────────────────────────
+  # A. YOUR ACTIVE PROVIDERS (Nexus defaults – always enabled)
+  # ────────────────────────────────────────────────────────────────────────
+
   deepseek-chat:
     backend: openai-compat
     base_url: "${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}"
@@ -15,6 +48,9 @@ providers:
     model: "deepseek-chat"
     max_tokens: 8000
     tier: default          # Alltags-Modell
+    timeout:
+      connect_s: 10
+      read_s: 60
     pricing:               # USD pro 1M Tokens
       input: 0.27
       output: 1.10
@@ -27,6 +63,9 @@ providers:
     model: "deepseek-reasoner"
     max_tokens: 8000
     tier: reasoning        # Komplexe Aufgaben
+    timeout:
+      connect_s: 10
+      read_s: 120
     pricing:
       input: 0.55
       output: 2.19
@@ -39,6 +78,9 @@ providers:
     model: "gemini-2.5-flash-lite"
     max_tokens: 8000
     tier: cheap            # Heartbeats, einfache Checks
+    timeout:
+      connect_s: 10
+      read_s: 30
     pricing:
       input: 0.075
       output: 0.30
@@ -51,6 +93,9 @@ providers:
     model: "gemini-2.5-flash"
     max_tokens: 8000
     tier: mid              # Vision, mittel-komplexe Tasks
+    timeout:
+      connect_s: 10
+      read_s: 60
     pricing:
       input: 0.15
       output: 0.60
@@ -58,24 +103,474 @@ providers:
 
   openrouter-fallback:
     backend: openai-compat
-    base_url: "https://openrouter.ai/api/v1"
+    base_url: "${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}"
     api_key: "${OPENROUTER_API_KEY}"
     model: "deepseek/deepseek-chat"
     max_tokens: 8000
     tier: fallback
+    timeout:
+      connect_s: 10
+      read_s: 90
     pricing:
       input: 0.27
       output: 1.10
       cache_read: 0.07
 
-# ── Fallback-Kette ─────────────────────────────────────────────
+  # ────────────────────────────────────────────────────────────────────────
+  # B. BUILT-IN PROVIDERS (pi-ai catalog)
+  #    Uncomment + set the env var to activate.
+  # ────────────────────────────────────────────────────────────────────────
+
+  # ── OpenAI ──────────────────────────────────────────────────────────────
+  # Auth: OPENAI_API_KEY
+  # Rotation: OPENAI_API_KEYS (comma/semicolon list), OPENCLAW_LIVE_OPENAI_KEY
+  # Docs: https://docs.openclaw.ai/concepts/model-providers#openai
+  #openai-gpt4o:
+  #  backend: openai-compat
+  #  base_url: "${OPENAI_BASE_URL:-https://api.openai.com/v1}"
+  #  api_key: "${OPENAI_API_KEY}"
+  #  model: "gpt-4o"
+  #  max_tokens: 8192
+  #  tier: default
+  #  timeout:
+  #    connect_s: 10
+  #    read_s: 60
+  #  pricing:
+  #    input: 2.50
+  #    output: 10.00
+  #    cache_read: 1.25
+
+  # ── Anthropic ───────────────────────────────────────────────────────────
+  # Auth: ANTHROPIC_API_KEY (or setup-token)
+  # Rotation: ANTHROPIC_API_KEYS, OPENCLAW_LIVE_ANTHROPIC_KEY
+  # Docs: https://docs.openclaw.ai/concepts/model-providers#anthropic
+  #anthropic-claude:
+  #  backend: anthropic-compat
+  #  base_url: "${ANTHROPIC_BASE_URL:-https://api.anthropic.com/v1}"
+  #  api_key: "${ANTHROPIC_API_KEY}"
+  #  model: "claude-opus-4-6"
+  #  max_tokens: 64000
+  #  tier: default
+  #  timeout:
+  #    connect_s: 10
+  #    read_s: 120
+  #  pricing:
+  #    input: 15.00
+  #    output: 75.00
+  #    cache_read: 1.50
+
+  # ── OpenCode Zen ────────────────────────────────────────────────────────
+  # Auth: OPENCODE_API_KEY (or OPENCODE_ZEN_API_KEY)
+  # Docs: https://docs.openclaw.ai/concepts/model-providers#opencode-zen
+  #opencode-zen:
+  #  backend: anthropic-compat
+  #  base_url: "${OPENCODE_BASE_URL:-https://api.opencode.ai/v1}"
+  #  api_key: "${OPENCODE_API_KEY}"
+  #  model: "claude-opus-4-6"
+  #  max_tokens: 64000
+  #  tier: default
+  #  timeout:
+  #    connect_s: 10
+  #    read_s: 120
+  #  pricing:
+  #    input: 0.00
+  #    output: 0.00
+
+  # ── Google Gemini (API key) ─────────────────────────────────────────────
+  # Auth: GEMINI_API_KEY (GOOGLE_API_KEY as fallback)
+  # Rotation: GEMINI_API_KEYS, OPENCLAW_LIVE_GEMINI_KEY
+  # Note: gemini-flash and gemini-flash-lite already configured in section A.
+  # Add entries here for Pro or other Gemini models.
+  # Docs: https://docs.openclaw.ai/concepts/model-providers#google-gemini-api-key
+  #gemini-pro:
+  #  backend: google-genai
+  #  base_url: "${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}"
+  #  api_key: "${GEMINI_API_KEY}"
+  #  model: "gemini-2.5-pro"
+  #  max_tokens: 64000
+  #  tier: mid
+  #  timeout:
+  #    connect_s: 10
+  #    read_s: 120
+  #  pricing:
+  #    input: 1.25
+  #    output: 10.00
+  #    cache_read: 0.31
+
+  # ── Z.AI / GLM ──────────────────────────────────────────────────────────
+  # Auth: ZAI_API_KEY  (aliases: z.ai/*, z-ai/* → zai/*)
+  # Docs: https://docs.openclaw.ai/concepts/model-providers#zai-glm
+  #zai-glm:
+  #  backend: openai-compat
+  #  base_url: "${ZAI_BASE_URL:-https://api.z.ai/api/paas/v4}"
+  #  api_key: "${ZAI_API_KEY}"
+  #  model: "glm-4.7"
+  #  max_tokens: 8000
+  #  tier: default
+  #  timeout:
+  #    connect_s: 10
+  #    read_s: 60
+  #  pricing:
+  #    input: 0.00
+  #    output: 0.00
+
+  # ── Vercel AI Gateway ───────────────────────────────────────────────────
+  # Auth: AI_GATEWAY_API_KEY
+  # Docs: https://docs.openclaw.ai/concepts/model-providers#vercel-ai-gateway
+  #vercel-ai-gateway:
+  #  backend: openai-compat
+  #  base_url: "${VERCEL_AI_GATEWAY_BASE_URL:-https://api.v0.ai/v1}"
+  #  api_key: "${AI_GATEWAY_API_KEY}"
+  #  model: "anthropic/claude-opus-4.6"
+  #  max_tokens: 8000
+  #  tier: fallback
+  #  timeout:
+  #    connect_s: 10
+  #    read_s: 60
+  #  pricing:
+  #    input: 0.00
+  #    output: 0.00
+
+  # ── Kilo Gateway ────────────────────────────────────────────────────────
+  # Auth: KILOCODE_API_KEY
+  # Base URL: https://api.kilo.ai/api/gateway/
+  # Expanded catalog: GLM-5 Free, MiniMax M2.5 Free, GPT-5.2, Gemini variants,
+  #   Grok Code Fast 1, Kimi K2.5
+  # Docs: https://docs.openclaw.ai/concepts/model-providers#kilo-gateway
+  #kilocode:
+  #  backend: openai-compat
+  #  base_url: "${KILOCODE_BASE_URL:-https://api.kilo.ai/api/gateway/v1}"
+  #  api_key: "${KILOCODE_API_KEY}"
+  #  model: "anthropic/claude-opus-4.6"
+  #  max_tokens: 8000
+  #  tier: fallback
+  #  timeout:
+  #    connect_s: 10
+  #    read_s: 60
+  #  pricing:
+  #    input: 0.00
+  #    output: 0.00
+
+  # ── OpenRouter ──────────────────────────────────────────────────────────
+  # Note: openrouter-fallback already configured in section A.
+  # Add more OpenRouter entries here for specific models if needed.
+  # Auth: OPENROUTER_API_KEY
+  # Docs: https://docs.openclaw.ai/providers/openrouter
+
+  # ── xAI / Grok ──────────────────────────────────────────────────────────
+  # Auth: XAI_API_KEY
+  #xai-grok:
+  #  backend: openai-compat
+  #  base_url: "${XAI_BASE_URL:-https://api.x.ai/v1}"
+  #  api_key: "${XAI_API_KEY}"
+  #  model: "grok-3"
+  #  max_tokens: 8000
+  #  tier: default
+  #  timeout:
+  #    connect_s: 10
+  #    read_s: 60
+  #  pricing:
+  #    input: 3.00
+  #    output: 15.00
+
+  # ── Mistral ─────────────────────────────────────────────────────────────
+  # Auth: MISTRAL_API_KEY
+  #mistral:
+  #  backend: openai-compat
+  #  base_url: "${MISTRAL_BASE_URL:-https://api.mistral.ai/v1}"
+  #  api_key: "${MISTRAL_API_KEY}"
+  #  model: "mistral-large-latest"
+  #  max_tokens: 8000
+  #  tier: default
+  #  timeout:
+  #    connect_s: 10
+  #    read_s: 60
+  #  pricing:
+  #    input: 2.00
+  #    output: 6.00
+
+  # ── Groq ────────────────────────────────────────────────────────────────
+  # Auth: GROQ_API_KEY
+  #groq:
+  #  backend: openai-compat
+  #  base_url: "${GROQ_BASE_URL:-https://api.groq.com/openai/v1}"
+  #  api_key: "${GROQ_API_KEY}"
+  #  model: "llama-3.3-70b-versatile"
+  #  max_tokens: 8000
+  #  tier: cheap
+  #  timeout:
+  #    connect_s: 10
+  #    read_s: 30
+  #  pricing:
+  #    input: 0.05
+  #    output: 0.10
+
+  # ── Cerebras ────────────────────────────────────────────────────────────
+  # Auth: CEREBRAS_API_KEY
+  # Note: GLM models on Cerebras use ids zai-glm-4.7 and zai-glm-4.6
+  #cerebras:
+  #  backend: openai-compat
+  #  base_url: "${CEREBRAS_BASE_URL:-https://api.cerebras.ai/v1}"
+  #  api_key: "${CEREBRAS_API_KEY}"
+  #  model: "llama3.3-70b"
+  #  max_tokens: 8000
+  #  tier: cheap
+  #  timeout:
+  #    connect_s: 10
+  #    read_s: 30
+  #  pricing:
+  #    input: 0.10
+  #    output: 0.10
+
+  # ── GitHub Copilot ──────────────────────────────────────────────────────
+  # Auth: COPILOT_GITHUB_TOKEN or GH_TOKEN or GITHUB_TOKEN
+  # Note: Requires interactive login first via openclaw
+  #github-copilot:
+  #  backend: openai-compat
+  #  base_url: "${GITHUB_COPILOT_BASE_URL:-https://api.githubcopilot.com/v1}"
+  #  api_key: "${COPILOT_GITHUB_TOKEN}"
+  #  model: "gpt-4o"
+  #  max_tokens: 8000
+  #  tier: default
+  #  timeout:
+  #    connect_s: 10
+  #    read_s: 60
+  #  pricing:
+  #    input: 0.00
+  #    output: 0.00
+
+  # ── Hugging Face Inference ──────────────────────────────────────────────
+  # Auth: HUGGINGFACE_HUB_TOKEN or HF_TOKEN
+  # OpenAI-compat router; example model: huggingface/deepseek-ai/DeepSeek-R1
+  # CLI: openclaw onboard --auth-choice huggingface-api-key
+  #huggingface:
+  #  backend: openai-compat
+  #  base_url: "${HUGGINGFACE_BASE_URL:-https://api-inference.huggingface.co/v1}"
+  #  api_key: "${HUGGINGFACE_HUB_TOKEN}"
+  #  model: "deepseek-ai/DeepSeek-R1"
+  #  max_tokens: 8000
+  #  tier: default
+  #  timeout:
+  #    connect_s: 10
+  #    read_s: 60
+  #  pricing:
+  #    input: 0.00
+  #    output: 0.00
+
+  # ────────────────────────────────────────────────────────────────────────
+  # C. CUSTOM / PROXY PROVIDERS (via models.providers in OpenClaw)
+  #    These use OpenAI-compat or Anthropic-compat endpoints.
+  # ────────────────────────────────────────────────────────────────────────
+
+  # ── Moonshot AI / Kimi ──────────────────────────────────────────────────
+  # Auth: MOONSHOT_API_KEY
+  # Models: kimi-k2.5, kimi-k2-0905-preview, kimi-k2-turbo-preview,
+  #         kimi-k2-thinking, kimi-k2-thinking-turbo
+  # Docs: https://docs.openclaw.ai/concepts/model-providers#moonshot-ai-kimi
+  #moonshot-kimi:
+  #  backend: openai-compat
+  #  base_url: "${MOONSHOT_BASE_URL:-https://api.moonshot.ai/v1}"
+  #  api_key: "${MOONSHOT_API_KEY}"
+  #  model: "kimi-k2.5"
+  #  max_tokens: 8000
+  #  tier: default
+  #  timeout:
+  #    connect_s: 10
+  #    read_s: 60
+  #  pricing:
+  #    input: 0.00
+  #    output: 0.00
+
+  # ── Kimi Coding (Anthropic-compat endpoint) ─────────────────────────────
+  # Auth: KIMI_API_KEY
+  # Uses Moonshot's Anthropic-compatible endpoint
+  # Docs: https://docs.openclaw.ai/concepts/model-providers#kimi-coding
+  #kimi-coding:
+  #  backend: anthropic-compat
+  #  base_url: "${KIMI_CODING_BASE_URL:-https://api.moonshot.ai/anthropic}"
+  #  api_key: "${KIMI_API_KEY}"
+  #  model: "k2p5"
+  #  max_tokens: 8000
+  #  tier: default
+  #  timeout:
+  #    connect_s: 10
+  #    read_s: 60
+  #  pricing:
+  #    input: 0.00
+  #    output: 0.00
+
+  # ── Volcano Engine / Doubao (China) ─────────────────────────────────────
+  # Auth: VOLCANO_ENGINE_API_KEY
+  # CLI: openclaw onboard --auth-choice volcengine-api-key
+  # Models (general): volcengine/doubao-seed-1-8-251228  (Doubao Seed 1.8)
+  #                   volcengine/doubao-seed-code-preview-251028
+  #                   volcengine/kimi-k2-5-260127         (Kimi K2.5)
+  #                   volcengine/glm-4-7-251222            (GLM 4.7)
+  #                   volcengine/deepseek-v3-2-251201      (DeepSeek V3.2)
+  # Models (coding):  volcengine-plan/ark-code-latest
+  #                   volcengine-plan/doubao-seed-code
+  #                   volcengine-plan/kimi-k2.5
+  #                   volcengine-plan/kimi-k2-thinking
+  #                   volcengine-plan/glm-4.7
+  # Docs: https://docs.openclaw.ai/concepts/model-providers#volcano-engine-doubao
+  #volcengine:
+  #  backend: openai-compat
+  #  base_url: "${VOLCANO_ENGINE_BASE_URL:-https://ark.cn-beijing.volces.com/api/v3}"
+  #  api_key: "${VOLCANO_ENGINE_API_KEY}"
+  #  model: "doubao-seed-1-8-251228"
+  #  max_tokens: 8000
+  #  tier: default
+  #  timeout:
+  #    connect_s: 10
+  #    read_s: 60
+  #  pricing:
+  #    input: 0.00
+  #    output: 0.00
+
+  # ── BytePlus (international equivalent of Volcano Engine) ───────────────
+  # Auth: BYTEPLUS_API_KEY
+  # CLI: openclaw onboard --auth-choice byteplus-api-key
+  # Models: same as Volcano Engine (byteplus/ prefix instead of volcengine/)
+  # Docs: https://docs.openclaw.ai/concepts/model-providers#byteplus-international
+  #byteplus:
+  #  backend: openai-compat
+  #  base_url: "${BYTEPLUS_BASE_URL:-https://api.byteplus.com/api/v3}"
+  #  api_key: "${BYTEPLUS_API_KEY}"
+  #  model: "seed-1-8-251228"
+  #  max_tokens: 8000
+  #  tier: default
+  #  timeout:
+  #    connect_s: 10
+  #    read_s: 60
+  #  pricing:
+  #    input: 0.00
+  #    output: 0.00
+
+  # ── Synthetic ───────────────────────────────────────────────────────────
+  # Auth: SYNTHETIC_API_KEY
+  # Anthropic-compatible wrapper exposing HuggingFace models (MiniMax, etc.)
+  # CLI: openclaw onboard --auth-choice synthetic-api-key
+  # Docs: https://docs.openclaw.ai/concepts/model-providers#synthetic
+  #synthetic:
+  #  backend: anthropic-compat
+  #  base_url: "${SYNTHETIC_BASE_URL:-https://api.synthetic.new/anthropic}"
+  #  api_key: "${SYNTHETIC_API_KEY}"
+  #  model: "hf:MiniMaxAI/MiniMax-M2.1"
+  #  max_tokens: 8192
+  #  tier: default
+  #  timeout:
+  #    connect_s: 10
+  #    read_s: 60
+  #  pricing:
+  #    input: 0.00
+  #    output: 0.00
+
+  # ── MiniMax ─────────────────────────────────────────────────────────────
+  # Auth: MINIMAX_API_KEY
+  # Anthropic-compatible custom endpoint
+  # Docs: https://docs.openclaw.ai/providers/minimax
+  #minimax:
+  #  backend: anthropic-compat
+  #  base_url: "${MINIMAX_BASE_URL:-https://api.minimax.chat/v1}"
+  #  api_key: "${MINIMAX_API_KEY}"
+  #  model: "MiniMax-M2.1"
+  #  max_tokens: 8192
+  #  tier: default
+  #  timeout:
+  #    connect_s: 10
+  #    read_s: 60
+  #  pricing:
+  #    input: 0.00
+  #    output: 0.00
+
+  # ────────────────────────────────────────────────────────────────────────
+  # D. LOCAL RUNTIMES (no auth required by default)
+  # ────────────────────────────────────────────────────────────────────────
+
+  # ── Ollama ──────────────────────────────────────────────────────────────
+  # Auth: none (set OLLAMA_API_KEY to any value to enable auto-discovery)
+  # Default: http://127.0.0.1:11434/v1
+  # Docs: https://docs.openclaw.ai/providers/ollama
+  #ollama-local:
+  #  backend: openai-compat
+  #  base_url: "${OLLAMA_BASE_URL:-http://127.0.0.1:11434/v1}"
+  #  api_key: "${OLLAMA_API_KEY:-ollama}"
+  #  model: "llama3.3"
+  #  max_tokens: 8000
+  #  tier: local
+  #  timeout:
+  #    connect_s: 5
+  #    read_s: 120
+  #  pricing:
+  #    input: 0.00
+  #    output: 0.00
+
+  # ── vLLM ────────────────────────────────────────────────────────────────
+  # Auth: optional (set VLLM_API_KEY to enable)
+  # Default: http://127.0.0.1:8000/v1
+  # Docs: https://docs.openclaw.ai/providers/vllm
+  #vllm-local:
+  #  backend: openai-compat
+  #  base_url: "${VLLM_BASE_URL:-http://127.0.0.1:8000/v1}"
+  #  api_key: "${VLLM_API_KEY:-vllm-local}"
+  #  model: "your-model-id"
+  #  max_tokens: 8000
+  #  tier: local
+  #  timeout:
+  #    connect_s: 5
+  #    read_s: 120
+  #  pricing:
+  #    input: 0.00
+  #    output: 0.00
+
+  # ── LM Studio ───────────────────────────────────────────────────────────
+  # Auth: optional
+  # Default: http://localhost:1234/v1
+  # Docs: https://docs.openclaw.ai/concepts/model-providers#local-proxies-lm-studio-vllm-litellm-etc
+  #lmstudio-local:
+  #  backend: openai-compat
+  #  base_url: "${LMSTUDIO_BASE_URL:-http://localhost:1234/v1}"
+  #  api_key: "${LMSTUDIO_API_KEY:-lmstudio}"
+  #  model: "minimax-m2.1-gs32"
+  #  max_tokens: 8192
+  #  tier: local
+  #  timeout:
+  #    connect_s: 5
+  #    read_s: 120
+  #  pricing:
+  #    input: 0.00
+  #    output: 0.00
+
+  # ── LiteLLM proxy ───────────────────────────────────────────────────────
+  # Auth: LITELLM_API_KEY (optional if server doesn't enforce auth)
+  # Default: http://localhost:4000/v1
+  # Docs: https://docs.openclaw.ai/providers/litellm
+  #litellm-proxy:
+  #  backend: openai-compat
+  #  base_url: "${LITELLM_BASE_URL:-http://localhost:4000/v1}"
+  #  api_key: "${LITELLM_API_KEY:-sk-litellm}"
+  #  model: "your-model-id"
+  #  max_tokens: 8000
+  #  tier: local
+  #  timeout:
+  #    connect_s: 5
+  #    read_s: 120
+  #  pricing:
+  #    input: 0.00
+  #    output: 0.00
+
+
+# ── Fallback-Kette ─────────────────────────────────────────────────────────
+# Order: first healthy provider in this list is tried after the routing
+# decision fails. Keep at least one guaranteed-available provider here.
 fallback_chain:
   - deepseek-chat
   - deepseek-reasoner
   - gemini-flash
   - openrouter-fallback
 
-# ── Layer 1: Statische Regeln ──────────────────────────────────
+
+# ── Layer 1: Statische Regeln ──────────────────────────────────────────────
 # Schnellste Schicht – Pattern-Matching auf bekannte Muster
 static_rules:
   enabled: true
@@ -113,7 +608,8 @@ static_rules:
               x-openclaw-source: ["subagent", "sub-agent"]
       route_to: deepseek-chat
 
-# ── Layer 2: Heuristik-Klassifikation ──────────────────────────
+
+# ── Layer 2: Heuristik-Klassifikation ─────────────────────────────────────
 # Mittlere Schicht – regelbasierte Analyse des Request-Inhalts
 heuristic_rules:
   enabled: true
@@ -143,7 +639,6 @@ heuristic_rules:
       route_to: deepseek-reasoner
 
     # Einfache Anfragen → Flash-Lite (günstigster Tier)
-    # ClawRouter-Insight: "what is", "define", "translate" brauchen keinen Reasoner
     - name: simple-query
       match:
         message_keywords:
@@ -180,7 +675,8 @@ heuristic_rules:
         fallthrough: true
       route_to: deepseek-chat
 
-# ── Layer 3: LLM-Klassifikation (optional) ─────────────────────
+
+# ── Layer 3: LLM-Klassifikation (optional) ────────────────────────────────
 # Langsamste Schicht – ein billiges Modell entscheidet
 llm_classifier:
   enabled: false           # Auf true setzen wenn gewünscht
@@ -205,14 +701,16 @@ llm_classifier:
     SIMPLE: gemini-flash-lite
     AGENT: deepseek-chat
 
-# ── Health-Check-Einstellungen ─────────────────────────────────
+
+# ── Health-Check-Einstellungen ─────────────────────────────────────────────
 health:
   check_interval_seconds: 300
   timeout_seconds: 10
   consecutive_failures_before_skip: 3
   recovery_check_interval_seconds: 60
 
-# ── Prompt Caching ─────────────────────────────────────────────
+
+# ── Prompt Caching ─────────────────────────────────────────────────────────
 # DeepSeek: Automatisch server-seitig (prefix-basiert, 64-token Granularität)
 #   - Cache Hit: $0.014/M tokens (10x billiger als Input $0.14/M)
 #   - Prefix muss identisch sein (ab Token 0)
@@ -220,20 +718,18 @@ health:
 # Gemini: Implizites Caching für 2.5 Flash/Pro (min 1028 Tokens)
 #   - Cached tokens: 0.25x des normalen Input-Preises
 #   - TTL ~3-5 Minuten
-# Optimierungs-Tipps:
-#   - System-Prompt stabil halten (identischer Prefix zwischen Requests)
-#   - Variable Inhalte ans Ende der Messages schieben
-#   - Few-Shot-Beispiele konsistent wiederverwenden
-#   - NICHT: System-Prompt pro Request randomisieren
+# Anthropic: Explicit cache_control blocks; cache_creation + cache_read in usage
 prompt_caching:
-  # ClawGate reordert Messages nicht, aber trackt Cache-Metriken
   track_metrics: true
-  # Optionaler Prefix-Stabilizer: fixiert System-Prompt Reihenfolge
   stabilize_prefix: false
 
-# ── Logging & Metriken ─────────────────────────────────────────
+
+# ── Logging & Metriken ─────────────────────────────────────────────────────
+# DB path: resolved via CLAWGATE_DB_PATH env var (recommended: /var/lib/clawgate/clawgate.db)
+# Fallback: ~/.local/share/clawgate/clawgate.db
+# NEVER set to ./clawgate.db – repo safety guardrail rejects it.
 metrics:
   enabled: true
-  db_path: "${CLAWGATE_DB_PATH:-./clawgate.db}"
+  db_path: "${CLAWGATE_DB_PATH:-/var/lib/clawgate/clawgate.db}"
   log_requests: true
   log_routing_decisions: true
