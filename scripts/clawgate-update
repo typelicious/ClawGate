@@ -15,5 +15,16 @@ if [ -f venv/bin/pip ]; then
   fi
 fi
 
+sudo install -m 644 clawgate.service /etc/systemd/system/clawgate.service
+sudo systemctl daemon-reload
 sudo systemctl restart clawgate.service
-./scripts/clawgate-health
+
+for attempt in 1 2 3 4 5; do
+  if ./scripts/clawgate-health; then
+    exit 0
+  fi
+  sleep 2
+done
+
+echo "health check failed after 5 attempts" >&2
+exit 1
