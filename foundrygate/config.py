@@ -55,6 +55,7 @@ _POLICY_SELECT_KEYS = {
     "require_capabilities",
     "capability_values",
 }
+_CLIENT_PROFILE_MATCH_KEYS = {"header_contains", "header_present", "any", "all"}
 
 
 class ConfigError(ValueError):
@@ -426,6 +427,134 @@ def _normalize_routing_policies(data: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def _normalize_client_profile_match(name: str, match: Any) -> dict[str, Any]:
+    """Validate a client profile match block."""
+    if not isinstance(match, dict):
+        raise ConfigError(f"Client profile rule '{name}' match must be a mapping")
+    unknown = sorted(set(match) - _CLIENT_PROFILE_MATCH_KEYS)
+    if unknown:
+        unknown_list = ", ".join(unknown)
+        raise ConfigError(f"Client profile rule '{name}' has unknown match keys: {unknown_list}")
+
+    if "header_present" in match:
+        match["header_present"] = _normalize_string_list(
+            match["header_present"],
+            field_name="header_present",
+            rule_name=f"client profile rule '{name}'",
+            allow_empty=False,
+        )
+
+    if "header_contains" in match:
+        if not isinstance(match["header_contains"], dict):
+            raise ConfigError(
+                f"Client profile rule '{name}' field 'header_contains' must be a mapping"
+            )
+        normalized_header_contains = {}
+        for header_name, values in match["header_contains"].items():
+            if not isinstance(header_name, str) or not header_name.strip():
+                raise ConfigError(
+                    f"Client profile rule '{name}' field 'header_contains' "
+                    "must use non-empty header names"
+                )
+            normalized_header_contains[header_name.strip().lower()] = _normalize_string_list(
+                values,
+                field_name="header_contains",
+                rule_name=f"client profile rule '{name}'",
+                allow_empty=False,
+            )
+        match["header_contains"] = normalized_header_contains
+
+    for compound in ("any", "all"):
+        if compound in match:
+            values = match[compound]
+            if not isinstance(values, list) or not values:
+                raise ConfigError(
+                    f"Client profile rule '{name}' field '{compound}' must be a non-empty list"
+                )
+            match[compound] = [_normalize_client_profile_match(name, item) for item in values]
+
+    return match
+
+
+def _normalize_client_profiles(data: dict[str, Any]) -> dict[str, Any]:
+    """Validate the optional client profile layer."""
+    raw = data.get(
+        "client_profiles",
+        {"enabled": False, "default": "generic", "profiles": {"generic": {}}, "rules": []},
+    )
+    if not isinstance(raw, dict):
+        raise ConfigError("'client_profiles' must be a mapping")
+
+    enabled = raw.get("enabled", False)
+    if not isinstance(enabled, bool):
+        raise ConfigError("'client_profiles.enabled' must be a boolean")
+
+    default_profile = raw.get("default", "generic")
+    if not isinstance(default_profile, str) or not default_profile.strip():
+        raise ConfigError("'client_profiles.default' must be a non-empty string")
+    default_profile = default_profile.strip()
+
+    profiles = raw.get("profiles", {})
+    if profiles is None:
+        profiles = {}
+    if not isinstance(profiles, dict):
+        raise ConfigError("'client_profiles.profiles' must be a mapping")
+
+    normalized_profiles = {}
+    for profile_name, hints in profiles.items():
+        if not isinstance(profile_name, str) or not profile_name.strip():
+            raise ConfigError("Client profile names must be non-empty strings")
+        if hints is None:
+            hints = {}
+        normalized_profiles[profile_name.strip()] = _normalize_policy_select(
+            f"client profile '{profile_name.strip()}'",
+            hints,
+            data.get("providers", {}),
+        )
+
+    if default_profile not in normalized_profiles:
+        normalized_profiles.setdefault(
+            default_profile,
+            _normalize_policy_select(
+                f"client profile '{default_profile}'", {}, data.get("providers", {})
+            ),
+        )
+
+    rules = raw.get("rules", [])
+    if rules is None:
+        rules = []
+    if not isinstance(rules, list):
+        raise ConfigError("'client_profiles.rules' must be a list")
+
+    normalized_rules = []
+    for idx, rule in enumerate(rules, start=1):
+        if not isinstance(rule, dict):
+            raise ConfigError(f"Client profile rule #{idx} must be a mapping")
+        profile_name = rule.get("profile", "")
+        if not isinstance(profile_name, str) or not profile_name.strip():
+            raise ConfigError(f"Client profile rule #{idx} must define a non-empty 'profile'")
+        profile_name = profile_name.strip()
+        if profile_name not in normalized_profiles:
+            raise ConfigError(
+                f"Client profile rule #{idx} references unknown profile '{profile_name}'"
+            )
+        normalized_rules.append(
+            {
+                "profile": profile_name,
+                "match": _normalize_client_profile_match(profile_name, rule.get("match", {})),
+            }
+        )
+
+    normalized = dict(data)
+    normalized["client_profiles"] = {
+        "enabled": enabled,
+        "default": default_profile,
+        "profiles": normalized_profiles,
+        "rules": normalized_rules,
+    }
+    return normalized
+
+
 class Config:
     """Holds the parsed and expanded configuration."""
 
@@ -457,6 +586,13 @@ class Config:
     @property
     def routing_policies(self) -> dict:
         return self._data.get("routing_policies", {"enabled": False, "rules": []})
+
+    @property
+    def client_profiles(self) -> dict:
+        return self._data.get(
+            "client_profiles",
+            {"enabled": False, "default": "generic", "profiles": {"generic": {}}, "rules": []},
+        )
 
     @property
     def llm_classifier(self) -> dict:
@@ -501,5 +637,7 @@ def load_config(path: str | Path | None = None) -> Config:
     with path.open() as f:
         raw = yaml.safe_load(f)
 
-    expanded = _normalize_routing_policies(_normalize_providers(_walk_expand(raw)))
+    expanded = _normalize_client_profiles(
+        _normalize_routing_policies(_normalize_providers(_walk_expand(raw)))
+    )
     return Config(expanded)
