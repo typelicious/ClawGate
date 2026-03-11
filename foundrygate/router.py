@@ -17,7 +17,7 @@ class RoutingDecision:
     """Result of the routing process."""
 
     provider_name: str
-    layer: str  # "policy", "static", "heuristic", "llm-classify", "fallback"
+    layer: str  # "policy", "profile", "static", "heuristic", "llm-classify", "fallback"
     rule_name: str  # Which rule matched
     confidence: float  # 0.0–1.0
     reason: str  # Human-readable explanation
@@ -76,6 +76,8 @@ class Router:
         *,
         model_requested: str = "",
         has_tools: bool = False,
+        client_profile: str = "generic",
+        profile_hints: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
         provider_health: dict[str, Any] | None = None,
     ) -> RoutingDecision:
@@ -94,6 +96,8 @@ class Router:
             total_tokens=total_tokens,
             model_requested=model_requested.lower().strip(),
             has_tools=has_tools,
+            client_profile=client_profile,
+            profile_hints=profile_hints or {},
             headers=headers or {},
             provider_health=provider_health or {},
             providers=self.config.providers,
@@ -113,6 +117,12 @@ class Router:
 
         # Layer 2: Heuristic rules
         decision = self._layer_heuristic(ctx)
+        if decision:
+            decision.elapsed_ms = (time.time() - t0) * 1000
+            return self._validate_health(decision, ctx)
+
+        # Layer 3: Client profile hints
+        decision = self._layer_profile(ctx)
         if decision:
             decision.elapsed_ms = (time.time() - t0) * 1000
             return self._validate_health(decision, ctx)
@@ -173,6 +183,11 @@ class Router:
             return all(self._match_policy(sub, ctx) for sub in match["all"])
         if "any" in match:
             return any(self._match_policy(sub, ctx) for sub in match["any"])
+        if "client_profile" in match:
+            profiles = match["client_profile"]
+            if isinstance(profiles, str):
+                profiles = [profiles]
+            return ctx.client_profile in profiles
 
         static_keys = {"model_requested", "system_prompt_contains", "header_contains", "any"}
         heuristic_keys = {"has_tools", "estimated_tokens", "message_keywords", "fallthrough"}
@@ -247,6 +262,25 @@ class Router:
             _append(name)
 
         return preferred
+
+    # ── Layer 3: Client Profiles ──────────────────────────────
+
+    def _layer_profile(self, ctx: _RoutingContext) -> RoutingDecision | None:
+        """Apply default provider preferences for the resolved client profile."""
+        if not ctx.profile_hints:
+            return None
+
+        provider_name = self._select_policy_provider(ctx.profile_hints, ctx)
+        if not provider_name:
+            return None
+
+        return RoutingDecision(
+            provider_name=provider_name,
+            layer="profile",
+            rule_name=f"profile-{ctx.client_profile}",
+            confidence=0.6,
+            reason=f"Client profile '{ctx.client_profile}' selected a preferred provider",
+        )
 
     # ── Layer 1: Static Rules ──────────────────────────────────
 
@@ -427,6 +461,8 @@ class _RoutingContext:
         "total_tokens",
         "model_requested",
         "has_tools",
+        "client_profile",
+        "profile_hints",
         "headers",
         "provider_health",
         "providers",

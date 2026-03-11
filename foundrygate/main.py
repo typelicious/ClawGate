@@ -28,6 +28,49 @@ _router: Router
 _metrics: MetricsStore
 
 
+def _collect_routing_headers(request: Request) -> dict[str, str]:
+    """Return the request headers that are relevant for routing decisions."""
+    prefixes = ("x-openclaw", "x-foundrygate")
+    return {k.lower(): v for k, v in request.headers.items() if k.lower().startswith(prefixes)}
+
+
+def _match_client_profile_rule(match: dict, headers: dict[str, str]) -> bool:
+    """Evaluate one client profile match block."""
+    if not match:
+        return True
+    if "all" in match:
+        return all(_match_client_profile_rule(item, headers) for item in match["all"])
+    if "any" in match:
+        return any(_match_client_profile_rule(item, headers) for item in match["any"])
+    if "header_present" in match:
+        return all(header_name in headers for header_name in match["header_present"])
+    if "header_contains" in match:
+        for header_name, patterns in match["header_contains"].items():
+            header_value = headers.get(header_name, "").lower()
+            if any(pattern.lower() in header_value for pattern in patterns):
+                return True
+        return False
+    return False
+
+
+def _resolve_client_profile(
+    config: Config, headers: dict[str, str]
+) -> tuple[str, dict[str, object]]:
+    """Resolve the active client profile and its routing hints from request headers."""
+    profiles_cfg = config.client_profiles
+    default_profile = profiles_cfg.get("default", "generic")
+    active_profile = default_profile
+
+    if profiles_cfg.get("enabled"):
+        for rule in profiles_cfg.get("rules", []):
+            if _match_client_profile_rule(rule.get("match", {}), headers):
+                active_profile = rule["profile"]
+                break
+
+    hints = profiles_cfg.get("profiles", {}).get(active_profile, {})
+    return active_profile, hints
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup / shutdown lifecycle."""
@@ -174,10 +217,8 @@ async def chat_completions(request: Request):
     max_tokens = body.get("max_tokens")
     tools = body.get("tools")
 
-    # Extract headers that OpenClaw might send
-    headers = {
-        k.lower(): v for k, v in request.headers.items() if k.lower().startswith("x-openclaw")
-    }
+    headers = _collect_routing_headers(request)
+    client_profile, profile_hints = _resolve_client_profile(_config, headers)
 
     # ── Routing ────────────────────────────────────────────
 
@@ -197,6 +238,8 @@ async def chat_completions(request: Request):
             messages,
             model_requested=model_requested,
             has_tools=bool(tools),
+            client_profile=client_profile,
+            profile_hints=profile_hints,
             headers=headers,
             provider_health=health_map,
         )
@@ -262,12 +305,16 @@ async def chat_completions(request: Request):
                 return StreamingResponse(
                     result,
                     media_type="text/event-stream",
-                    headers={"X-FoundryGate-Provider": provider_name},
+                    headers={
+                        "X-FoundryGate-Provider": provider_name,
+                        "X-FoundryGate-Profile": client_profile,
+                    },
                 )
 
             # Add routing info to response headers (non-streaming)
             resp = JSONResponse(result)
             resp.headers["X-FoundryGate-Provider"] = provider_name
+            resp.headers["X-FoundryGate-Profile"] = client_profile
             resp.headers["X-FoundryGate-Layer"] = decision.layer
             resp.headers["X-FoundryGate-Rule"] = decision.rule_name
             return resp

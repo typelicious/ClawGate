@@ -56,6 +56,12 @@ server:
 #   - base_url must point to localhost or private network space
 #   - tier defaults to local
 #   - capabilities are forced to local=true, cloud=false, network_zone=local
+#
+# client_profiles
+# ───────────────
+# Optional caller-aware defaults. Profiles are resolved from request headers and
+# applied as default provider preferences only when policy/static/heuristic
+# routing did not already make a stronger decision.
 
 providers:
 
@@ -636,6 +642,41 @@ routing_policies:
     #     capability_values:
     #       local: true
     #     prefer_tiers: ["local"]
+
+
+# ── Client Profiles (optional) ────────────────────────────────────────────
+# Detects callers from headers and applies default routing hints when no
+# policy/static/heuristic rule has already selected a provider.
+#
+# match:
+#   header_present  : all listed headers must exist
+#   header_contains : any listed substring match activates the profile rule
+#
+# profile hints use the same selector keys as routing_policies.select.
+client_profiles:
+  enabled: false
+  default: generic
+  profiles:
+    generic: {}
+    openclaw:
+      prefer_tiers: ["default", "reasoning"]
+    n8n:
+      prefer_tiers: ["cheap", "default"]
+    local-only:
+      capability_values:
+        local: true
+  rules:
+    # - profile: openclaw
+    #   match:
+    #     header_present: ["x-openclaw-source"]
+    # - profile: n8n
+    #   match:
+    #     header_contains:
+    #       x-foundrygate-client: ["n8n"]
+    # - profile: local-only
+    #   match:
+    #     header_contains:
+    #       x-foundrygate-profile: ["local-only", "private"]
 
 
 # ── Layer 1: Statische Regeln ──────────────────────────────────────────────

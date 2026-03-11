@@ -14,6 +14,7 @@
 - [API](#api)
 - [Model Aliases And Routing](#model-aliases-and-routing)
 - [Policy Routing](#policy-routing)
+- [Client Profiles](#client-profiles)
 - [Configuration](#configuration)
 - [Deployment](#deployment)
 - [Helper Scripts](#helper-scripts)
@@ -226,6 +227,46 @@ routing_policies:
         capability_values:
           local: true
         prefer_tiers: ["local"]
+```
+
+## Client Profiles
+
+FoundryGate also supports optional `client_profiles` for caller-aware defaults. Profiles are resolved from request headers and apply routing hints only when policy, static, and heuristic layers did not already pick a provider.
+
+This is useful for giving different default behavior to:
+
+- OpenClaw
+- n8n workflows
+- local/private-only callers
+- future CLI wrappers or other automation clients
+
+Profile rules can match on:
+
+- `header_present`
+- `header_contains`
+
+Profile hints use the same selector keys as policy rules, for example `prefer_tiers`, `allow_providers`, `require_capabilities`, or `capability_values`.
+
+Example:
+
+```yaml
+client_profiles:
+  enabled: true
+  default: generic
+  profiles:
+    generic: {}
+    openclaw:
+      prefer_tiers: ["default", "reasoning"]
+    n8n:
+      prefer_tiers: ["cheap", "default"]
+  rules:
+    - profile: openclaw
+      match:
+        header_present: ["x-openclaw-source"]
+    - profile: n8n
+      match:
+        header_contains:
+          x-foundrygate-client: ["n8n"]
 ```
 
 ## Configuration
