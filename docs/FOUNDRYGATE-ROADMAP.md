@@ -19,7 +19,7 @@ The foundation that used to be the near-term buildout is largely in place:
 
 This roadmap now shifts from "rename and foundation" to "deepen the gateway plane without bloating it".
 
-`v0.4.0` is the current routing-baseline release line: hooks, richer scoring, route introspection, and the refined dashboard are now in place.
+`v0.5.0` is the current operator-distribution release line: modality-aware image paths, publish workflows, onboarding helpers, community baselines, and release update checks are now in place on top of the `v0.4.x` routing foundation.
 
 ## Big Picture
 
