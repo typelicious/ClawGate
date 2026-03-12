@@ -6,6 +6,8 @@ The format is intentionally lightweight and human-readable. Group entries by rel
 
 ## Unreleased
 
+## v0.5.0 - 2026-03-12
+
 ### Added
 
 - Added `contract: image-provider` plus OpenAI-compatible `POST /v1/images/generations` and `POST /v1/images/edits` paths for image-capable providers

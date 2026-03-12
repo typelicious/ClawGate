@@ -873,14 +873,14 @@ Short version:
 - `FoundryGate` is the product name
 - the completed foundation already covers capability-aware routing, local worker support, client profiles, request hooks, route introspection, route traces, local worker probing, and first multi-dimensional route-fit checks
 - `v0.4.x` now focuses on deeper route scoring and dashboard refinement rather than the initial hook/dashboard baseline
-- `v0.5.0` is the target line for Docker and PyPI publishing plus onboarding helpers
+- `v0.5.0` is the operator distribution baseline for Docker and PyPI publishing, onboarding helpers, and release update checks
 - the path to `v1.0.0` includes modality expansion, update operations, a separate npm or TypeScript CLI package, and a full security review
 
 ## Releases
 
 - [CHANGELOG.md](./CHANGELOG.md) tracks notable user-facing changes
 - [RELEASES.md](./RELEASES.md) describes the lightweight release process for tags and GitHub Releases
-- planned publishing path: GitHub Releases now, Docker and PyPI by `v0.5.0`, separate npm or TypeScript CLI package by `v1.0.0`
+- publishing path: GitHub Releases now, Docker and PyPI in `v0.5.0`, separate npm or TypeScript CLI package by `v1.0.0`
 - GitHub Releases: [https://github.com/typelicious/FoundryGate/releases](https://github.com/typelicious/FoundryGate/releases)
 
 ## Contributing

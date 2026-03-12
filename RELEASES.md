@@ -21,11 +21,11 @@ This repo does not require a heavy release process. Use lightweight tags plus Gi
 ```bash
 git checkout main
 git pull --ff-only origin main
-git tag -a v0.4.0 -m "FoundryGate v0.4.0"
-git push origin v0.4.0
+git tag -a v0.5.0 -m "FoundryGate v0.5.0"
+git push origin v0.5.0
 ```
 
-Then open GitHub Releases and publish a release for `v0.4.0`.
+Then open GitHub Releases and publish a release for `v0.5.0`.
 
 ## Automation Baseline
 
@@ -53,6 +53,7 @@ The repo also includes [publish-dry-run](./.github/workflows/publish-dry-run.yml
 
 - `v0.3.0` is the first FoundryGate-branded release.
 - `v0.4.0` establishes the hardened routing baseline: request hooks, multi-dimensional scoring, route introspection, and the refined operator dashboard.
+- `v0.5.0` establishes the operator distribution baseline: image-provider contracts, Docker and GHCR packaging, PyPI workflow support, onboarding helpers, repo community standards, and cached release update checks.
 
 ## Planned Publishing Path
 
