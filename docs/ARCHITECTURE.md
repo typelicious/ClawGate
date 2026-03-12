@@ -41,6 +41,8 @@ The current chat path is:
 6. optional LLM classifier
 7. fallback chain if the chosen provider fails
 
+Before a candidate is accepted, FoundryGate also validates route fit against provider metadata such as context window, input/output token limits, cache hints, and locality.
+
 ## Provider layer
 
 The provider layer already supports:
@@ -55,6 +57,9 @@ Each provider can expose:
 - tier
 - contract
 - backend type
+- context window
+- token limits
+- cache metadata
 - health state
 
 ## Client layer
@@ -88,6 +93,8 @@ The main operational endpoints are:
 - `GET /api/recent`
 - `GET /api/traces`
 - `GET /dashboard`
+
+`/api/stats`, `/api/recent`, and `/api/traces` can now be filtered by provider, client profile, client tag, layer, and success state. The dashboard is a thin UI over those same filtered endpoints.
 
 ## Design target
 

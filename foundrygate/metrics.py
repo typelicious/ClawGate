@@ -6,6 +6,7 @@ import json
 import logging
 import sqlite3
 import time
+from typing import Any
 
 logger = logging.getLogger("foundrygate.metrics")
 
@@ -158,8 +159,10 @@ class MetricsStore:
         except Exception as e:
             logger.warning("Metrics write failed: %s", e)
 
-    def get_provider_summary(self) -> list[dict]:
-        return self._q("""
+    def get_provider_summary(self, **filters: Any) -> list[dict]:
+        where_sql, params = self._build_where_clause(filters)
+        return self._q(
+            f"""
             SELECT provider,
                 COUNT(*)                                        AS requests,
                 SUM(CASE WHEN success=0 THEN 1 ELSE 0 END)     AS failures,
@@ -173,21 +176,33 @@ class MetricsStore:
                     ELSE 0 END, 1)                              AS cache_hit_pct,
                 ROUND(SUM(cost_usd),6)                          AS cost_usd,
                 ROUND(AVG(latency_ms),1)                        AS avg_latency_ms
-            FROM requests GROUP BY provider ORDER BY requests DESC
-        """)
+            FROM requests{where_sql} GROUP BY provider ORDER BY requests DESC
+        """,
+            params,
+        )
 
-    def get_routing_breakdown(self) -> list[dict]:
-        return self._q("""
+    def get_routing_breakdown(self, **filters: Any) -> list[dict]:
+        filters = {
+            **filters,
+            "success": 1 if filters.get("success") is None else filters["success"],
+        }
+        where_sql, params = self._build_where_clause(filters)
+        return self._q(
+            f"""
             SELECT layer, rule_name, provider,
                 COUNT(*)                  AS requests,
                 ROUND(SUM(cost_usd),6)    AS cost_usd,
                 ROUND(AVG(latency_ms),1)  AS avg_latency_ms
-            FROM requests WHERE success=1
+            FROM requests{where_sql}
             GROUP BY layer, rule_name, provider ORDER BY requests DESC
-        """)
+        """,
+            params,
+        )
 
-    def get_client_breakdown(self) -> list[dict]:
-        return self._q("""
+    def get_client_breakdown(self, **filters: Any) -> list[dict]:
+        where_sql, params = self._build_where_clause(filters)
+        return self._q(
+            f"""
             SELECT client_profile,
                 client_tag,
                 provider,
@@ -195,10 +210,12 @@ class MetricsStore:
                 COUNT(*)                 AS requests,
                 ROUND(SUM(cost_usd),6)   AS cost_usd,
                 ROUND(AVG(latency_ms),1) AS avg_latency_ms
-            FROM requests
+            FROM requests{where_sql}
             GROUP BY client_profile, client_tag, provider, layer
             ORDER BY requests DESC, client_profile ASC, client_tag ASC
-        """)
+        """,
+            params,
+        )
 
     def get_hourly_series(self, hours: int = 24) -> list[dict]:
         cutoff = time.time() - hours * 3600
@@ -229,8 +246,12 @@ class MetricsStore:
             (cutoff,),
         )
 
-    def get_recent(self, limit: int = 50) -> list[dict]:
-        rows = self._q("SELECT * FROM requests ORDER BY timestamp DESC LIMIT ?", (limit,))
+    def get_recent(self, limit: int = 50, **filters: Any) -> list[dict]:
+        where_sql, params = self._build_where_clause(filters)
+        rows = self._q(
+            f"SELECT * FROM requests{where_sql} ORDER BY timestamp DESC LIMIT ?",
+            (*params, limit),
+        )
         for row in rows:
             attempt_order = row.get("attempt_order")
             if isinstance(attempt_order, str) and attempt_order:
@@ -240,8 +261,10 @@ class MetricsStore:
                     row["attempt_order"] = []
         return rows
 
-    def get_totals(self) -> dict:
-        rows = self._q("""
+    def get_totals(self, **filters: Any) -> dict:
+        where_sql, params = self._build_where_clause(filters)
+        rows = self._q(
+            f"""
             SELECT COUNT(*)                                        AS total_requests,
                 SUM(CASE WHEN success=0 THEN 1 ELSE 0 END)        AS total_failures,
                 SUM(prompt_tok)                                    AS total_prompt_tokens,
@@ -255,9 +278,37 @@ class MetricsStore:
                 ROUND(AVG(latency_ms),1)                           AS avg_latency_ms,
                 MIN(timestamp)                                     AS first_request,
                 MAX(timestamp)                                     AS last_request
-            FROM requests
-        """)
+            FROM requests{where_sql}
+        """,
+            params,
+        )
         return rows[0] if rows else {}
+
+    def _build_where_clause(self, filters: dict[str, Any]) -> tuple[str, tuple[Any, ...]]:
+        """Build a WHERE clause for common dashboard and API filters."""
+        clauses = []
+        params: list[Any] = []
+        mapping = {
+            "provider": "provider",
+            "client_profile": "client_profile",
+            "client_tag": "client_tag",
+            "layer": "layer",
+        }
+        for key, column in mapping.items():
+            value = filters.get(key)
+            if value in (None, ""):
+                continue
+            clauses.append(f"{column} = ?")
+            params.append(value)
+
+        success = filters.get("success")
+        if success not in (None, ""):
+            clauses.append("success = ?")
+            params.append(1 if bool(success) else 0)
+
+        if not clauses:
+            return "", ()
+        return f" WHERE {' AND '.join(clauses)}", tuple(params)
 
     def _q(self, sql: str, params: tuple = ()) -> list[dict]:
         if not self._conn:

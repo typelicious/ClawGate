@@ -32,6 +32,7 @@ from .hooks import get_registered_request_hooks
 
 _SUPPORTED_BACKENDS = {"openai-compat", "google-genai", "anthropic-compat"}
 _SUPPORTED_PROVIDER_CONTRACTS = {"generic", "local-worker"}
+_SUPPORTED_CACHE_MODES = {"none", "implicit", "explicit"}
 _BOOL_CAPABILITY_FIELDS = {
     "chat",
     "reasoning",
@@ -189,13 +190,15 @@ def _normalize_provider_capabilities(name: str, cfg: dict[str, Any]) -> dict[str
     model = str(cfg.get("model", "")).lower()
     tier = str(cfg.get("tier", "")).lower()
     is_local = _looks_local_base_url(str(cfg.get("base_url", "")))
+    context_window = int(cfg.get("context_window") or 0)
+    max_input_tokens = int((cfg.get("limits") or {}).get("max_input_tokens") or 0)
 
     normalized: dict[str, Any] = {
         "chat": True,
         "reasoning": tier == "reasoning" or "reasoner" in model,
         "vision": False,
         "tools": False,
-        "long_context": False,
+        "long_context": context_window >= 128_000 or max_input_tokens >= 128_000,
         "streaming": backend != "google-genai",
         "local": is_local,
         "cloud": not is_local,
@@ -236,6 +239,69 @@ def _normalize_provider_capabilities(name: str, cfg: dict[str, Any]) -> dict[str
     return normalized
 
 
+def _normalize_positive_int(value: Any, *, field_name: str, provider_name: str) -> int | None:
+    """Validate one optional positive integer provider field."""
+    if value in (None, ""):
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ConfigError(
+            f"Provider '{provider_name}' field '{field_name}' must be a positive integer"
+        )
+    return value
+
+
+def _normalize_provider_limits(name: str, cfg: dict[str, Any]) -> dict[str, int]:
+    """Validate optional provider token limit metadata."""
+    raw = cfg.get("limits") or {}
+    if not isinstance(raw, dict):
+        raise ConfigError(f"Provider '{name}' field 'limits' must be a mapping")
+
+    limits: dict[str, int] = {}
+    max_input = _normalize_positive_int(
+        raw.get("max_input_tokens"),
+        field_name="limits.max_input_tokens",
+        provider_name=name,
+    )
+    max_output = _normalize_positive_int(
+        raw.get("max_output_tokens"),
+        field_name="limits.max_output_tokens",
+        provider_name=name,
+    )
+    if max_input is not None:
+        limits["max_input_tokens"] = max_input
+    if max_output is not None:
+        limits["max_output_tokens"] = max_output
+    return limits
+
+
+def _normalize_provider_cache(name: str, cfg: dict[str, Any]) -> dict[str, Any]:
+    """Validate optional provider cache metadata."""
+    raw = cfg.get("cache") or {}
+    if not isinstance(raw, dict):
+        raise ConfigError(f"Provider '{name}' field 'cache' must be a mapping")
+
+    pricing = cfg.get("pricing") or {}
+    has_cache_read_price = bool(pricing.get("cache_read", 0))
+    default_mode = "implicit" if has_cache_read_price else "none"
+    mode = str(raw.get("mode", default_mode)).strip().lower()
+    if mode not in _SUPPORTED_CACHE_MODES:
+        supported = ", ".join(sorted(_SUPPORTED_CACHE_MODES))
+        raise ConfigError(
+            f"Provider '{name}' field 'cache.mode' uses unsupported value '{mode}'"
+            f" (supported: {supported})"
+        )
+
+    read_discount = raw.get("read_discount")
+    if read_discount is None:
+        input_price = float(pricing.get("input", 0) or 0)
+        cache_price = float(pricing.get("cache_read", input_price) or input_price)
+        read_discount = mode != "none" and cache_price < input_price
+    elif not isinstance(read_discount, bool):
+        raise ConfigError(f"Provider '{name}' field 'cache.read_discount' must be a boolean")
+
+    return {"mode": mode, "read_discount": read_discount}
+
+
 def _normalize_provider(name: str, cfg: Any) -> dict[str, Any]:
     """Validate a provider definition and attach normalized capability metadata."""
     if not isinstance(cfg, dict):
@@ -253,6 +319,14 @@ def _normalize_provider(name: str, cfg: Any) -> dict[str, Any]:
         value = normalized.get(field, "")
         if not isinstance(value, str) or not value.strip():
             raise ConfigError(f"Provider '{name}' must define a non-empty '{field}'")
+
+    context_window = _normalize_positive_int(
+        normalized.get("context_window"),
+        field_name="context_window",
+        provider_name=name,
+    )
+    if context_window is not None:
+        normalized["context_window"] = context_window
 
     contract = normalized.get("contract", "generic")
     if not isinstance(contract, str) or not contract.strip():
@@ -288,6 +362,18 @@ def _normalize_provider(name: str, cfg: Any) -> dict[str, Any]:
             "network_zone": "local",
         }
 
+    normalized["limits"] = _normalize_provider_limits(name, normalized)
+    if "max_tokens" in normalized and "max_output_tokens" not in normalized["limits"]:
+        max_tokens = _normalize_positive_int(
+            normalized.get("max_tokens"),
+            field_name="max_tokens",
+            provider_name=name,
+        )
+        if max_tokens is not None:
+            normalized["max_tokens"] = max_tokens
+            normalized["limits"]["max_output_tokens"] = max_tokens
+
+    normalized["cache"] = _normalize_provider_cache(name, normalized)
     normalized["capabilities"] = _normalize_provider_capabilities(name, normalized)
     return normalized
 

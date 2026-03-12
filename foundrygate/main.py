@@ -139,6 +139,9 @@ def _serialize_provider(name: str) -> dict[str, Any] | None:
         "tier": provider.tier,
         "healthy": provider.health.healthy,
         "capabilities": provider.capabilities,
+        "context_window": provider.context_window,
+        "limits": provider.limits,
+        "cache": provider.cache,
     }
 
 
@@ -166,6 +169,7 @@ async def _resolve_route_preview(
     messages = body.get("messages", [])
     model_requested = body.get("model", "auto")
     tools = body.get("tools")
+    max_tokens = body.get("max_tokens") if isinstance(body.get("max_tokens"), int) else None
 
     client_profile, profile_hints = _resolve_client_profile(
         _config,
@@ -188,6 +192,7 @@ async def _resolve_route_preview(
             messages,
             model_requested=model_requested,
             has_tools=bool(tools),
+            requested_max_tokens=max_tokens,
             client_profile=client_profile,
             profile_hints=profile_hints,
             hook_hints=hook_state.routing_hints,
@@ -275,6 +280,9 @@ async def health():
                 "backend": p.backend_type,
                 "tier": p.tier,
                 "capabilities": p.capabilities,
+                "context_window": p.context_window,
+                "limits": p.limits,
+                "cache": p.cache,
             }
             for name, p in _providers.items()
         },
@@ -303,34 +311,82 @@ async def list_models():
                 "description": f"{p.model} ({p.tier})",
                 "contract": p.contract,
                 "capabilities": p.capabilities,
+                "context_window": p.context_window,
+                "limits": p.limits,
+                "cache": p.cache,
             }
         )
     return {"object": "list", "data": models}
 
 
 @app.get("/api/stats")
-async def stats():
+async def stats(
+    provider: str | None = None,
+    client_profile: str | None = None,
+    client_tag: str | None = None,
+    layer: str | None = None,
+    success: bool | None = None,
+):
     """Full statistics: totals, per-provider, routing breakdown, time series."""
+    filters = {
+        "provider": provider,
+        "client_profile": client_profile,
+        "client_tag": client_tag,
+        "layer": layer,
+        "success": success,
+    }
     return {
-        "totals": _metrics.get_totals(),
-        "providers": _metrics.get_provider_summary(),
-        "routing": _metrics.get_routing_breakdown(),
-        "clients": _metrics.get_client_breakdown(),
+        "totals": _metrics.get_totals(**filters),
+        "providers": _metrics.get_provider_summary(**filters),
+        "routing": _metrics.get_routing_breakdown(**filters),
+        "clients": _metrics.get_client_breakdown(**filters),
         "hourly": _metrics.get_hourly_series(24),
         "daily": _metrics.get_daily_totals(30),
     }
 
 
 @app.get("/api/recent")
-async def recent(limit: int = 50):
+async def recent(
+    limit: int = 50,
+    provider: str | None = None,
+    client_profile: str | None = None,
+    client_tag: str | None = None,
+    layer: str | None = None,
+    success: bool | None = None,
+):
     """Recent request log."""
-    return {"requests": _metrics.get_recent(limit)}
+    return {
+        "requests": _metrics.get_recent(
+            limit,
+            provider=provider,
+            client_profile=client_profile,
+            client_tag=client_tag,
+            layer=layer,
+            success=success,
+        )
+    }
 
 
 @app.get("/api/traces")
-async def traces(limit: int = 50):
+async def traces(
+    limit: int = 50,
+    provider: str | None = None,
+    client_profile: str | None = None,
+    client_tag: str | None = None,
+    layer: str | None = None,
+    success: bool | None = None,
+):
     """Recent enriched route traces for debugging and policy tuning."""
-    return {"traces": _metrics.get_recent(limit)}
+    return {
+        "traces": _metrics.get_recent(
+            limit,
+            provider=provider,
+            client_profile=client_profile,
+            client_tag=client_tag,
+            layer=layer,
+            success=success,
+        )
+    }
 
 
 @app.post("/api/route")
@@ -546,125 +602,262 @@ _DASHBOARD_HTML = """<!DOCTYPE html>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:system-ui,-apple-system,sans-serif;background:#0a0a0f;color:#e0e0e0;padding:20px}
 h1{font-size:1.4em;color:#7af;margin-bottom:4px}
-.sub{color:#888;font-size:.85em;margin-bottom:20px}
+.sub{color:#888;font-size:.85em}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.actions{display:flex;gap:8px;align-items:center}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:24px}
-.card{background:#14141f;border:1px solid #222;border-radius:8px;padding:16px}
+.card,.filters,.sect{background:#14141f;border:1px solid #222;border-radius:10px}
+.card{padding:16px}
 .card .label{font-size:.75em;color:#888;text-transform:uppercase;letter-spacing:.5px}
 .card .value{font-size:1.8em;font-weight:700;color:#7af;margin-top:2px}
 .card .value.cost{color:#5e5}
 .card .value.err{color:#f66}
 .card .detail{font-size:.75em;color:#666;margin-top:4px}
-table{width:100%;border-collapse:collapse;font-size:.85em;margin-bottom:24px}
+.filters{padding:14px 16px;margin-bottom:16px}
+.filters h2,.sect h2{font-size:1em;color:#aaa;margin-bottom:10px}
+.filters-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+label{display:flex;flex-direction:column;gap:6px;font-size:.75em;color:#888;text-transform:uppercase;letter-spacing:.5px}
+input,select{background:#0f1117;color:#e0e0e0;border:1px solid #2a2d38;border-radius:8px;padding:8px 10px;font-size:.9em}
+button{background:#222;color:#ddd;border:1px solid #333;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:.85em}
+button:hover{background:#2a2a3a}
+.filters-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.sect{padding:14px 16px;margin-bottom:16px}
+table{width:100%;border-collapse:collapse;font-size:.85em}
 th{text-align:left;padding:8px 10px;border-bottom:2px solid #333;color:#888;font-weight:600;text-transform:uppercase;font-size:.7em;letter-spacing:.5px}
-td{padding:6px 10px;border-bottom:1px solid #1a1a2a}
+td{padding:7px 10px;border-bottom:1px solid #1a1a2a;vertical-align:top}
 tr:hover td{background:#1a1a2a}
-.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.75em;font-weight:600}
-.tag-static{background:#2a2a4a;color:#99f}
-.tag-heuristic{background:#2a3a2a;color:#9f9}
-.tag-direct{background:#3a3a2a;color:#ff9}
-.tag-fallback{background:#3a2a2a;color:#f99}
-.tag-llm{background:#2a3a3a;color:#9ff}
-.bar-wrap{height:6px;background:#1a1a2a;border-radius:3px;overflow:hidden;margin-top:6px}
-.bar{height:100%;border-radius:3px;transition:width .5s}
-.bar-ds{background:#7af}.bar-r1{background:#f7a}.bar-gl{background:#5e5}.bar-gf{background:#5dd}.bar-or{background:#fa5}
-.sect{margin-bottom:24px}
-.sect h2{font-size:1em;color:#aaa;margin-bottom:10px;border-bottom:1px solid #222;padding-bottom:6px}
-#status{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
-.refresh-btn{background:#222;color:#888;border:1px solid #333;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:.8em}
-.refresh-btn:hover{background:#2a2a3a;color:#aaa}
-.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
 .mono{font-family:'SF Mono',Consolas,monospace;font-size:.8em}
+.tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.72em;font-weight:600}
+.tag-policy{background:#243247;color:#9fc3ff}
+.tag-static{background:#2a2a4a;color:#99f}
+.tag-heuristic{background:#203726;color:#9f9}
+.tag-hook{background:#3b2c1d;color:#ffcf8a}
+.tag-profile{background:#2a2140;color:#d5b3ff}
+.tag-direct{background:#3a3a2a;color:#ff9}
+.tag-fallback{background:#3a2222;color:#f99}
+.tag-llm-classify{background:#1d3b3b;color:#9ff}
+.tag-healthy{background:#203726;color:#9f9}
+.tag-unhealthy{background:#3a2222;color:#f99}
+.pill{display:inline-block;padding:2px 6px;border-radius:6px;background:#1c2230;color:#9db2d1;font-size:.72em}
+#status{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.empty{color:#666;padding:8px 0}
+.note{color:#666;font-size:.78em}
 </style>
 </head>
 <body>
 <div class="topbar">
-  <div><h1><span id="status"></span>FoundryGate</h1><div class="sub">Local AI Gateway Dashboard</div></div>
-  <div><button class="refresh-btn" onclick="load()">&#x21bb; Refresh</button> <span id="ago" class="mono" style="color:#666"></span></div>
+  <div>
+    <h1><span id="status"></span>FoundryGate</h1>
+    <div class="sub">Local AI Gateway Dashboard</div>
+  </div>
+  <div class="actions">
+    <button type="button" onclick="applyFilters()">Apply Filters</button>
+    <button type="button" onclick="resetFilters()">Clear</button>
+    <button type="button" onclick="load()">Refresh</button>
+    <span id="ago" class="mono note"></span>
+  </div>
+</div>
+
+<div class="filters">
+  <h2>Filters</h2>
+  <div class="filters-grid">
+    <label>Provider<input id="filter-provider" placeholder="local-worker"></label>
+    <label>Client Profile<input id="filter-profile" placeholder="openclaw"></label>
+    <label>Client Tag<input id="filter-client" placeholder="codex"></label>
+    <label>Layer
+      <select id="filter-layer">
+        <option value="">All layers</option>
+        <option value="policy">policy</option>
+        <option value="static">static</option>
+        <option value="heuristic">heuristic</option>
+        <option value="hook">hook</option>
+        <option value="profile">profile</option>
+        <option value="llm-classify">llm-classify</option>
+        <option value="fallback">fallback</option>
+        <option value="direct">direct</option>
+      </select>
+    </label>
+    <label>Status
+      <select id="filter-success">
+        <option value="">All</option>
+        <option value="true">Success</option>
+        <option value="false">Failure</option>
+      </select>
+    </label>
+  </div>
+  <div class="filters-actions">
+    <span class="note">Filters apply to stats, traces, and recent requests.</span>
+  </div>
 </div>
 
 <div class="grid" id="cards"></div>
 
-<div class="sect"><h2>Provider Breakdown</h2><table id="providers"><thead><tr>
-  <th>Provider</th><th>Requests</th><th>Tokens</th><th>Cost</th><th>Cache%</th><th>Failures</th><th>Avg Latency</th><th>Share</th>
-</tr></thead><tbody></tbody></table></div>
+<div class="sect">
+  <h2>Provider Health</h2>
+  <table id="health"><thead><tr>
+    <th>Provider</th><th>Status</th><th>Contract</th><th>Tier</th><th>Context</th><th>Limits</th><th>Cache</th><th>Latency</th><th>Last Error</th>
+  </tr></thead><tbody></tbody></table>
+</div>
 
-<div class="sect"><h2>Routing Rules</h2><table id="routing"><thead><tr>
-  <th>Layer</th><th>Rule</th><th>Provider</th><th>Requests</th><th>Cost</th><th>Avg Latency</th>
-</tr></thead><tbody></tbody></table></div>
+<div class="sect">
+  <h2>Client Breakdown</h2>
+  <table id="clients"><thead><tr>
+    <th>Profile</th><th>Client Tag</th><th>Provider</th><th>Layer</th><th>Requests</th><th>Cost</th><th>Avg Latency</th>
+  </tr></thead><tbody></tbody></table>
+</div>
 
-<div class="sect"><h2>Recent Requests</h2><table id="recent"><thead><tr>
-  <th>Time</th><th>Provider</th><th>Layer</th><th>Rule</th><th>Tokens</th><th>Cost</th><th>Latency</th><th>Status</th>
-</tr></thead><tbody></tbody></table></div>
+<div class="sect">
+  <h2>Routing Rules</h2>
+  <table id="routing"><thead><tr>
+    <th>Layer</th><th>Rule</th><th>Provider</th><th>Requests</th><th>Cost</th><th>Avg Latency</th>
+  </tr></thead><tbody></tbody></table>
+</div>
+
+<div class="sect">
+  <h2>Route Traces</h2>
+  <table id="traces"><thead><tr>
+    <th>Time</th><th>Provider</th><th>Profile</th><th>Client</th><th>Layer</th><th>Reason</th><th>Confidence</th><th>Attempts</th>
+  </tr></thead><tbody></tbody></table>
+</div>
+
+<div class="sect">
+  <h2>Recent Requests</h2>
+  <table id="recent"><thead><tr>
+    <th>Time</th><th>Provider</th><th>Layer</th><th>Rule</th><th>Tokens</th><th>Cost</th><th>Latency</th><th>Status</th>
+  </tr></thead><tbody></tbody></table>
+</div>
 
 <script>
 const $ = s => document.querySelector(s);
-const fmt = (n,d=2) => n!=null ? n.toLocaleString('en',{minimumFractionDigits:d,maximumFractionDigits:d}) : '—';
+const fmt = (n,d=2) => n!=null ? Number(n).toLocaleString('en',{minimumFractionDigits:d,maximumFractionDigits:d}) : '—';
 const fmtUsd = n => n!=null ? '$'+fmt(n,4) : '—';
 const fmtTok = n => n!=null ? (n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':''+n) : '0';
 const fmtMs = n => n!=null ? fmt(n,0)+'ms' : '—';
 const ago = ts => {if(!ts)return '—';const s=Date.now()/1000-ts;return s<60?Math.round(s)+'s ago':s<3600?Math.round(s/60)+'m ago':Math.round(s/3600)+'h ago';};
-const layerTag = l => '<span class="tag tag-'+l+'">'+l+'</span>';
-const barClass = p => p.includes('reasoner')?'bar-r1':p.includes('flash-lite')?'bar-gl':p.includes('flash')?'bar-gf':p.includes('openrouter')?'bar-or':'bar-ds';
+const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',\"'\":'&#39;'}[ch]));
+const layerTag = l => `<span class="tag tag-${esc((l||'unknown').toLowerCase())}">${esc(l||'unknown')}</span>`;
+const statusTag = ok => ok ? '<span class="tag tag-healthy">healthy</span>' : '<span class="tag tag-unhealthy">unhealthy</span>';
+
+function currentFilters(){
+  const params = new URLSearchParams();
+  const mapping = {
+    provider: $('#filter-provider').value.trim(),
+    client_profile: $('#filter-profile').value.trim(),
+    client_tag: $('#filter-client').value.trim(),
+    layer: $('#filter-layer').value.trim(),
+    success: $('#filter-success').value.trim(),
+  };
+  Object.entries(mapping).forEach(([key, value]) => {
+    if (value) params.set(key, value);
+  });
+  return params;
+}
+
+function applyFilters(){ load(); }
+
+function resetFilters(){
+  ['#filter-provider','#filter-profile','#filter-client','#filter-layer','#filter-success'].forEach(sel => {
+    $(sel).value = '';
+  });
+  load();
+}
+
+function emptyRow(colspan, label){
+  return `<tr><td colspan="${colspan}" class="empty">${esc(label)}</td></tr>`;
+}
+
+function formatLimits(provider){
+  const limits = provider?.limits || {};
+  const parts = [];
+  if (limits.max_input_tokens) parts.push(`in ${fmtTok(limits.max_input_tokens)}`);
+  if (limits.max_output_tokens) parts.push(`out ${fmtTok(limits.max_output_tokens)}`);
+  return parts.length ? esc(parts.join(' / ')) : '—';
+}
 
 async function load(){
   try{
-    const [stats,rec] = await Promise.all([
-      fetch('/api/stats').then(r=>r.json()),
-      fetch('/api/recent?limit=30').then(r=>r.json())
+    const query = currentFilters();
+    const queryStr = query.toString();
+    const suffix = queryStr ? `?${queryStr}` : '';
+    const [health, stats, traces, rec] = await Promise.all([
+      fetch('/health').then(r=>r.json()),
+      fetch(`/api/stats${suffix}`).then(r=>r.json()),
+      fetch(`/api/traces${suffix}${suffix ? '&' : '?'}limit=20`).then(r=>r.json()),
+      fetch(`/api/recent${suffix}${suffix ? '&' : '?'}limit=20`).then(r=>r.json())
     ]);
-    const t = stats.totals || {};
-    $('#status').style.background='#5e5';
-    $('#ago').textContent = ago(t.last_request);
 
-    // Cards
+    const totals = stats.totals || {};
+    $('#status').style.background = '#5e5';
+    $('#ago').textContent = ago(totals.last_request);
+
     $('#cards').innerHTML = `
-      <div class="card"><div class="label">Total Requests</div><div class="value">${fmtTok(t.total_requests)}</div></div>
-      <div class="card"><div class="label">Total Cost</div><div class="value cost">${fmtUsd(t.total_cost_usd)}</div></div>
-      <div class="card"><div class="label">Total Tokens</div><div class="value">${fmtTok((t.total_prompt_tokens||0)+(t.total_compl_tokens||0))}</div>
-        <div class="detail">${fmtTok(t.total_prompt_tokens)} in / ${fmtTok(t.total_compl_tokens)} out</div></div>
-      <div class="card"><div class="label">Avg Latency</div><div class="value">${fmtMs(t.avg_latency_ms)}</div></div>
-      <div class="card"><div class="label">Cache Hit Rate</div><div class="value cost">${t.cache_hit_pct||0}%</div>
-        <div class="detail">${fmtTok(t.total_cache_hit)} hit / ${fmtTok(t.total_cache_miss)} miss</div></div>
-      <div class="card"><div class="label">Failures</div><div class="value ${t.total_failures>0?'err':''}">${t.total_failures||0}</div></div>
+      <div class="card"><div class="label">Requests</div><div class="value">${fmtTok(totals.total_requests || 0)}</div></div>
+      <div class="card"><div class="label">Cost</div><div class="value cost">${fmtUsd(totals.total_cost_usd || 0)}</div></div>
+      <div class="card"><div class="label">Tokens</div><div class="value">${fmtTok((totals.total_prompt_tokens||0)+(totals.total_compl_tokens||0))}</div><div class="detail">${fmtTok(totals.total_prompt_tokens||0)} in / ${fmtTok(totals.total_compl_tokens||0)} out</div></div>
+      <div class="card"><div class="label">Avg Latency</div><div class="value">${fmtMs(totals.avg_latency_ms || 0)}</div></div>
+      <div class="card"><div class="label">Cache Hit Rate</div><div class="value cost">${fmt(totals.cache_hit_pct || 0,1)}%</div><div class="detail">${fmtTok(totals.total_cache_hit || 0)} hit / ${fmtTok(totals.total_cache_miss || 0)} miss</div></div>
+      <div class="card"><div class="label">Failures</div><div class="value ${(totals.total_failures||0)>0?'err':''}">${totals.total_failures || 0}</div></div>
     `;
 
-    // Provider table
-    const maxReq = Math.max(...(stats.providers||[]).map(p=>p.requests),1);
-    $('#providers tbody').innerHTML = (stats.providers||[]).map(p=>`<tr>
-      <td><strong>${p.provider}</strong></td>
-      <td>${p.requests}</td>
-      <td class="mono">${fmtTok(p.total_tokens)}</td>
-      <td class="mono">${fmtUsd(p.cost_usd)}</td>
-      <td class="mono">${p.cache_hit_pct||0}%</td>
-      <td>${p.failures||0}</td>
-      <td class="mono">${fmtMs(p.avg_latency_ms)}</td>
-      <td style="min-width:100px"><div class="bar-wrap"><div class="bar ${barClass(p.provider)}" style="width:${(p.requests/maxReq*100).toFixed(0)}%"></div></div></td>
-    </tr>`).join('');
+    const providerRows = Object.entries(health.providers || {}).map(([name, provider]) => `<tr>
+      <td><strong>${esc(name)}</strong></td>
+      <td>${statusTag(provider.healthy)}</td>
+      <td>${esc(provider.contract || 'generic')}</td>
+      <td>${esc(provider.tier || 'default')}</td>
+      <td class="mono">${provider.context_window ? fmtTok(provider.context_window) : '—'}</td>
+      <td class="mono">${formatLimits(provider)}</td>
+      <td><span class="pill">${esc((provider.cache && provider.cache.mode) || 'none')}</span></td>
+      <td class="mono">${fmtMs(provider.avg_latency_ms)}</td>
+      <td class="mono">${esc(provider.last_error || '—')}</td>
+    </tr>`);
+    $('#health tbody').innerHTML = providerRows.length ? providerRows.join('') : emptyRow(9, 'No provider health data');
 
-    // Routing table
-    $('#routing tbody').innerHTML = (stats.routing||[]).map(r=>`<tr>
-      <td>${layerTag(r.layer)}</td>
-      <td class="mono">${r.rule_name}</td>
-      <td>${r.provider}</td>
-      <td>${r.requests}</td>
-      <td class="mono">${fmtUsd(r.cost_usd)}</td>
-      <td class="mono">${fmtMs(r.avg_latency_ms)}</td>
-    </tr>`).join('');
+    const clientRows = (stats.clients || []).map(row => `<tr>
+      <td>${esc(row.client_profile || 'generic')}</td>
+      <td>${esc(row.client_tag || '—')}</td>
+      <td>${esc(row.provider)}</td>
+      <td>${layerTag(row.layer)}</td>
+      <td>${row.requests}</td>
+      <td class="mono">${fmtUsd(row.cost_usd)}</td>
+      <td class="mono">${fmtMs(row.avg_latency_ms)}</td>
+    </tr>`);
+    $('#clients tbody').innerHTML = clientRows.length ? clientRows.join('') : emptyRow(7, 'No client rows for the current filter set');
 
-    // Recent
-    $('#recent tbody').innerHTML = (rec.requests||[]).map(r=>`<tr>
-      <td class="mono">${ago(r.timestamp)}</td>
-      <td>${r.provider}</td>
-      <td>${layerTag(r.layer)}</td>
-      <td class="mono">${r.rule_name}</td>
-      <td class="mono">${fmtTok(r.prompt_tok+r.compl_tok)}</td>
-      <td class="mono">${fmtUsd(r.cost_usd)}</td>
-      <td class="mono">${fmtMs(r.latency_ms)}</td>
-      <td>${r.success?'\\u2705':'\\u274c'}</td>
-    </tr>`).join('');
+    const routingRows = (stats.routing || []).map(row => `<tr>
+      <td>${layerTag(row.layer)}</td>
+      <td class="mono">${esc(row.rule_name)}</td>
+      <td>${esc(row.provider)}</td>
+      <td>${row.requests}</td>
+      <td class="mono">${fmtUsd(row.cost_usd)}</td>
+      <td class="mono">${fmtMs(row.avg_latency_ms)}</td>
+    </tr>`);
+    $('#routing tbody').innerHTML = routingRows.length ? routingRows.join('') : emptyRow(6, 'No routing rows for the current filter set');
 
+    const traceRows = (traces.traces || []).map(row => `<tr>
+      <td class="mono">${ago(row.timestamp)}</td>
+      <td>${esc(row.provider)}</td>
+      <td>${esc(row.client_profile || 'generic')}</td>
+      <td>${esc(row.client_tag || '—')}</td>
+      <td>${layerTag(row.layer)}</td>
+      <td class="mono">${esc(row.decision_reason || row.rule_name)}</td>
+      <td class="mono">${fmt(row.confidence || 0, 2)}</td>
+      <td class="mono">${esc((row.attempt_order || []).join(' -> ') || '—')}</td>
+    </tr>`);
+    $('#traces tbody').innerHTML = traceRows.length ? traceRows.join('') : emptyRow(8, 'No traces for the current filter set');
+
+    const recentRows = (rec.requests || []).map(row => `<tr>
+      <td class="mono">${ago(row.timestamp)}</td>
+      <td>${esc(row.provider)}</td>
+      <td>${layerTag(row.layer)}</td>
+      <td class="mono">${esc(row.rule_name)}</td>
+      <td class="mono">${fmtTok((row.prompt_tok||0)+(row.compl_tok||0))}</td>
+      <td class="mono">${fmtUsd(row.cost_usd)}</td>
+      <td class="mono">${fmtMs(row.latency_ms)}</td>
+      <td>${row.success ? 'yes' : 'no'}</td>
+    </tr>`);
+    $('#recent tbody').innerHTML = recentRows.length ? recentRows.join('') : emptyRow(8, 'No recent requests for the current filter set');
   }catch(e){
-    $('#status').style.background='#f66';
+    $('#status').style.background = '#f66';
     console.error(e);
   }
 }

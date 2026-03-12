@@ -83,3 +83,55 @@ def test_metrics_store_migrates_existing_db(tmp_path):
     assert "client_tag" in columns
     assert "attempt_order" in columns
     reopened.close()
+
+
+def test_metrics_store_filters_recent_and_breakdowns(tmp_path):
+    db_path = tmp_path / "filtered.db"
+    metrics = MetricsStore(str(db_path))
+    metrics.init()
+
+    metrics.log_request(
+        provider="local-worker",
+        model="llama3",
+        layer="hook",
+        rule_name="request-hooks",
+        cost_usd=0.0,
+        latency_ms=25.0,
+        client_profile="local-only",
+        client_tag="codex",
+        success=True,
+    )
+    metrics.log_request(
+        provider="cloud-default",
+        model="cloud-chat",
+        layer="policy",
+        rule_name="prefer-cloud",
+        cost_usd=0.01,
+        latency_ms=140.0,
+        client_profile="generic",
+        client_tag="n8n",
+        success=False,
+    )
+
+    local_recent = metrics.get_recent(10, provider="local-worker")
+    assert len(local_recent) == 1
+    assert local_recent[0]["provider"] == "local-worker"
+
+    failed_recent = metrics.get_recent(10, success=False)
+    assert len(failed_recent) == 1
+    assert failed_recent[0]["provider"] == "cloud-default"
+
+    client_rows = metrics.get_client_breakdown(client_tag="codex")
+    assert len(client_rows) == 1
+    assert client_rows[0]["client_tag"] == "codex"
+    assert client_rows[0]["provider"] == "local-worker"
+
+    routing_rows = metrics.get_routing_breakdown(layer="hook")
+    assert len(routing_rows) == 1
+    assert routing_rows[0]["layer"] == "hook"
+
+    totals = metrics.get_totals(provider="cloud-default")
+    assert totals["total_requests"] == 1
+    assert totals["total_failures"] == 1
+
+    metrics.close()

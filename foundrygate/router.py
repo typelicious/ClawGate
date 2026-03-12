@@ -1,4 +1,4 @@
-"""3-layer routing engine: static → heuristic → LLM classifier."""
+"""Layered routing engine for policy, heuristics, hooks, profiles, and LLM fallback."""
 
 from __future__ import annotations
 
@@ -76,6 +76,7 @@ class Router:
         *,
         model_requested: str = "",
         has_tools: bool = False,
+        requested_max_tokens: int | None = None,
         client_profile: str = "generic",
         profile_hints: dict[str, Any] | None = None,
         hook_hints: dict[str, Any] | None = None,
@@ -90,12 +91,19 @@ class Router:
         t0 = time.time()
         system, last_user, full_text = _extract_text(messages)
         total_tokens = _estimate_tokens(full_text)
+        stable_prefix_tokens = _estimate_tokens(system) if system else 0
+        requested_output_tokens = requested_max_tokens or 0
+        total_requested_tokens = total_tokens + requested_output_tokens
 
         ctx = _RoutingContext(
             system_prompt=system,
             last_user_message=last_user,
             full_text=full_text,
             total_tokens=total_tokens,
+            stable_prefix_tokens=stable_prefix_tokens,
+            requested_output_tokens=requested_output_tokens,
+            total_requested_tokens=total_requested_tokens,
+            cache_preference=(headers or {}).get("x-foundrygate-cache", "").strip().lower(),
             model_requested=model_requested.lower().strip(),
             has_tools=has_tools,
             client_profile=client_profile,
@@ -217,18 +225,20 @@ class Router:
         candidates = [
             name
             for name, provider in ctx.providers.items()
-            if self._provider_matches_policy(provider, name, select)
+            if self._provider_matches_policy(provider, name, select, ctx)
         ]
         if not candidates:
             return None
 
-        ranked = self._rank_policy_candidates(candidates, select)
+        ranked = self._rank_policy_candidates(candidates, select, ctx)
         for provider_name in ranked:
             if ctx.provider_health.get(provider_name, {}).get("healthy", True):
                 return provider_name
         return ranked[0] if ranked else None
 
-    def _provider_matches_policy(self, provider: dict, name: str, select: dict) -> bool:
+    def _provider_matches_policy(
+        self, provider: dict, name: str, select: dict, ctx: _RoutingContext
+    ) -> bool:
         """Return whether a provider is eligible for a policy rule."""
         capabilities = provider.get("capabilities", {})
         allow = select.get("allow_providers", [])
@@ -247,13 +257,21 @@ class Router:
             if capabilities.get(capability) not in expected_values:
                 return False
 
-        return True
+        return self._provider_fits_request_dimensions(name, provider, ctx)
 
-    def _rank_policy_candidates(self, candidates: list[str], select: dict) -> list[str]:
+    def _rank_policy_candidates(
+        self, candidates: list[str], select: dict, ctx: _RoutingContext
+    ) -> list[str]:
         """Rank eligible policy candidates by explicit preference, then provider order."""
         preferred = []
         prefer_providers = select.get("prefer_providers", [])
         prefer_tiers = set(select.get("prefer_tiers", []))
+
+        ranked_candidates = sorted(
+            candidates,
+            key=lambda name: self._provider_dimension_score(name, ctx),
+            reverse=True,
+        )
 
         def _append(name: str) -> None:
             if name in candidates and name not in preferred:
@@ -263,15 +281,69 @@ class Router:
             _append(name)
 
         if prefer_tiers:
-            for name in candidates:
+            for name in ranked_candidates:
                 provider = self.config.provider(name) or {}
                 if provider.get("tier") in prefer_tiers:
                     _append(name)
 
-        for name in candidates:
+        for name in ranked_candidates:
             _append(name)
 
         return preferred
+
+    def _provider_fits_request_dimensions(
+        self, name: str, provider: dict, ctx: _RoutingContext | None
+    ) -> bool:
+        """Return whether a provider can satisfy the current token and context shape."""
+        if ctx is None:
+            return True
+
+        limits = provider.get("limits", {})
+        max_input = limits.get("max_input_tokens")
+        max_output = limits.get("max_output_tokens")
+        context_window = provider.get("context_window")
+
+        if max_input and ctx.total_tokens > max_input:
+            return False
+        if max_output and ctx.requested_output_tokens and ctx.requested_output_tokens > max_output:
+            return False
+        if context_window and ctx.total_requested_tokens > context_window:
+            return False
+        return True
+
+    def _provider_dimension_score(
+        self, name: str, ctx: _RoutingContext | None
+    ) -> tuple[int, int, int]:
+        """Return a multi-dimensional ranking score for one provider."""
+        provider = self.config.provider(name) or {}
+        limits = provider.get("limits", {})
+        cache = provider.get("cache", {})
+
+        if ctx is None:
+            return (0, 0, 0)
+
+        context_window = int(provider.get("context_window") or 0)
+        max_input = int(limits.get("max_input_tokens") or 0)
+        headroom = 0
+        if context_window:
+            headroom = max(0, context_window - ctx.total_requested_tokens)
+        elif max_input:
+            headroom = max(0, max_input - ctx.total_tokens)
+
+        prefers_cache = ctx.cache_preference in {"prefer", "prefer-cache"} or (
+            not ctx.cache_preference and ctx.stable_prefix_tokens >= 64
+        )
+        cache_score = 0
+        if prefers_cache and cache.get("mode") != "none":
+            cache_score = 2 if cache.get("read_discount") else 1
+
+        context_score = 0
+        if context_window:
+            context_score = min(context_window, 1_000_000)
+        elif max_input:
+            context_score = min(max_input, 1_000_000)
+
+        return (cache_score, context_score, headroom)
 
     # ── Layer 3: Request Hooks ────────────────────────────────
 
@@ -463,21 +535,38 @@ class Router:
     # ── Health validation ──────────────────────────────────────
 
     def _validate_health(self, decision: RoutingDecision, ctx: _RoutingContext) -> RoutingDecision:
-        """If chosen provider is unhealthy, fall through the chain."""
+        """If chosen provider is unhealthy or over limits, fall through the chain."""
         health = ctx.provider_health.get(decision.provider_name)
+        primary = self.config.provider(decision.provider_name) or {}
+        reason_suffix = None
         if health and not health.get("healthy", True):
-            logger.info("Provider %s unhealthy, falling through chain", decision.provider_name)
-            for fallback in self.config.fallback_chain:
+            reason_suffix = "primary unhealthy"
+        elif not self._provider_fits_request_dimensions(decision.provider_name, primary, ctx):
+            reason_suffix = "primary exceeded request dimensions"
+
+        if reason_suffix:
+            logger.info(
+                "Provider %s unsuitable (%s), falling through chain",
+                decision.provider_name,
+                reason_suffix,
+            )
+            for fallback in [decision.provider_name, *self.config.fallback_chain]:
+                if fallback == decision.provider_name:
+                    continue
+                provider = self.config.provider(fallback) or {}
                 fb_health = ctx.provider_health.get(fallback, {})
-                if fb_health.get("healthy", True) and fallback != decision.provider_name:
-                    return RoutingDecision(
-                        provider_name=fallback,
-                        layer=decision.layer,
-                        rule_name=f"{decision.rule_name}→fallback",
-                        confidence=decision.confidence * 0.8,
-                        reason=f"{decision.reason} (primary unhealthy, fell to {fallback})",
-                        elapsed_ms=decision.elapsed_ms,
-                    )
+                if not fb_health.get("healthy", True):
+                    continue
+                if not self._provider_fits_request_dimensions(fallback, provider, ctx):
+                    continue
+                return RoutingDecision(
+                    provider_name=fallback,
+                    layer=decision.layer,
+                    rule_name=f"{decision.rule_name}→fallback",
+                    confidence=decision.confidence * 0.8,
+                    reason=f"{decision.reason} ({reason_suffix}, fell to {fallback})",
+                    elapsed_ms=decision.elapsed_ms,
+                )
         return decision
 
 
@@ -489,6 +578,10 @@ class _RoutingContext:
         "last_user_message",
         "full_text",
         "total_tokens",
+        "stable_prefix_tokens",
+        "requested_output_tokens",
+        "total_requested_tokens",
+        "cache_preference",
         "model_requested",
         "has_tools",
         "client_profile",

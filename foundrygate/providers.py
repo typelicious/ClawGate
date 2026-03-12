@@ -71,6 +71,9 @@ class ProviderBackend:
         self.max_tokens = cfg.get("max_tokens", 8000)
         self.tier = cfg.get("tier", "default")
         self.capabilities = dict(cfg.get("capabilities", {}))
+        self.context_window = cfg.get("context_window")
+        self.limits = dict(cfg.get("limits", {}))
+        self.cache = dict(cfg.get("cache", {}))
         self.health = ProviderHealth(name=name)
 
         self._client = httpx.AsyncClient(
