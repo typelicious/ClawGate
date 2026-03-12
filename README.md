@@ -38,6 +38,7 @@ OpenClaw docs: [https://docs.openclaw.ai/](https://docs.openclaw.ai/)
 - OpenAI-compatible API: expose `/v1/models` and `/v1/chat/completions` to OpenClaw or any OpenAI-style client.
 - Single endpoint, multiple providers: clients call one local base URL while FoundryGate chooses the upstream provider.
 - Multi-provider routing: use `auto` for routing or target a provider directly by model id.
+- Multi-dimensional routing inputs: respect provider locality, context windows, token limits, and cache metadata during provider selection.
 - Robust fallback behavior: provider errors, timeouts, and connection failures fall through the configured fallback chain.
 - Useful observability: `/health` reports provider status, consecutive failures, last error, and average latency.
 - Safe database path handling: metrics use `FOUNDRYGATE_DB_PATH`, so the SQLite database does not need to live in the repo checkout.
@@ -124,6 +125,8 @@ Routing decisions happen in order:
 5. Optional client profile defaults for callers such as OpenClaw, n8n, or CLI wrappers
 6. An optional LLM classifier if you enable it in `config.yaml`
 
+Every candidate provider is also checked against its configured context window, token limits, cache metadata, and locality hints before FoundryGate commits to the final route or fallback.
+
 Important implementation detail: heuristic keyword scoring only evaluates user messages, not the system prompt. This avoids over-routing to expensive tiers because of long system prompts.
 
 For OpenClaw specifically, both one-agent and many-agent traffic use the same OpenAI-compatible endpoint. The built-in rules and presets can distinguish sub-agent traffic through `x-openclaw-source` when that header is present.
@@ -204,11 +207,14 @@ curl -fsS http://127.0.0.1:8090/api/route \
 curl -fsS http://127.0.0.1:8090/api/stats
 curl -fsS 'http://127.0.0.1:8090/api/recent?limit=10'
 curl -fsS 'http://127.0.0.1:8090/api/traces?limit=10'
+curl -fsS 'http://127.0.0.1:8090/api/stats?provider=local-worker&client_tag=codex'
 ```
 
 `POST /api/route` is a dry-run endpoint. It uses the same routing logic as `POST /v1/chat/completions` but does not call an upstream provider. The response includes the resolved client profile, the routing decision, and the fallback attempt order.
 
 If request hooks are enabled, `POST /api/route` also shows the applied hook names and the effective request metadata after hook processing.
+
+`GET /api/stats`, `GET /api/recent`, and `GET /api/traces` also accept optional `provider`, `client_profile`, `client_tag`, `layer`, and `success` filters. The built-in dashboard uses the same filtered endpoints.
 
 `GET /api/traces` returns recent enriched routing records from the metrics store, including requested model, resolved client profile, client tag, decision reason, confidence, and attempt order.
 
@@ -354,6 +360,18 @@ FoundryGate loads configuration from:
 - `.env` via `python-dotenv`
 
 String values in `config.yaml` support `${ENV_VAR}` and `${ENV_VAR:-default}` expansion.
+
+### Provider Routing Metadata
+
+The runtime now also understands these optional provider fields:
+
+- `context_window`: total context budget used for route-fit checks
+- `limits.max_input_tokens`: reject providers that cannot accept the estimated input size
+- `limits.max_output_tokens`: reject providers that cannot satisfy the requested output size
+- `cache.mode`: `none`, `implicit`, or `explicit`
+- `cache.read_discount`: whether cache reads are cheaper than fresh input
+
+These fields are exposed back through `/health` and `/v1/models`, and they are used by the routing engine when it ranks or rejects candidates.
 
 ### Core Environment Variables
 
@@ -653,8 +671,8 @@ The next product direction is tracked in [docs/FOUNDRYGATE-ROADMAP.md](./docs/FO
 Short version:
 
 - `FoundryGate` is the product name
-- the completed foundation already covers capability-aware routing, local worker support, client profiles, route introspection, route traces, and local worker probing
-- `v0.4.x` deepens routing and hardens the simple dashboard
+- the completed foundation already covers capability-aware routing, local worker support, client profiles, request hooks, route introspection, route traces, local worker probing, and first multi-dimensional route-fit checks
+- `v0.4.x` now focuses on deeper route scoring and dashboard refinement rather than the initial hook/dashboard baseline
 - `v0.5.0` is the target line for Docker and PyPI publishing plus onboarding helpers
 - the path to `v1.0.0` includes modality expansion, update operations, a separate npm or TypeScript CLI package, and a full security review
 

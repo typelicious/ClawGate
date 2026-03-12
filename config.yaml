@@ -21,7 +21,14 @@ server:
 #   api_key      : ${ENV_VAR} – leave blank to skip provider at startup
 #   model        : upstream model id
 #   max_tokens   : default max output tokens
+#   context_window: optional total context budget used for route-fit checks
 #   tier         : default | reasoning | cheap | mid | fallback | local
+#   limits       : optional token limits used for route-fit checks
+#     max_input_tokens : maximum estimated input tokens
+#     max_output_tokens: maximum requested output tokens
+#   cache        : optional cache metadata used for route ranking
+#     mode       : none | implicit | explicit
+#     read_discount: whether cache reads are cheaper than fresh input
 #   capabilities : optional provider metadata for future policy-aware routing
 #     chat            : must stay true in the current runtime
 #     reasoning       : provider is suitable for deeper reasoning tasks

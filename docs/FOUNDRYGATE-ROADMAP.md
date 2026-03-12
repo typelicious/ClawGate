@@ -11,9 +11,11 @@ The foundation that used to be the near-term buildout is largely in place:
 - local worker provider contract
 - client profiles and presets
 - optional request hook interfaces
+- first multi-dimensional route-fit inputs for context windows, cache hints, and provider limits
 - route introspection
 - routing traces and client/profile metrics
 - local worker probing
+- a hardened simple dashboard with filtered traces and client/provider views
 
 This roadmap now shifts from "rename and foundation" to "deepen the gateway plane without bloating it".
 
@@ -163,8 +165,8 @@ Responsibilities:
 
 Primary goals:
 
-- add richer multi-dimensional routing inputs for cache behavior, context windows, provider limits, and locality
-- harden the existing simple dashboard around traces, provider/client breakdowns, and route visibility
+- deepen multi-dimensional scoring beyond the first route-fit checks for cache behavior, context windows, provider limits, and locality
+- keep refining the simple dashboard around traces, provider/client breakdowns, and route visibility
 - keep OpenClaw one-agent and many-agent flows on the same OpenAI-compatible path with clearer defaults
 - harden the request hook seam for context, memory, and optimization layers
 
@@ -267,6 +269,8 @@ The earlier near-term sequence is now effectively complete up through the routin
 5. `feat(api): add client profile support` -> done
 6. `feat(obs): add route introspection and policy metrics` -> done, and now extended with traces and local worker probing
 7. `feat(ext): add optional request hook interfaces` -> done
+8. `feat(router): add first multi-dimensional route-fit inputs for cache, context windows, provider limits, and locality` -> done
+9. `feat(obs): harden the simple dashboard around traces, provider/client filters, and route visibility` -> done
 
 ## Detailed near-term backlog
 
