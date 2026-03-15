@@ -114,6 +114,15 @@ The main operational endpoints are:
 
 The operational surface now also applies conservative response headers by default. The no-build dashboard ships with a restrictive CSP and frame denial, while JSON and multipart request paths use bounded payload limits so obvious oversize failures are rejected before provider calls.
 
+The dashboard remains intentionally no-build for now:
+
+- no frontend framework runtime
+- no component library dependency
+- no separate JS build pipeline
+- one self-contained operator UI shipped with the gateway
+
+That is deliberate. The current goal is operational clarity and portability, not a second product surface that adds frontend tooling, bundle management, and extra deployment steps.
+
 ## Design target
 
 The longer-term design target is to outperform simpler router designs by making routing multi-dimensional instead of mostly keyword- or model-name-driven.

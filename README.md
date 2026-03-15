@@ -68,6 +68,17 @@ Then use the onboarding helpers to move from “the server starts” to “real 
 
 If you prefer a packaged or service-driven install, jump to [Deployment](#deployment) or the fuller [Operations guide](./docs/OPERATIONS.md).
 
+## Dashboard Direction
+
+The built-in dashboard stays intentionally no-build for now.
+
+- no frontend framework
+- no component library
+- no separate asset pipeline
+- one self-contained operational UI served by the FastAPI app
+
+That keeps deployment simple for local hosts, Docker, and systemd installs while the dashboard remains an operator-facing read-heavy surface.
+
 ## How It Works
 
 ```text
