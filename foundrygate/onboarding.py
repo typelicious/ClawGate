@@ -65,9 +65,7 @@ def _build_provider_rollout(
             continue
 
         capabilities = provider.get("capabilities") or {}
-        is_image_capable = capabilities.get("image_generation") or capabilities.get(
-            "image_editing"
-        )
+        is_image_capable = capabilities.get("image_generation") or capabilities.get("image_editing")
         if provider.get("contract") == "image-provider" or is_image_capable:
             modality_stage.append(provider["name"])
             continue
@@ -96,11 +94,14 @@ def _build_provider_rollout(
         gaps.append("No ready primary provider is available for the first rollout stage.")
     if len(providers) > 1 and fallback_chain and ready_fallback_targets == 0:
         gaps.append("Fallback chain is configured, but none of its targets are currently ready.")
-    if any(
-        (provider.get("capabilities") or {}).get("image_generation")
-        or (provider.get("capabilities") or {}).get("image_editing")
-        for provider in providers
-    ) and not modality_stage:
+    if (
+        any(
+            (provider.get("capabilities") or {}).get("image_generation")
+            or (provider.get("capabilities") or {}).get("image_editing")
+            for provider in providers
+        )
+        and not modality_stage
+    ):
         gaps.append("Image-capable providers are configured, but none are ready yet.")
 
     return {
@@ -367,12 +368,9 @@ def render_onboarding_report(report: dict[str, Any]) -> str:
             f"({routing_block['request_hook_count']} hooks)",
             "",
             "Provider rollout",
-            "- stage 1 primary: "
-            + (", ".join(rollout_block["stage_1_primary"]) or "none"),
-            "- stage 2 secondary: "
-            + (", ".join(rollout_block["stage_2_secondary"]) or "none"),
-            "- stage 3 modality: "
-            + (", ".join(rollout_block["stage_3_modality"]) or "none"),
+            "- stage 1 primary: " + (", ".join(rollout_block["stage_1_primary"]) or "none"),
+            "- stage 2 secondary: " + (", ".join(rollout_block["stage_2_secondary"]) or "none"),
+            "- stage 3 modality: " + (", ".join(rollout_block["stage_3_modality"]) or "none"),
             "",
             "Operations",
             f"- update checks: {ops_block['update_checks_enabled']}",
