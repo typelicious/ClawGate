@@ -420,6 +420,89 @@ def build_onboarding_report(
                 " locality or cost boundaries.",
             ],
         },
+        "agno": {
+            "recommended": "agno" in profile_names,
+            "header": "X-FoundryGate-Client: agno",
+            "profile": "agno",
+            "snippet": [
+                "export OPENAI_BASE_URL=http://127.0.0.1:8090/v1",
+                "export OPENAI_API_KEY=local",
+            ],
+            "notes": [
+                "Keep Agno on the shared OpenAI-compatible path first.",
+                (
+                    "Split profiles only when one agent family needs different cost "
+                    "or locality defaults."
+                ),
+            ],
+        },
+        "semantic-kernel": {
+            "recommended": "semantic-kernel" in profile_names,
+            "header": "X-FoundryGate-Client: semantic-kernel",
+            "profile": "semantic-kernel",
+            "snippet": [
+                "export OPENAI_BASE_URL=http://127.0.0.1:8090/v1",
+                "export OPENAI_API_KEY=local",
+            ],
+            "notes": [
+                (
+                    "Use one stable client tag for kernel traffic before adding "
+                    "skill-specific routing."
+                ),
+                "Validate tool-heavy paths with route previews before adding custom hook hints.",
+            ],
+        },
+        "haystack": {
+            "recommended": "haystack" in profile_names,
+            "header": "X-FoundryGate-Client: haystack",
+            "profile": "haystack",
+            "snippet": [
+                "export OPENAI_BASE_URL=http://127.0.0.1:8090/v1",
+                "export OPENAI_API_KEY=local",
+            ],
+            "notes": [
+                (
+                    "Treat Haystack as another OpenAI-compatible client unless a "
+                    "pipeline-specific gap appears."
+                ),
+                (
+                    "Keep retrieval and generation traffic together until a real "
+                    "routing split is needed."
+                ),
+            ],
+        },
+        "mastra": {
+            "recommended": "mastra" in profile_names,
+            "header": "X-FoundryGate-Client: mastra",
+            "profile": "mastra",
+            "snippet": [
+                "export OPENAI_BASE_URL=http://127.0.0.1:8090/v1",
+                "export OPENAI_API_KEY=local",
+            ],
+            "notes": [
+                "Keep Mastra on one shared gateway path first.",
+                (
+                    "Only add dedicated policies when workflow classes need stronger "
+                    "provider separation."
+                ),
+            ],
+        },
+        "google-adk": {
+            "recommended": "google-adk" in profile_names,
+            "header": "X-FoundryGate-Client: google-adk",
+            "profile": "google-adk",
+            "snippet": [
+                "export OPENAI_BASE_URL=http://127.0.0.1:8090/v1",
+                "export OPENAI_API_KEY=local",
+            ],
+            "notes": [
+                "Keep Google ADK traffic on the common gateway path for provider consistency.",
+                (
+                    "Use a dedicated profile only when ADK workloads need different "
+                    "fallback or locality rules."
+                ),
+            ],
+        },
     }
 
     return {

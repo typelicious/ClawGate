@@ -154,6 +154,40 @@ These starters are intentionally small:
 - use client profiles only when the framework traffic really needs distinct routing behavior
 - validate with `POST /api/route` and `GET /api/traces` before adding policies or hooks
 
+## Second-wave framework starters
+
+The second wave keeps the same integration discipline while extending FoundryGate coverage into more active agent ecosystems.
+
+### Agno
+
+- starter: [examples/agno-foundrygate.env.example](./examples/agno-foundrygate.env.example)
+- recommended header: `X-FoundryGate-Client: agno`
+- recommended profile name: `agno`
+
+### Semantic Kernel
+
+- starter: [examples/semantic-kernel-foundrygate.env.example](./examples/semantic-kernel-foundrygate.env.example)
+- recommended header: `X-FoundryGate-Client: semantic-kernel`
+- recommended profile name: `semantic-kernel`
+
+### Haystack
+
+- starter: [examples/haystack-foundrygate.env.example](./examples/haystack-foundrygate.env.example)
+- recommended header: `X-FoundryGate-Client: haystack`
+- recommended profile name: `haystack`
+
+### Mastra
+
+- starter: [examples/mastra-foundrygate.env.example](./examples/mastra-foundrygate.env.example)
+- recommended header: `X-FoundryGate-Client: mastra`
+- recommended profile name: `mastra`
+
+### Google ADK
+
+- starter: [examples/google-adk-foundrygate.env.example](./examples/google-adk-foundrygate.env.example)
+- recommended header: `X-FoundryGate-Client: google-adk`
+- recommended profile name: `google-adk`
+
 ## Provider onboarding
 
 When onboarding a new provider:

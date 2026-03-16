@@ -155,6 +155,11 @@ Starter files:
 - [examples/ship-faster-foundrygate.env.example](./examples/ship-faster-foundrygate.env.example)
 - [examples/langchain-foundrygate.env.example](./examples/langchain-foundrygate.env.example)
 - [examples/langgraph-foundrygate.env.example](./examples/langgraph-foundrygate.env.example)
+- [examples/agno-foundrygate.env.example](./examples/agno-foundrygate.env.example)
+- [examples/semantic-kernel-foundrygate.env.example](./examples/semantic-kernel-foundrygate.env.example)
+- [examples/haystack-foundrygate.env.example](./examples/haystack-foundrygate.env.example)
+- [examples/mastra-foundrygate.env.example](./examples/mastra-foundrygate.env.example)
+- [examples/google-adk-foundrygate.env.example](./examples/google-adk-foundrygate.env.example)
 
 ### 3b. First-wave framework starters
 
@@ -167,6 +172,18 @@ The first post-`1.0` framework wave keeps every client on the same OpenAI-compat
 - `LangGraph` -> `X-FoundryGate-Client: langgraph`
 
 Use the starter env files above first, then add explicit profile rules only if one framework needs different locality, provider, or cost behavior.
+
+### 3c. Second-wave framework starters
+
+The second post-`1.0` starter wave extends the same pattern to:
+
+- `Agno` -> `X-FoundryGate-Client: agno`
+- `Semantic Kernel` -> `X-FoundryGate-Client: semantic-kernel`
+- `Haystack` -> `X-FoundryGate-Client: haystack`
+- `Mastra` -> `X-FoundryGate-Client: mastra`
+- `Google ADK` -> `X-FoundryGate-Client: google-adk`
+
+Keep these on the shared OpenAI-compatible path first. The right time to split them into more specialized profiles is after traces and stats show a real difference in locality, fallback, or cost behavior.
 
 ### 4. Add request hooks only if needed
 

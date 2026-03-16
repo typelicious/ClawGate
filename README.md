@@ -172,6 +172,7 @@ Start here for the deeper deployment details:
 - [Onboarding](./docs/ONBOARDING.md)
 - [Examples](./docs/examples)
 - [First-wave AI-native starters](./docs/AI-NATIVE-MATRIX.md#first-wave-template-set-for-v110)
+- [Second-wave AI-native starters](./docs/AI-NATIVE-MATRIX.md#second-wave-template-set)
 - [Security review for `v1.0.0`](./docs/SECURITY-REVIEW-v1.0.0.md)
 - [Publishing](./docs/PUBLISHING.md)
 - [Troubleshooting](./docs/TROUBLESHOOTING.md)
