@@ -355,7 +355,9 @@ def _client_highlights(client_totals: list[dict[str, Any]]) -> dict[str, dict[st
     failure_rows = [row for row in rows if (row.get("failures") or 0) > 0]
 
     return {
-        "top_requests": max(rows, key=lambda row: (row.get("requests") or 0, row.get("total_tokens") or 0)),
+        "top_requests": max(
+            rows, key=lambda row: (row.get("requests") or 0, row.get("total_tokens") or 0)
+        ),
         "top_tokens": max(
             rows,
             key=lambda row: (row.get("total_tokens") or 0, row.get("requests") or 0),
