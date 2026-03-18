@@ -171,6 +171,7 @@ Start here for the deeper deployment details:
 - [Integrations](./docs/INTEGRATIONS.md)
 - [Onboarding](./docs/ONBOARDING.md)
 - [Examples](./docs/examples)
+- [OpenClaw integration starter](./openclaw-integration.jsonc)
 - [First-wave AI-native starters](./docs/AI-NATIVE-MATRIX.md#first-wave-template-set-for-v110)
 - [Second-wave AI-native starters](./docs/AI-NATIVE-MATRIX.md#second-wave-template-set)
 - [Third-wave AI-native starters](./docs/AI-NATIVE-MATRIX.md#third-wave-template-set)

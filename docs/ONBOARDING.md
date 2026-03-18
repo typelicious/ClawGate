@@ -126,6 +126,14 @@ OpenClaw:
 
 Starter file: [examples/openclaw-foundrygate.jsonc](./examples/openclaw-foundrygate.jsonc)
 
+Full reference block: [../openclaw-integration.jsonc](../openclaw-integration.jsonc)
+
+Important:
+
+- the model ids under `providers.foundrygate.models` must match `GET /v1/models`
+- use `imageModel.primary: "foundrygate/auto"` if FoundryGate should pick the image backend
+- use `imageModel.primary: "foundrygate/<provider-id>"` only when the image path should be pinned
+
 Delegated / many-agent example:
 
 - [examples/openclaw-delegated-request.json](./examples/openclaw-delegated-request.json)
@@ -215,6 +223,7 @@ Keep hooks opt-in and narrow. Good uses are:
 Use:
 
 - `POST /api/route`
+- `POST /api/route/image`
 - `GET /api/traces`
 
 ## Many providers, many clients
