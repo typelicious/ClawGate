@@ -251,6 +251,10 @@ Starter snippets:
 - [examples/provider-local-worker.env.example](./examples/provider-local-worker.env.example)
 - [examples/provider-image-provider.yaml](./examples/provider-image-provider.yaml)
 - [examples/provider-image-provider.env.example](./examples/provider-image-provider.env.example)
+- [examples/provider-kilocode.yaml](./examples/provider-kilocode.yaml)
+- [examples/provider-kilocode.env.example](./examples/provider-kilocode.env.example)
+- [examples/provider-blackbox.yaml](./examples/provider-blackbox.yaml)
+- [examples/provider-blackbox.env.example](./examples/provider-blackbox.env.example)
 - [examples/foundrygate-multi-provider-stack.yaml](./examples/foundrygate-multi-provider-stack.yaml)
 
 ## Client onboarding

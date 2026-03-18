@@ -78,6 +78,8 @@ fallback_chain:
   - deepseek-reasoner
   - gemini-flash
   - openrouter-fallback
+  # - kilocode
+  # - blackbox-free
 
 client_profiles:
   enabled: true
@@ -105,3 +107,22 @@ routing_policies:
           - client_profile: ["n8n"]
       select:
         prefer_tiers: ["cheap", "default"]
+
+# Optional additional fallback providers with free-tier or free-model paths:
+#
+# providers:
+#   kilocode:
+#     backend: openai-compat
+#     base_url: "${KILOCODE_BASE_URL:-https://api.kilo.ai/api/gateway/v1}"
+#     api_key: "${KILOCODE_API_KEY}"
+#     model: "z-ai/glm-5:free"
+#     max_tokens: 8000
+#     tier: fallback
+#
+#   blackbox-free:
+#     backend: openai-compat
+#     base_url: "${BLACKBOX_BASE_URL:-https://api.blackbox.ai}"
+#     api_key: "${BLACKBOX_API_KEY}"
+#     model: "blackboxai/x-ai/grok-code-fast-1:free"
+#     max_tokens: 8000
+#     tier: fallback
