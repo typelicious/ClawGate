@@ -20,12 +20,15 @@ The safest onboarding order is:
 Run the generic helpers before changing config:
 
 ```bash
+./scripts/faigate-menu
 ./scripts/faigate-bootstrap
 ./scripts/faigate-config-wizard --purpose general --client generic > config.yaml
 $EDITOR .env
 ./scripts/faigate-doctor
 ./scripts/faigate-onboarding-report
 ```
+
+If you prefer a guided shell flow over remembering individual helper names, start with `./scripts/faigate-menu`. It wraps the wizard, API-key editing, HTTP settings, validation helpers, service control, and update checks behind one consistent control-center layout.
 
 `faigate-doctor` now also checks whether provider env placeholders referenced in `config.yaml` are actually present in `.env`.
 

@@ -74,6 +74,7 @@ curl -fsS http://127.0.0.1:8090/v1/models
 Then use the onboarding helpers to move from “the server starts” to “real clients are ready”:
 
 ```bash
+./scripts/faigate-menu
 ./scripts/faigate-config-wizard --help
 ./scripts/faigate-config-wizard --purpose general --client generic > config.yaml
 ./scripts/faigate-onboarding-report
@@ -120,6 +121,7 @@ If you already have an active Python virtualenv, check which binary you are call
 ```bash
 which -a faigate
 /opt/homebrew/bin/faigate --version
+/opt/homebrew/bin/faigate-menu --help
 ```
 
 ## How It Works

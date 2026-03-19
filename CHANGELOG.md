@@ -6,6 +6,16 @@ The format is intentionally lightweight and human-readable. Group entries by rel
 
 ## Unreleased
 
+### Added
+
+- Added a first `faigate-menu` control center with a shared terminal UI, the new fusionAIze Gate header, and consistent `q`/`c` navigation across status, configure, explore, validate, control, and update menus
+- Added `faigate-api-keys` and `faigate-server-settings` so API keys, host, port, and log-level changes have a Gate-native interactive path instead of living only in external orchestration layers
+
+### Changed
+
+- Aligned helper scripts such as `faigate-health`, `faigate-status`, `faigate-update-check`, `faigate-auto-update`, and `faigate-doctor` around shared config/env/port resolution so repo, packaged, and later Grid-driven flows can behave consistently
+- Extended install and Homebrew helper exposure so the new menu/config helpers can ship through the same operator-facing paths as the existing scripts
+
 ## v1.4.0 - 2026-03-19
 
 ### Changed

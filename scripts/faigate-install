@@ -5,6 +5,9 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/faigate-service-lib.sh"
 
 repo_root="$(faigate_repo_root)"
 helpers=(
+  faigate-menu
+  faigate-api-keys
+  faigate-server-settings
   faigate-bootstrap
   faigate-config-wizard
   faigate-doctor

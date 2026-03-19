@@ -126,6 +126,7 @@ If you are testing from a shell that already has an active Python virtualenv, co
 ```bash
 which -a faigate
 /opt/homebrew/bin/faigate --version
+/opt/homebrew/bin/faigate-menu --help
 ```
 
 The virtualenv binary can appear first on `PATH`, which makes it look like the Homebrew install is missing features when you are actually calling the wrong executable.

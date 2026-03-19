@@ -1,0 +1,101 @@
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import yaml
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_faigate_menu_help_lists_primary_sections():
+    result = subprocess.run(
+        ["bash", "scripts/faigate-menu", "--help"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "fusionAIze Gate" in result.stdout
+    assert "Interactive control center" in result.stdout
+
+
+def test_faigate_server_settings_updates_config_and_creates_backup(tmp_path: Path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        """
+server:
+  host: "127.0.0.1"
+  port: 8090
+  log_level: "info"
+providers: {}
+fallback_chain: []
+""".strip(),
+        encoding="utf-8",
+    )
+
+    env = os.environ.copy()
+    env["FAIGATE_CONFIG_FILE"] = str(config_file)
+    env["FAIGATE_PYTHON"] = sys.executable
+
+    result = subprocess.run(
+        ["bash", "scripts/faigate-server-settings"],
+        cwd=REPO_ROOT,
+        env=env,
+        input="\n9091\nwarning\n",
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    updated = yaml.safe_load(config_file.read_text(encoding="utf-8"))
+    backups = list(tmp_path.glob("config.yaml.*.bak"))
+
+    assert updated["server"] == {
+        "host": "127.0.0.1",
+        "port": 9091,
+        "log_level": "warning",
+    }
+    assert backups
+    assert "Updated HTTP settings" in result.stdout
+
+
+def test_faigate_api_keys_updates_env_file(tmp_path: Path):
+    env_file = tmp_path / ".env"
+    env_file.write_text("", encoding="utf-8")
+
+    env = os.environ.copy()
+    env["FAIGATE_ENV_FILE"] = str(env_file)
+
+    prompt_lines = [
+        "sk-ant-demo",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+    ]
+
+    result = subprocess.run(
+        ["bash", "scripts/faigate-api-keys"],
+        cwd=REPO_ROOT,
+        env=env,
+        input="\n".join(prompt_lines) + "\n",
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    written = env_file.read_text(encoding="utf-8")
+
+    assert "ANTHROPIC_API_KEY=sk-ant-demo" in written
+    assert "API key env updated" in result.stdout

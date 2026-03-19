@@ -44,10 +44,14 @@ class Faigate < Formula
     SH
 
     %w[
+      faigate-menu
+      faigate-api-keys
+      faigate-server-settings
       faigate-doctor
       faigate-health
       faigate-onboarding-report
       faigate-onboarding-validate
+      faigate-provider-discovery
       faigate-update-check
     ].each do |helper|
       (bin/helper).write <<~SH
