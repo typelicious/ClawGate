@@ -68,6 +68,12 @@ That package is intentionally separate from the Python gateway runtime.
 
 FoundryGate ships optional wrappers around `systemd`, `journalctl`, `curl`, onboarding checks, and release-update flows.
 
+The runtime-control helpers now auto-detect Linux vs macOS:
+
+- on Linux they continue to use `systemd`
+- on macOS they manage the shipped `launchd` LaunchAgent
+- Windows remains documentation/example-driven for now
+
 | Script | What it does |
 | --- | --- |
 | `foundrygate-install` | install service + helper links |

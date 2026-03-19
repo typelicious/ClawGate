@@ -62,6 +62,15 @@ The repo now ships a starter plist:
 
 - [examples/com.typelicious.foundrygate.plist](./examples/com.typelicious.foundrygate.plist)
 
+The standard helper scripts now understand macOS directly:
+
+- `./scripts/foundrygate-install`
+- `./scripts/foundrygate-start`
+- `./scripts/foundrygate-stop`
+- `./scripts/foundrygate-restart`
+- `./scripts/foundrygate-status`
+- `./scripts/foundrygate-logs`
+
 Suggested local layout:
 
 ```text
