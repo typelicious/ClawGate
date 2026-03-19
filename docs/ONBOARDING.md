@@ -30,6 +30,14 @@ $EDITOR .env
 
 If you prefer a guided shell flow over remembering individual helper names, start with `./scripts/faigate-menu`. It wraps the wizard, API-key editing, HTTP settings, routing-mode editing, client quickstarts, validation helpers, service control, and update checks behind one consistent control-center layout.
 
+The `Configure` section now splits cleanly into:
+
+- `Current Config`
+- `Guided Setup`
+- `Direct Settings`
+
+That keeps the Gate-native flow closer to the later Grid orchestration pattern without hiding the low-level settings when you need them.
+
 `faigate-doctor` now also checks whether provider env placeholders referenced in `config.yaml` are actually present in `.env`.
 
 `faigate-config-wizard` gives you a first pass at:
@@ -100,6 +108,7 @@ If you want that client view without the full onboarding report, use:
 ./scripts/faigate-client-integrations
 ./scripts/faigate-client-integrations --matrix
 ./scripts/faigate-client-integrations --json --client n8n
+./scripts/faigate-config-overview
 ```
 
 ### 1. Add one provider

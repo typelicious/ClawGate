@@ -12,6 +12,7 @@ The format is intentionally lightweight and human-readable. Group entries by rel
 - Added `faigate-api-keys` and `faigate-server-settings` so API keys, host, port, and log-level changes have a Gate-native interactive path instead of living only in external orchestration layers
 - Added `faigate-routing-settings` so the global default routing mode and client-profile routing defaults can be reviewed and adjusted from the same Gate-native control flow
 - Added `faigate-client-integrations` plus a `Clients` section in `faigate-menu` so OpenClaw, n8n, opencode, and generic CLI quickstarts can be reviewed and driven through client-scoped wizard flows
+- Added `faigate-config-overview` plus a clearer `Current Config` / `Guided Setup` / `Direct Settings` split inside `faigate-menu` so configuration flows now map more cleanly to the later Grid-style orchestration model
 
 ### Changed
 

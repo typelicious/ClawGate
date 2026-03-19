@@ -85,12 +85,20 @@ Then use the onboarding helpers to move from “the server starts” to “real 
 
 `./scripts/faigate-menu` now also gives you one Gate-native shell entrypoint for API keys, HTTP settings, routing modes, client quickstarts, client-scoped wizard flows, validation helpers, service control, and update checks.
 
+Inside `Configure`, the control center now follows a clearer split:
+
+- `Current Config` for a concise Gate snapshot
+- `Guided Setup` for full or client-scoped wizard flows
+- `Direct Settings` for API keys, bind settings, and routing defaults
+
 If you want the client quickstarts or the current profile matrix without stepping through the full menu, use:
 
 ```bash
 ./scripts/faigate-client-integrations
 ./scripts/faigate-client-integrations --matrix
 ./scripts/faigate-client-integrations --json --client openclaw
+./scripts/faigate-config-overview
+./scripts/faigate-config-overview --json
 ```
 
 For service operations, the control-center flow now matches the standalone helpers more closely:

@@ -78,6 +78,82 @@ def test_faigate_client_integrations_help_lists_usage():
     assert "--matrix" in result.stdout
 
 
+def test_faigate_config_overview_help_lists_output_modes():
+    result = subprocess.run(
+        ["bash", "scripts/faigate-config-overview", "--help"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "faigate-config-overview" in result.stdout
+    assert "--json|--text" in result.stdout
+
+
+def test_faigate_config_overview_json_summarizes_current_config(tmp_path: Path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        """
+server:
+  host: "127.0.0.1"
+  port: 8091
+  log_level: "warning"
+providers:
+  deepseek-chat:
+    backend: openai-compat
+    api_key: "${DEEPSEEK_API_KEY}"
+    base_url: "https://api.deepseek.com/v1"
+    model: "deepseek-chat"
+    tier: default
+routing_modes:
+  enabled: true
+  default: premium
+  modes:
+    auto: {}
+    premium: {}
+client_profiles:
+  enabled: true
+  default: generic
+  profiles:
+    generic:
+      routing_mode: premium
+model_shortcuts:
+  enabled: true
+  shortcuts:
+    ds:
+      target: deepseek-chat
+      aliases: [chat]
+fallback_chain: [deepseek-chat]
+""".strip(),
+        encoding="utf-8",
+    )
+    env_file = tmp_path / ".env"
+    env_file.write_text("DEEPSEEK_API_KEY=test-key\n", encoding="utf-8")
+
+    env = os.environ.copy()
+    env["FAIGATE_CONFIG_FILE"] = str(config_file)
+    env["FAIGATE_ENV_FILE"] = str(env_file)
+    env["FAIGATE_PYTHON"] = sys.executable
+
+    result = subprocess.run(
+        ["bash", "scripts/faigate-config-overview", "--json"],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    payload = yaml.safe_load(result.stdout)
+
+    assert payload["server"]["port"] == 8091
+    assert payload["routing_modes"]["default"] == "premium"
+    assert payload["providers"][0]["name"] == "deepseek-chat"
+    assert payload["client_profiles"][0]["name"] == "generic"
+    assert payload["shortcuts"][0]["name"] == "ds"
+
+
 def test_faigate_client_integrations_json_filters_one_client(tmp_path: Path):
     config_file = tmp_path / "config.yaml"
     config_file.write_text(
