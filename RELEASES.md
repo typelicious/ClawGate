@@ -23,11 +23,11 @@ This repo does not require a heavy release process. Use lightweight tags plus Gi
 ```bash
 git checkout main
 git pull --ff-only origin main
-git tag -a v1.2.0 -m "FoundryGate v1.2.0"
-git push origin v1.2.0
+git tag -a v1.2.1 -m "FoundryGate v1.2.1"
+git push origin v1.2.1
 ```
 
-Then open GitHub Releases and publish a release for `v1.2.0`.
+Then open GitHub Releases and publish a release for `v1.2.1`.
 
 ## Automation Baseline
 
@@ -63,6 +63,7 @@ The repo also includes [publish-dry-run](./.github/workflows/publish-dry-run.yml
 - `v1.0.0` establishes the stable baseline: trust-boundary validation for upstream base URLs, sanitized provider-error responses, a documented security review, and the separate `@foundrygate/cli` npm package for CLI-facing workflows.
 - `v1.1.0` deepens post-1.0 adoption: wider AI-native starter coverage, tighter policy semantics, richer client highlights in stats/dashboard, and cleaner onboarding guidance for popular agent frameworks.
 - `v1.2.0` establishes the workstation and packaging baseline: Linux/macOS/Windows workstation guidance, macOS-aware runtime helpers, Windows startup examples, explicit config-path support for packaged installs, and a project-owned Homebrew formula path.
+- `v1.2.1` is the first packaging follow-up on top of that baseline: the Homebrew formula now prefers `python@3.12` for a cleaner macOS install path and the docs now explicitly cover unqualified `brew install foundrygate` after tapping the project-owned tap.
 
 ## Planned Publishing Path
 
@@ -73,10 +74,11 @@ The repo also includes [publish-dry-run](./.github/workflows/publish-dry-run.yml
 - `v0.8.0`: many-provider and many-client onboarding becomes copy/pasteable and validation-backed through reports, starters, and doctor checks.
 - `v1.0.0`: keep GitHub Releases, Docker, and PyPI, and add the separate npm CLI package under `packages/foundrygate-cli`.
 - `v1.2.0`: add the project-owned Homebrew packaging path for macOS workstations while keeping Docker, GitHub Releases, Python artifacts, and the separate npm CLI package.
+- `v1.2.1`: harden the Homebrew path with a more stable Python baseline and clearer tap/install guidance for macOS users.
 
 The npm package stays separate from the Python gateway core. It is meant for CLI-facing integrations, not for rewriting the service runtime.
 
-`v1.2.0` also starts the project-owned Homebrew path through [`Formula/foundrygate.rb`](./Formula/foundrygate.rb), intended for a dedicated tap or direct tap-by-URL workflow on macOS.
+`v1.2.0` started the project-owned Homebrew path through [`Formula/foundrygate.rb`](./Formula/foundrygate.rb), intended for a dedicated tap or direct tap-by-URL workflow on macOS.
 
 ## Scheduled Deployment Examples
 
