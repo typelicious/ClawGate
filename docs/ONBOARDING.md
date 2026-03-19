@@ -41,6 +41,7 @@ $EDITOR .env
 Useful flows:
 
 ```bash
+./scripts/foundrygate-config-wizard --help
 ./scripts/foundrygate-config-wizard --purpose coding --client opencode --list-candidates
 ./scripts/foundrygate-config-wizard --current-config config.yaml --purpose coding --client opencode
 ./scripts/foundrygate-config-wizard --purpose coding --client opencode \
@@ -58,6 +59,8 @@ Useful flows:
   --select kilocode,openrouter-fallback --select-profiles opencode \
   --write config.yaml --write-backup --backup-suffix .before-wizard
 ```
+
+If you only need a compact refresher for the flags and example flows, `./scripts/foundrygate-config-wizard --help` now prints the whole first-setup / update / dry-run / backup path directly in the CLI.
 
 When a current config is present, the suggestion output now also flags client-profile mode deltas such as `recommended_mode_changes`, so you can see when `n8n`, `openclaw`, or `opencode` probably want a different default mode for the selected purpose.
 

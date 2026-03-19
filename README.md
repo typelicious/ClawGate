@@ -72,6 +72,7 @@ curl -fsS http://127.0.0.1:8090/v1/models
 Then use the onboarding helpers to move from “the server starts” to “real clients are ready”:
 
 ```bash
+./scripts/foundrygate-config-wizard --help
 ./scripts/foundrygate-config-wizard --purpose general --client generic > config.yaml
 ./scripts/foundrygate-onboarding-report
 ./scripts/foundrygate-onboarding-validate

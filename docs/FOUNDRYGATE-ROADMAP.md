@@ -21,7 +21,32 @@ This roadmap now shifts from "rename and foundation" to "deepen the gateway plan
 
 `v1.2.0` is now shipped. The workstation baseline is in place: Linux, macOS, and Windows runtime guidance is documented, macOS helpers now auto-detect `launchd`, and a project-owned Homebrew path exists for packaged macOS installs.
 
+`v1.2.x` also closed the immediate Homebrew/macOS packaging loop. The next active release line should therefore shift to `v1.3.0`: guided setup, catalog-assisted updates, and safer operator ergonomics for many fast-moving providers.
+
 The next block should stay disciplined: build on the workstation baseline, keep packaging practical, and avoid turning FoundryGate into a sprawling platform.
+
+## `v1.3.0`: guided setup and catalog-assisted updates
+
+Primary goals:
+
+- make first setup and later provider updates realistic without turning `config.yaml` into hand-edited drift bait
+- keep routing modes, client defaults, and provider selection understandable across many clients
+- improve provider-catalog freshness and update suggestions without silently rewriting operator intent
+- start the provider-discovery and recommendation-link line only in a transparency-first, metadata-first shape
+
+Recommended minimal slices:
+
+1. wizard candidate selection, update suggestions, dry-run summaries, and backup-aware writes
+2. provider-catalog source metadata, offer-track volatility flags, and freshness alerts
+3. wizard and CLI usage polish so the guided flow is self-explanatory from `--help`
+4. optional provider recommendation-link metadata with explicit disclosure, but still no ranking changes based on affiliate payout
+
+Guardrails for any recommendation-link work in this line:
+
+- recommendation ranking must never use affiliate payout as an input and must stay performance-led, preferring fit, quality, health, capability, and cost behavior
+- affiliate or partner metadata should stay operator-owned and secret-backed, not embedded in user-editable client configs
+- docs and CLI output should disclose clearly when a shown signup link may include an affiliate attribution
+- the first slice should be metadata and display only; managed short links, browser control-center surfaces, and richer landing-page flows can come later
 
 ## `v1.2.0`: workstation operations baseline
 
@@ -494,6 +519,26 @@ Every 4 or 5 merged PRs, run a broader review pass:
 - refresh the roadmap and process docs if the direction changed
 
 This is necessary because FoundryGate is evolving quickly and the docs can drift even when individual PRs are clean.
+
+## Provider discovery and recommendation links
+
+FoundryGate should be able to help operators and end users discover suitable providers, but it should not turn recommendation output into a payout-optimized marketplace.
+
+That means the future recommendation-link line should stay deliberately staged:
+
+### First slices that make sense soon
+
+- add optional provider-catalog fields for signup URLs, affiliate parameter shapes, disclosure labels, and source ownership
+- surface those links in CLI or later browser-based control-center output only when they are available and disclosed
+- allow operator-managed secret or env-backed affiliate identifiers rather than baking them into normal client-visible config
+
+### Later slices that make sense after that
+
+- optional managed short-link or landing-page wrappers
+- richer provider discovery views in a small browser control center
+- trust/performance signals derived from historical provider behavior, so recommendations can explain quality and reliability more concretely
+
+The non-negotiable rule is simple: recommendation quality must stay fully independent from monetization metadata, and signup links may only follow from a recommendation rather than shaping it.
 
 ## Assumptions
 

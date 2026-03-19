@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 from foundrygate.wizard import (
@@ -263,6 +264,22 @@ client_profiles:
     assert "deepseek-chat" in keep_names
     assert "generic" in mode_profiles
     assert "n8n" in mode_profiles
+
+
+def test_config_wizard_help_lists_primary_flows():
+    result = subprocess.run(
+        ["bash", "scripts/foundrygate-config-wizard", "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "Usage:" in result.stdout
+    assert "--list-candidates" in result.stdout
+    assert "--dry-run-summary" in result.stdout
+    assert "--write-backup" in result.stdout
+    assert "recommended_mode_changes" in result.stdout
 
 
 def test_apply_update_suggestions_can_apply_provider_and_mode_changes(tmp_path: Path):
