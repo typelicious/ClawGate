@@ -18,8 +18,60 @@ dry_run_summary="false"
 write_backup="false"
 backup_suffix=".bak"
 
+print_help() {
+  cat <<'EOF'
+Usage:
+  ./scripts/foundrygate-config-wizard [options]
+
+Purpose-aware setup:
+  --purpose <general|coding|quality|free>
+  --client <generic|openclaw|n8n|cli|opencode|custom>
+  --env-file <path>
+  --json | --yaml
+
+Candidate review:
+  --list-candidates
+
+Existing config review:
+  --current-config <path>
+  --merge-existing
+  --dry-run-summary
+
+Selection and apply flow:
+  --select provider-a,provider-b
+  --select-profiles n8n,opencode
+  --apply recommended_add,recommended_replace,recommended_mode_changes
+
+Write controls:
+  --write <path>
+  --write-backup
+  --backup-suffix <suffix>
+
+Examples:
+  ./scripts/foundrygate-config-wizard --purpose general --client generic > config.yaml
+  ./scripts/foundrygate-config-wizard --purpose free --client n8n --list-candidates
+  ./scripts/foundrygate-config-wizard --current-config config.yaml --purpose free --client n8n
+  ./scripts/foundrygate-config-wizard --current-config config.yaml --purpose free --client n8n \
+    --apply recommended_add,recommended_replace,recommended_mode_changes \
+    --select kilocode,openrouter-fallback --select-profiles n8n --dry-run-summary
+  ./scripts/foundrygate-config-wizard --current-config config.yaml --purpose free --client n8n \
+    --apply recommended_add,recommended_replace,recommended_mode_changes \
+    --select kilocode,openrouter-fallback --select-profiles n8n \
+    --write config.yaml --write-backup --backup-suffix .before-wizard
+
+Tip:
+  Run with --current-config and no --select first to inspect
+  recommended_add / recommended_replace / recommended_keep /
+  recommended_mode_changes before writing anything.
+EOF
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
+    --help|-h)
+      print_help
+      exit 0
+      ;;
     --env-file)
       env_file="$2"
       shift 2

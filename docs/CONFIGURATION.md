@@ -99,6 +99,7 @@ For fast-moving offers, the current preferred review inputs are:
 The config wizard can use this catalog metadata during first setup and later updates:
 
 ```bash
+./scripts/foundrygate-config-wizard --help
 ./scripts/foundrygate-config-wizard --purpose general --client generic --list-candidates
 ./scripts/foundrygate-config-wizard --current-config config.yaml --purpose general --client generic
 ./scripts/foundrygate-config-wizard --purpose free --client n8n \
@@ -118,6 +119,12 @@ The config wizard can use this catalog metadata during first setup and later upd
 ```
 
 That gives operators one purpose-aware candidate list, config-aware update suggestions (`recommended_add`, `recommended_replace`, `recommended_keep`, `recommended_mode_changes`), the ability to pick multiple providers at once, and a safer merge path for incremental catalog-driven updates.
+
+If you want the shortest reminder of the whole flow, run:
+
+```bash
+./scripts/foundrygate-config-wizard --help
+```
 
 ## Provider Fields
 
@@ -207,6 +214,7 @@ Use the onboarding docs and starter examples when introducing a new client inste
 For a first local config, let FoundryGate suggest one from the API keys already present in your env file:
 
 ```bash
+./scripts/foundrygate-config-wizard --help
 ./scripts/foundrygate-config-wizard --purpose general > config.yaml
 ```
 
