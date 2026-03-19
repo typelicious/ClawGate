@@ -75,6 +75,30 @@ def test_metrics_db_path_uses_env_override(monkeypatch):
     assert cfg.metrics["db_path"] == "/var/lib/foundrygate/test.db"
 
 
+def test_load_config_uses_explicit_config_env_file(tmp_path, monkeypatch):
+    path = tmp_path / "custom-config.yaml"
+    path.write_text(
+        """
+server:
+  host: "127.0.0.1"
+  port: 9001
+providers:
+  cloud-default:
+    backend: openai-compat
+    base_url: "https://api.example.com/v1"
+    api_key: "secret"
+    model: "chat-model"
+fallback_chain: []
+metrics:
+  enabled: false
+"""
+    )
+
+    monkeypatch.setenv("FOUNDRYGATE_CONFIG_FILE", str(path))
+    cfg = load_config()
+    assert cfg.server["port"] == 9001
+
+
 def test_metrics_db_path_never_dot_slash(monkeypatch):
     """cfg.metrics['db_path'] must never start with './' regardless of config.yaml content."""
     monkeypatch.delenv("FOUNDRYGATE_DB_PATH", raising=False)

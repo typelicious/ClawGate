@@ -152,6 +152,7 @@ FoundryGate can stay small in development and still scale into a more repeatable
 - Local Python run: quickest path for development and testing.
 - `systemd` on Linux: recommended for long-running generic host installs.
 - Workstation runtimes: macOS `launchd`, Linux `systemd`, and Windows task-scheduler style installs are documented separately.
+- Homebrew path: a project-owned tap formula now lives under [`Formula/foundrygate.rb`](./Formula/foundrygate.rb) for macOS-oriented installs and `brew services`.
 - Docker and GHCR path: tagged releases build container artifacts through the release workflow.
 - Python package path: release workflows build `sdist` and `wheel`.
 - Separate npm CLI package: `packages/foundrygate-cli` gives CLI-facing environments a small Node entry point without changing the Python service runtime.
@@ -171,6 +172,7 @@ Start here for the deeper deployment details:
 - [Configuration reference](./docs/CONFIGURATION.md)
 - [Operations guide](./docs/OPERATIONS.md)
 - [Workstations guide](./docs/WORKSTATIONS.md)
+- [Homebrew formula](./Formula/foundrygate.rb)
 - [Integrations](./docs/INTEGRATIONS.md)
 - [Onboarding](./docs/ONBOARDING.md)
 - [Examples](./docs/examples)

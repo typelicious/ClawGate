@@ -43,6 +43,20 @@ Recommended baseline:
 
 See [WORKSTATIONS.md](./WORKSTATIONS.md) for the path layout and OS-specific runtime guidance.
 
+### Homebrew On macOS
+
+For macOS workstations, FoundryGate now also ships a project-owned formula under [`Formula/foundrygate.rb`](../Formula/foundrygate.rb).
+
+Typical flow:
+
+```bash
+brew tap typelicious/foundrygate https://github.com/typelicious/FoundryGate
+brew install typelicious/foundrygate/foundrygate
+brew services start typelicious/foundrygate/foundrygate
+```
+
+That path keeps config under `$(brew --prefix)/etc/foundrygate`, state under `$(brew --prefix)/var/lib/foundrygate`, and logs under `$(brew --prefix)/var/log/foundrygate`.
+
 ### Docker / GHCR
 
 Tagged releases build container artifacts through the release workflow. For local validation you can build from the repo root:

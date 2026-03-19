@@ -29,6 +29,7 @@ Primary goals:
 - document macOS `launchd` as a first-class local-runtime path
 - document Windows Task Scheduler / PowerShell as the baseline Windows path
 - keep development checkouts and runtime installs clearly separated
+- add a project-owned Homebrew packaging path for macOS workstations
 
 Recommended minimal slices:
 
@@ -36,6 +37,7 @@ Recommended minimal slices:
 2. macOS `launchd` example and instructions
 3. Windows startup examples and documentation
 4. optional lightweight install helpers only if the docs prove insufficient
+5. Homebrew formula and `brew services` guidance for the packaged macOS path
 
 ## Post-1.0 direction
 

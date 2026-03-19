@@ -3,6 +3,7 @@ set -euo pipefail
 
 api_url="${FOUNDRYGATE_UPDATE_API_URL:-http://127.0.0.1:8090/api/update?force=true}"
 mode="${1:-}"
+python_bin="${FOUNDRYGATE_PYTHON:-python3}"
 operator_action="auto-update-check"
 if [ "$mode" = "--apply" ]; then
   operator_action="auto-update-apply"
@@ -21,7 +22,7 @@ fi
 export FOUNDRYGATE_UPDATE_PAYLOAD="$payload"
 
 mapfile -t parsed < <(
-python3 - <<'PY'
+"$python_bin" - <<'PY'
 import json
 import os
 
@@ -86,7 +87,7 @@ if [ "$mode" = "--apply" ]; then
     echo "Running post-update verification via: ${verify_command}"
     export FOUNDRYGATE_VERIFY_COMMAND="$verify_command"
     export FOUNDRYGATE_VERIFY_TIMEOUT="$verify_timeout"
-    if ! python3 - <<'PY'
+    if ! "$python_bin" - <<'PY'
 import os
 import subprocess
 import sys

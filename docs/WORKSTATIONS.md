@@ -61,6 +61,7 @@ Recommended baseline:
 The repo now ships a starter plist:
 
 - [examples/com.typelicious.foundrygate.plist](./examples/com.typelicious.foundrygate.plist)
+- [`Formula/foundrygate.rb`](../Formula/foundrygate.rb)
 
 The standard helper scripts now understand macOS directly:
 
@@ -90,6 +91,31 @@ launchctl kickstart -k "gui/$(id -u)/com.typelicious.foundrygate"
 ```
 
 Use `launchctl print "gui/$(id -u)/com.typelicious.foundrygate"` to inspect the loaded job.
+
+### Homebrew on macOS
+
+If you prefer a packaged macOS path, FoundryGate now ships a project-owned Homebrew formula:
+
+- [`Formula/foundrygate.rb`](../Formula/foundrygate.rb)
+
+Typical flow:
+
+```bash
+brew tap typelicious/foundrygate https://github.com/typelicious/FoundryGate
+brew install typelicious/foundrygate/foundrygate
+$EDITOR "$(brew --prefix)/etc/foundrygate/config.yaml"
+$EDITOR "$(brew --prefix)/etc/foundrygate/foundrygate.env"
+brew services start typelicious/foundrygate/foundrygate
+```
+
+Useful paths for the formula-driven install:
+
+- config: `$(brew --prefix)/etc/foundrygate/config.yaml`
+- env file: `$(brew --prefix)/etc/foundrygate/foundrygate.env`
+- DB: `$(brew --prefix)/var/lib/foundrygate/foundrygate.db`
+- logs: `$(brew --prefix)/var/log/foundrygate/`
+
+The formula is intentionally project-owned rather than targeted at `homebrew/core`. That keeps the Python-service packaging flexible and lets `brew services` manage the local `launchd` path cleanly.
 
 ## Windows
 
