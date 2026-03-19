@@ -93,6 +93,15 @@ If you want the client quickstarts or the current profile matrix without steppin
 ./scripts/faigate-client-integrations --json --client openclaw
 ```
 
+For service operations, the control-center flow now matches the standalone helpers more closely:
+
+```bash
+./scripts/faigate-status
+./scripts/faigate-logs --lines 80
+./scripts/faigate-logs --follow
+./scripts/faigate-restart --timeout 15
+```
+
 To review and selectively adopt multiple candidates during first setup or a later update:
 
 ```bash

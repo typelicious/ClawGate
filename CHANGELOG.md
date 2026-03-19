@@ -17,6 +17,7 @@ The format is intentionally lightweight and human-readable. Group entries by rel
 
 - Aligned helper scripts such as `faigate-health`, `faigate-status`, `faigate-update-check`, `faigate-auto-update`, and `faigate-doctor` around shared config/env/port resolution so repo, packaged, and later Grid-driven flows can behave consistently
 - Extended install and Homebrew helper exposure so the new menu/config helpers can ship through the same operator-facing paths as the existing scripts
+- Expanded `faigate-status`, `faigate-logs`, and `faigate-restart` so service control now carries clearer service-manager context, recent-vs-live log flows, and restart verification instead of only raw process-manager commands
 
 ## v1.4.0 - 2026-03-19
 

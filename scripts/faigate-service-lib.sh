@@ -205,6 +205,101 @@ faigate_update_url() {
   printf 'http://%s:%s/api/update\n' "$(faigate_local_host)" "$(faigate_port)"
 }
 
+faigate_service_manager() {
+  case "$(faigate_platform)" in
+    Darwin)
+      printf '%s\n' "launchd"
+      ;;
+    *)
+      printf '%s\n' "systemd"
+      ;;
+  esac
+}
+
+faigate_service_target() {
+  case "$(faigate_platform)" in
+    Darwin)
+      printf '%s\n' "$(faigate_mac_label)"
+      ;;
+    *)
+      printf '%s\n' "faigate.service"
+      ;;
+  esac
+}
+
+faigate_logs_stdout_path() {
+  case "$(faigate_platform)" in
+    Darwin)
+      printf '%s/stdout.log\n' "$(faigate_mac_logs_dir)"
+      ;;
+    *)
+      printf '%s\n' "journalctl://faigate.service"
+      ;;
+  esac
+}
+
+faigate_logs_stderr_path() {
+  case "$(faigate_platform)" in
+    Darwin)
+      printf '%s/stderr.log\n' "$(faigate_mac_logs_dir)"
+      ;;
+    *)
+      printf '%s\n' "journalctl://faigate.service"
+      ;;
+  esac
+}
+
+faigate_service_state() {
+  case "$(faigate_platform)" in
+    Darwin)
+      local state_line
+      state_line="$(faigate_launchctl_status 2>/dev/null | awk -F'= ' '/state = / {gsub(/;$/, "", $2); print $2; exit}')"
+      if [ -n "$state_line" ]; then
+        printf '%s\n' "$state_line"
+      elif [ -f "$(faigate_mac_plist_path)" ]; then
+        printf '%s\n' "configured"
+      else
+        printf '%s\n' "not loaded"
+      fi
+      ;;
+    *)
+      systemctl is-active faigate.service 2>/dev/null || printf '%s\n' "inactive"
+      ;;
+  esac
+}
+
+faigate_service_enabled_state() {
+  case "$(faigate_platform)" in
+    Darwin)
+      if [ -f "$(faigate_mac_plist_path)" ]; then
+        printf '%s\n' "configured"
+      else
+        printf '%s\n' "absent"
+      fi
+      ;;
+    *)
+      systemctl is-enabled faigate.service 2>/dev/null || printf '%s\n' "disabled"
+      ;;
+  esac
+}
+
+faigate_is_healthy() {
+  curl -fsS -m 2 "$(faigate_health_url)" >/dev/null 2>&1
+}
+
+faigate_wait_for_health() {
+  local timeout_seconds="${1:-15}"
+  local attempt=0
+  while [ "$attempt" -lt "$timeout_seconds" ]; do
+    if faigate_is_healthy; then
+      return 0
+    fi
+    sleep 1
+    attempt=$((attempt + 1))
+  done
+  return 1
+}
+
 faigate_mask_secret() {
   local value="${1:-}"
   local len="${#value}"

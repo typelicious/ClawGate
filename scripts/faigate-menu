@@ -370,22 +370,26 @@ validate_menu() {
 control_menu() {
   while true; do
     faigate_ui_header "fusionAIze Gate Control" "Start, stop, restart, status, and logs"
-    printf "    1)  Start\n"
-    printf "    2)  Stop\n"
-    printf "    3)  Restart\n"
-    printf "    4)  Status\n"
-    printf "    5)  Logs\n"
+    printf "    1)  Service Overview   Manager, paths, bind target, and raw status\n"
+    printf "    2)  Start              Start the service through the active manager\n"
+    printf "    3)  Stop               Stop the service through the active manager\n"
+    printf "    4)  Restart + Verify   Restart and wait for /health to recover\n"
+    printf "    5)  Recent Logs        Print the latest service logs and return\n"
+    printf "    6)  Tail Logs          Follow service logs live\n"
+    printf "    7)  Health Check       Query /health directly\n"
     printf "\n"
     printf "    c)  Cancel\n"
     printf "    q)  Quit\n\n"
     printf "  ▸ Choice: "
     read -r choice
     case "$choice" in
-      1) run_and_pause bash "${script_dir}/faigate-start" ;;
-      2) run_and_pause bash "${script_dir}/faigate-stop" ;;
-      3) run_and_pause bash "${script_dir}/faigate-restart" ;;
-      4) run_and_pause bash "${script_dir}/faigate-status" ;;
-      5) run_and_pause bash "${script_dir}/faigate-logs" ;;
+      1) run_and_pause bash "${script_dir}/faigate-status" ;;
+      2) run_and_pause bash "${script_dir}/faigate-start" ;;
+      3) run_and_pause bash "${script_dir}/faigate-stop" ;;
+      4) run_and_pause bash "${script_dir}/faigate-restart" ;;
+      5) run_and_pause bash "${script_dir}/faigate-logs" --lines 80 ;;
+      6) run_and_pause bash "${script_dir}/faigate-logs" --follow ;;
+      7) run_and_pause bash "${script_dir}/faigate-health" ;;
       c|C|"") return 0 ;;
       q|Q) exit 0 ;;
       *) faigate_ui_warn "Invalid choice."; faigate_ui_pause ;;

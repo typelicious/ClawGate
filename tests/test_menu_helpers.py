@@ -23,6 +23,47 @@ def test_faigate_menu_help_lists_primary_sections():
     assert "Interactive control center" in result.stdout
 
 
+def test_faigate_status_help_lists_summary_and_raw_modes():
+    result = subprocess.run(
+        ["bash", "scripts/faigate-status", "--help"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "faigate-status" in result.stdout
+    assert "--summary|--raw" in result.stdout
+
+
+def test_faigate_logs_help_lists_follow_and_lines_options():
+    result = subprocess.run(
+        ["bash", "scripts/faigate-logs", "--help"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "faigate-logs" in result.stdout
+    assert "--follow" in result.stdout
+    assert "--lines N" in result.stdout
+
+
+def test_faigate_restart_help_lists_verify_options():
+    result = subprocess.run(
+        ["bash", "scripts/faigate-restart", "--help"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "faigate-restart" in result.stdout
+    assert "--no-verify" in result.stdout
+    assert "--timeout N" in result.stdout
+
+
 def test_faigate_client_integrations_help_lists_usage():
     result = subprocess.run(
         ["bash", "scripts/faigate-client-integrations", "--help"],
