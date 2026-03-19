@@ -8,8 +8,10 @@ through a 3-layer classification engine to the optimal provider.
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
+import os
 import re
 import time
 from base64 import b64encode
@@ -1563,6 +1565,23 @@ async def chat_completions(request: Request):
 def main():
     """Run with: python -m foundrygate"""
     import uvicorn
+
+    parser = argparse.ArgumentParser(
+        prog="foundrygate",
+        description="Run the FoundryGate gateway service.",
+    )
+    parser.add_argument(
+        "--config",
+        help="Path to config.yaml. Also accepted via FOUNDRYGATE_CONFIG_FILE.",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+    )
+    args = parser.parse_args()
+    if args.config:
+        os.environ["FOUNDRYGATE_CONFIG_FILE"] = args.config
 
     config = load_config()
     uvicorn.run(

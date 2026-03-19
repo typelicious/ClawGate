@@ -1,3 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
-sudo systemctl stop foundrygate.service
+
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/foundrygate-service-lib.sh"
+
+case "$(foundrygate_platform)" in
+  Darwin)
+    foundrygate_launchctl_stop
+    ;;
+  *)
+    sudo systemctl stop foundrygate.service
+    ;;
+esac

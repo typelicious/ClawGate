@@ -4,6 +4,23 @@ All notable changes to FoundryGate should be documented here.
 
 The format is intentionally lightweight and human-readable. Group entries by release and focus on user-visible behavior, operational changes, and compatibility notes.
 
+## Unreleased
+
+### Added
+
+- Added a workstation operations guide for Linux, macOS, and Windows runtime layouts
+- Added a macOS `launchd` LaunchAgent example for local workstation installs
+- Added Windows PowerShell and Task Scheduler starter examples for local workstation installs
+- Added platform-aware runtime helper scripts so macOS can use the same `foundrygate-install` / `start` / `stop` / `status` flow style as Linux
+- Added a project-owned Homebrew formula plus `brew services` guidance for packaged macOS workstation installs
+- Added explicit `FOUNDRYGATE_CONFIG_FILE` config discovery and `foundrygate --config` / `--version` support so service wrappers and packaged installs can point to config outside the repo
+- Added a helper-level onboarding smoke test for explicit config/env/python wiring
+
+### Changed
+
+- Updated the README quickstart so Linux, macOS, Windows, and Homebrew paths are visible earlier
+- Replaced the weak PyPI workflow badge with clearer workstation and Homebrew badges
+
 ## v1.1.0 - 2026-03-16
 
 ### Added

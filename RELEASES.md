@@ -16,6 +16,7 @@ This repo does not require a heavy release process. Use lightweight tags plus Gi
 8. Confirm that README plus the relevant docs pages still match the shipped runtime behavior.
 9. If packaging or Docker changed shortly before the release, run the publish dry run first.
 10. For hardening-heavy releases, keep the API functional tests green alongside unit and config coverage.
+11. If the Homebrew formula changed, bump [`Formula/foundrygate.rb`](./Formula/foundrygate.rb) to the new release tag and update its `sha256`.
 
 ## Example
 
@@ -72,6 +73,8 @@ The repo also includes [publish-dry-run](./.github/workflows/publish-dry-run.yml
 - `v1.0.0`: keep GitHub Releases, Docker, and PyPI, and add the separate npm CLI package under `packages/foundrygate-cli`.
 
 The npm package stays separate from the Python gateway core. It is meant for CLI-facing integrations, not for rewriting the service runtime.
+
+`v1.2.0` also starts the project-owned Homebrew path through [`Formula/foundrygate.rb`](./Formula/foundrygate.rb), intended for a dedicated tap or direct tap-by-URL workflow on macOS.
 
 ## Scheduled Deployment Examples
 

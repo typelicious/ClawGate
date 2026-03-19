@@ -1246,6 +1246,13 @@ def load_config(path: str | Path | None = None) -> Config:
     load_dotenv()
 
     if path is None:
+        env_path = os.environ.get("FOUNDRYGATE_CONFIG_FILE") or os.environ.get(
+            "FOUNDRYGATE_CONFIG_PATH"
+        )
+        if env_path:
+            path = env_path
+
+    if path is None:
         # Look next to the package, then cwd
         candidates = [
             Path(__file__).resolve().parent.parent / "config.yaml",

@@ -31,6 +31,32 @@ Recommended persistent state path:
 
 That path is wired through `FOUNDRYGATE_DB_PATH`.
 
+### Workstation Runtime Installs
+
+For workstation usage, keep the runtime install separate from the development checkout.
+
+Recommended baseline:
+
+- Linux: `systemd` or `systemd --user`
+- macOS: `launchd` via `~/Library/LaunchAgents`
+- Windows: Task Scheduler plus direct venv Python invocation
+
+See [WORKSTATIONS.md](./WORKSTATIONS.md) for the path layout and OS-specific runtime guidance.
+
+### Homebrew On macOS
+
+For macOS workstations, FoundryGate now also ships a project-owned formula under [`Formula/foundrygate.rb`](../Formula/foundrygate.rb).
+
+Typical flow:
+
+```bash
+brew tap typelicious/foundrygate https://github.com/typelicious/FoundryGate
+brew install typelicious/foundrygate/foundrygate
+brew services start typelicious/foundrygate/foundrygate
+```
+
+That path keeps config under `$(brew --prefix)/etc/foundrygate`, state under `$(brew --prefix)/var/lib/foundrygate`, and logs under `$(brew --prefix)/var/log/foundrygate`.
+
 ### Docker / GHCR
 
 Tagged releases build container artifacts through the release workflow. For local validation you can build from the repo root:
@@ -55,6 +81,12 @@ That package is intentionally separate from the Python gateway runtime.
 ## Helper Scripts
 
 FoundryGate ships optional wrappers around `systemd`, `journalctl`, `curl`, onboarding checks, and release-update flows.
+
+The runtime-control helpers now auto-detect Linux vs macOS:
+
+- on Linux they continue to use `systemd`
+- on macOS they manage the shipped `launchd` LaunchAgent
+- Windows remains documentation/example-driven for now
 
 | Script | What it does |
 | --- | --- |
@@ -110,6 +142,9 @@ The repo ships example schedules under [`docs/examples`](./examples):
 - `foundrygate-auto-update.service`
 - `foundrygate-auto-update.timer`
 - `foundrygate-auto-update.cron`
+- `com.typelicious.foundrygate.plist`
+- `foundrygate-start.ps1`
+- `foundrygate-task-scheduler.xml`
 
 Use them only after the manual update path is already validated.
 

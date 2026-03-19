@@ -1,0 +1,198 @@
+# FoundryGate Workstations
+
+FoundryGate works best when the development checkout and the runtime install are kept separate.
+
+Recommended shape:
+
+- one checkout for active development
+- one separate runtime install for OpenClaw, opencode, CLI tools, and local workflows
+- one config directory outside the repo
+- one writable state directory outside the repo
+
+This keeps local usage stable while `main` and feature branches continue to move.
+
+## General layout
+
+Use one of these patterns:
+
+### User-local runtime
+
+Good for a single workstation user:
+
+- checkout: `~/services/foundrygate`
+- config: `~/.config/foundrygate`
+- state: `~/.local/state/foundrygate`
+
+### System-style runtime
+
+Good for a more shared or host-like install:
+
+- checkout: `/opt/foundrygate`
+- config: `/etc/foundrygate`
+- state: `/var/lib/foundrygate`
+
+## Linux
+
+Recommended baseline:
+
+- runtime checkout under `~/services/foundrygate` or `/opt/foundrygate`
+- config under `~/.config/foundrygate` or `/etc/foundrygate`
+- DB under `~/.local/state/foundrygate/foundrygate.db` or `/var/lib/foundrygate/foundrygate.db`
+- service manager: `systemd`
+
+Typical start command:
+
+```bash
+FOUNDRYGATE_DB_PATH="$HOME/.local/state/foundrygate/foundrygate.db" \
+python -m foundrygate --config "$HOME/.config/foundrygate/config.yaml"
+```
+
+For long-running user sessions, prefer a `systemd --user` unit or a normal system service.
+
+## macOS
+
+Recommended baseline:
+
+- runtime checkout: `~/services/foundrygate`
+- config: `~/Library/Application Support/FoundryGate`
+- state: `~/Library/Application Support/FoundryGate/foundrygate.db`
+- service manager: `launchd` via `~/Library/LaunchAgents`
+
+The repo now ships a starter plist:
+
+- [examples/com.typelicious.foundrygate.plist](./examples/com.typelicious.foundrygate.plist)
+- [`Formula/foundrygate.rb`](../Formula/foundrygate.rb)
+
+The standard helper scripts now understand macOS directly:
+
+- `./scripts/foundrygate-install`
+- `./scripts/foundrygate-start`
+- `./scripts/foundrygate-stop`
+- `./scripts/foundrygate-restart`
+- `./scripts/foundrygate-status`
+- `./scripts/foundrygate-logs`
+
+Suggested local layout:
+
+```text
+~/services/foundrygate
+~/Library/Application Support/FoundryGate/config.yaml
+~/Library/Application Support/FoundryGate/foundrygate.env
+~/Library/Application Support/FoundryGate/foundrygate.db
+```
+
+Install flow:
+
+```bash
+mkdir -p "$HOME/Library/Application Support/FoundryGate"
+cp docs/examples/com.typelicious.foundrygate.plist "$HOME/Library/LaunchAgents/"
+launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.typelicious.foundrygate.plist"
+launchctl kickstart -k "gui/$(id -u)/com.typelicious.foundrygate"
+```
+
+Use `launchctl print "gui/$(id -u)/com.typelicious.foundrygate"` to inspect the loaded job.
+
+### Homebrew on macOS
+
+If you prefer a packaged macOS path, FoundryGate now ships a project-owned Homebrew formula:
+
+- [`Formula/foundrygate.rb`](../Formula/foundrygate.rb)
+
+Typical flow:
+
+```bash
+brew tap typelicious/foundrygate https://github.com/typelicious/FoundryGate
+brew install typelicious/foundrygate/foundrygate
+$EDITOR "$(brew --prefix)/etc/foundrygate/config.yaml"
+$EDITOR "$(brew --prefix)/etc/foundrygate/foundrygate.env"
+brew services start typelicious/foundrygate/foundrygate
+```
+
+Useful paths for the formula-driven install:
+
+- config: `$(brew --prefix)/etc/foundrygate/config.yaml`
+- env file: `$(brew --prefix)/etc/foundrygate/foundrygate.env`
+- DB: `$(brew --prefix)/var/lib/foundrygate/foundrygate.db`
+- logs: `$(brew --prefix)/var/log/foundrygate/`
+
+The formula is intentionally project-owned rather than targeted at `homebrew/core`. That keeps the Python-service packaging flexible and lets `brew services` manage the local `launchd` path cleanly.
+
+## Windows
+
+Recommended baseline:
+
+- runtime checkout: `%USERPROFILE%\\services\\foundrygate`
+- config: `%APPDATA%\\FoundryGate`
+- state: `%LOCALAPPDATA%\\FoundryGate\\foundrygate.db`
+- process manager: Task Scheduler at logon, or a later service wrapper if needed
+
+Suggested local layout:
+
+```text
+%USERPROFILE%\services\foundrygate
+%APPDATA%\FoundryGate\config.yaml
+%APPDATA%\FoundryGate\foundrygate.env
+%LOCALAPPDATA%\FoundryGate\foundrygate.db
+```
+
+Use the venv Python directly instead of relying on shell activation:
+
+```powershell
+$env:FOUNDRYGATE_DB_PATH="$env:LOCALAPPDATA\FoundryGate\foundrygate.db"
+& "$env:USERPROFILE\services\foundrygate\.venv\Scripts\python.exe" -m foundrygate --config "$env:APPDATA\FoundryGate\config.yaml"
+```
+
+Task Scheduler is the recommended `v1.2.0`-targeted path. A native Windows service wrapper can come later if it proves necessary.
+
+The repo ships starter files for this path:
+
+- [examples/foundrygate-start.ps1](./examples/foundrygate-start.ps1)
+- [examples/foundrygate-task-scheduler.xml](./examples/foundrygate-task-scheduler.xml)
+
+Suggested install flow:
+
+```powershell
+New-Item -ItemType Directory -Force -Path "$env:APPDATA\FoundryGate" | Out-Null
+Copy-Item ".\docs\examples\foundrygate-start.ps1" "$env:APPDATA\FoundryGate\foundrygate-start.ps1"
+schtasks /Create /TN FoundryGate /XML ".\docs\examples\foundrygate-task-scheduler.xml" /F
+```
+
+If you want to avoid XML import, create one logon task that runs:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:APPDATA\FoundryGate\foundrygate-start.ps1"
+```
+
+## Config and state placement
+
+Keep these out of the repo checkout:
+
+- `.env`
+- `config.yaml` for the live runtime
+- the SQLite DB
+- generated logs
+
+This keeps upgrades, worktrees, and branch switches from colliding with the running gateway.
+
+## Runtime vs development checkout
+
+Do not run day-to-day client traffic from the same checkout you are actively editing.
+
+Preferred workflow:
+
+1. develop in your main repo or Codex worktree
+2. run FoundryGate for clients from a stable runtime checkout
+3. upgrade that runtime checkout intentionally, ideally from tags or reviewed `main`
+
+## Suggested upgrade path
+
+For workstation installs:
+
+1. keep the runtime checkout pinned to a release tag or known-good `main` commit
+2. store config and DB outside the checkout
+3. stop the service
+4. update the checkout
+5. run one manual health check
+6. start the service again
+
+This keeps local OpenClaw, opencode, and CLI tooling stable while development continues elsewhere.
