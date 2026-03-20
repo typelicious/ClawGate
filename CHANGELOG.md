@@ -6,6 +6,21 @@ The format is intentionally lightweight and human-readable. Group entries by rel
 
 ## Unreleased
 
+## v1.5.0 - 2026-03-20
+
+### Changed
+
+- Fixed the standalone shell helpers on macOS/Homebrew so service status, logs, and service-manager labels now recognize the Brew-managed `homebrew.mxcl.faigate` path instead of assuming only the manual LaunchAgent path
+- Fixed `faigate-menu` model listing so it parses the `/v1/models` payload correctly instead of trying to read JSON through a broken stdin pipeline
+- Fixed `faigate-auto-update` on macOS's default Bash 3.2 by removing the `mapfile` dependency from its payload parsing path
+- Fixed user-facing helper scripts so `--help` exits safely instead of accidentally triggering live install/update logic in shell environments that only wanted usage text
+- Improved `faigate-health`, `faigate-update-check`, and `faigate-menu` so operators now see compact human-readable summaries before diving into raw payloads
+- Added a service-manager mismatch warning when `/health` responds but the configured manager reports a stopped or missing service, which helps catch stale old runtimes still bound to the same port
+- Polished the terminal header to align more closely with the intended fusionAIze Gate visual identity in interactive terminals
+- Added a dedicated `Quick Setup` happy path and summary cards for gateway, config, providers, and clients in the main menu flows
+- Updated the client helper and the `Clients` menu so operators see compact recommendation cards first and can drill into one client without dumping the full cross-client quickstart wall every time
+- Added first `Next step` receipts after the key guided actions in the shell flow so wizard, validation, restart, and client-setup paths now end with a short operator-oriented “what to do next” block
+
 ## v1.4.5 - 2026-03-19
 
 ### Added

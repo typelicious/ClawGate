@@ -337,6 +337,19 @@ def build_onboarding_report(
                 " production runs.",
             ],
         },
+        "opencode": {
+            "recommended": "opencode" in enabled_presets or "opencode" in profile_names,
+            "header": "X-faigate-Client: opencode",
+            "profile": "opencode",
+            "snippet": [
+                "Base URL: http://127.0.0.1:8090/v1",
+                "Model: auto",
+            ],
+            "notes": [
+                "Keep opencode on the OpenAI-compatible path and let Gate handle the provider choice first.",
+                "Use the opencode profile when coding traffic should stay distinct from generic CLI traffic.",
+            ],
+        },
         "cli": {
             "recommended": "cli" in enabled_presets or "cli" in profile_names,
             "header": "X-faigate-Client: codex",
