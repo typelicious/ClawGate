@@ -42,12 +42,12 @@ done
 
 case "$(faigate_platform)" in
   Darwin)
-    mkdir -p "$(faigate_mac_logs_dir)"
-    touch "$(faigate_mac_logs_dir)/stdout.log" "$(faigate_mac_logs_dir)/stderr.log"
+    mkdir -p "$(dirname "$(faigate_logs_stdout_path)")"
+    touch "$(faigate_logs_stdout_path)" "$(faigate_logs_stderr_path)"
     if [ "$follow" = "1" ]; then
-      tail -f "$(faigate_mac_logs_dir)/stdout.log" "$(faigate_mac_logs_dir)/stderr.log"
+      tail -f "$(faigate_logs_stdout_path)" "$(faigate_logs_stderr_path)"
     else
-      tail -n "$lines" "$(faigate_mac_logs_dir)/stdout.log" "$(faigate_mac_logs_dir)/stderr.log"
+      tail -n "$lines" "$(faigate_logs_stdout_path)" "$(faigate_logs_stderr_path)"
     fi
     ;;
   *)

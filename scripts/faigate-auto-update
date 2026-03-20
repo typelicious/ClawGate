@@ -23,8 +23,7 @@ fi
 
 export FAIGATE_UPDATE_PAYLOAD="$payload"
 
-mapfile -t parsed < <(
-"$python_bin" - <<'PY'
+parsed_output="$("$python_bin" - <<'PY'
 import json
 import os
 
@@ -57,20 +56,27 @@ for value in (
 ):
     print(value)
 PY
-)
-current="${parsed[0]}"
-latest="${parsed[1]}"
-status="${parsed[2]}"
-update_type="${parsed[3]}"
-recommended_action="${parsed[4]}"
-auto_enabled="${parsed[5]}"
-auto_eligible="${parsed[6]}"
-auto_blocked_reason="${parsed[7]}"
-apply_command="${parsed[8]}"
-verify_enabled="${parsed[9]}"
-verify_command="${parsed[10]}"
-verify_timeout="${parsed[11]}"
-rollback_command="${parsed[12]}"
+)"
+
+parsed=()
+while IFS= read -r line; do
+  parsed+=("$line")
+done <<EOF
+$parsed_output
+EOF
+current="${parsed[0]-}"
+latest="${parsed[1]-}"
+status="${parsed[2]-}"
+update_type="${parsed[3]-}"
+recommended_action="${parsed[4]-}"
+auto_enabled="${parsed[5]-}"
+auto_eligible="${parsed[6]-}"
+auto_blocked_reason="${parsed[7]-}"
+apply_command="${parsed[8]-}"
+verify_enabled="${parsed[9]-}"
+verify_command="${parsed[10]-}"
+verify_timeout="${parsed[11]-}"
+rollback_command="${parsed[12]-}"
 
 if [ "$mode" = "--apply" ]; then
   if [ "$auto_enabled" != "true" ]; then

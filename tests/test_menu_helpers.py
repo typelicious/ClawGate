@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -205,6 +206,34 @@ fallback_chain: [deepseek-chat]
     assert payload["shortcuts"][0]["name"] == "ds"
 
 
+def test_faigate_service_lib_detects_homebrew_runtime_paths(tmp_path: Path):
+    env = os.environ.copy()
+    env["FAIGATE_CONFIG_FILE"] = "/opt/homebrew/etc/faigate/config.yaml"
+
+    result = subprocess.run(
+        [
+            "bash",
+            "-lc",
+            "source scripts/faigate-service-lib.sh && "
+            "if faigate_is_homebrew_runtime; then echo yes; else echo no; fi && "
+            "faigate_service_target && "
+            "faigate_logs_stdout_path && "
+            "faigate_service_manager",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    lines = result.stdout.strip().splitlines()
+    assert lines[0] == "yes"
+    assert lines[1] == "homebrew.mxcl.faigate"
+    assert lines[2] == "/opt/homebrew/var/log/faigate/output.log"
+    assert lines[3] == "brew services (launchd)"
+
+
 def test_faigate_client_integrations_json_filters_one_client(tmp_path: Path):
     config_file = tmp_path / "config.yaml"
     config_file.write_text(
@@ -274,6 +303,58 @@ fallback_chain: [deepseek-chat]
     assert payload["integrations"]["openclaw"]["profile"] == "openclaw"
     assert payload["client_matrix"]
     assert any(row["name"] == "openclaw" for row in payload["client_matrix"])
+
+
+def test_faigate_auto_update_parses_payload_without_mapfile(tmp_path: Path):
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_curl = fake_bin / "curl"
+    payload = json.dumps(
+        {
+            "current_version": "1.4.5",
+            "latest_version": "1.4.5",
+            "status": "ok",
+            "update_type": "current",
+            "recommended_action": "No action needed",
+            "auto_update": {
+                "enabled": False,
+                "eligible": False,
+                "blocked_reason": "Auto-update is disabled",
+                "apply_command": "faigate-update",
+                "verification": {
+                    "enabled": False,
+                    "command": "faigate-health",
+                    "timeout_seconds": 30,
+                    "rollback_command": "",
+                },
+            },
+        }
+    )
+    fake_curl.write_text(
+        f"""#!/usr/bin/env bash
+cat <<'EOF'
+{payload}
+EOF
+""",
+        encoding="utf-8",
+    )
+    fake_curl.chmod(0o755)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    env["FAIGATE_PYTHON"] = sys.executable
+
+    result = subprocess.run(
+        ["bash", "scripts/faigate-auto-update"],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert "Current: 1.4.5" in result.stdout
+    assert "Auto-update: disabled" in result.stdout
 
 
 def test_faigate_server_settings_updates_config_and_creates_backup(tmp_path: Path):

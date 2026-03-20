@@ -130,18 +130,18 @@ show_status_overview() {
 }
 
 show_models() {
-  local models_url
+  local models_url payload
   models_url="$(faigate_models_url)"
-  if ! curl -fsS -m 2 "$models_url" >/dev/null 2>&1; then
+  if ! payload="$(curl -fsS -m 2 "$models_url")"; then
     faigate_ui_error "Model list is not reachable at ${models_url}."
     return 1
   fi
 
-  curl -fsS -m 2 "$models_url" | "$python_bin" - <<'PY'
+  FAIGATE_MODELS_PAYLOAD="$payload" "$python_bin" - <<'PY'
 import json
-import sys
+import os
 
-data = json.load(sys.stdin)
+data = json.loads(os.environ["FAIGATE_MODELS_PAYLOAD"])
 for item in data.get("data", []):
     print(item.get("id", ""))
 PY

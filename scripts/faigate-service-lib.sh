@@ -13,6 +13,16 @@ faigate_platform() {
   uname -s
 }
 
+faigate_brew_bin() {
+  if [ -x "/opt/homebrew/bin/brew" ]; then
+    printf '%s\n' "/opt/homebrew/bin/brew"
+  elif [ -x "/usr/local/bin/brew" ]; then
+    printf '%s\n' "/usr/local/bin/brew"
+  else
+    printf '%s\n' "brew"
+  fi
+}
+
 faigate_python_bin() {
   if [ -n "${FAIGATE_PYTHON:-}" ]; then
     printf '%s\n' "$FAIGATE_PYTHON"
@@ -24,7 +34,11 @@ faigate_python_bin() {
 }
 
 faigate_mac_label() {
-  printf '%s\n' "com.fusionaize.faigate"
+  if faigate_is_homebrew_runtime; then
+    printf '%s\n' "homebrew.mxcl.faigate"
+  else
+    printf '%s\n' "com.fusionaize.faigate"
+  fi
 }
 
 faigate_mac_gui_domain() {
@@ -45,6 +59,41 @@ faigate_mac_config_dir() {
 
 faigate_mac_logs_dir() {
   printf '%s\n' "${FAIGATE_MAC_LOGS_DIR:-$HOME/Library/Logs/faigate}"
+}
+
+faigate_brew_prefix() {
+  local config_file
+  config_file="$(faigate_config_file)"
+  case "$config_file" in
+    */etc/faigate/*)
+      printf '%s\n' "${config_file%/etc/faigate/*}"
+      return 0
+      ;;
+  esac
+
+  if [ -x "$(faigate_brew_bin)" ]; then
+    "$(faigate_brew_bin)" --prefix 2>/dev/null || true
+  fi
+}
+
+faigate_is_homebrew_runtime() {
+  if [ "$(faigate_platform)" != "Darwin" ]; then
+    return 1
+  fi
+
+  case "$(faigate_script_dir)" in
+    */Cellar/faigate/*|*/opt/faigate/share/faigate/scripts)
+      return 0
+      ;;
+  esac
+
+  case "$(faigate_config_file)" in
+    /opt/homebrew/etc/faigate/*|/usr/local/etc/faigate/*)
+      return 0
+      ;;
+  esac
+
+  return 1
 }
 
 faigate_mac_db_path() {
@@ -208,7 +257,11 @@ faigate_update_url() {
 faigate_service_manager() {
   case "$(faigate_platform)" in
     Darwin)
-      printf '%s\n' "launchd"
+      if faigate_is_homebrew_runtime; then
+        printf '%s\n' "brew services (launchd)"
+      else
+        printf '%s\n' "launchd"
+      fi
       ;;
     *)
       printf '%s\n' "systemd"
@@ -230,7 +283,11 @@ faigate_service_target() {
 faigate_logs_stdout_path() {
   case "$(faigate_platform)" in
     Darwin)
-      printf '%s/stdout.log\n' "$(faigate_mac_logs_dir)"
+      if faigate_is_homebrew_runtime; then
+        printf '%s/var/log/faigate/output.log\n' "$(faigate_brew_prefix)"
+      else
+        printf '%s/stdout.log\n' "$(faigate_mac_logs_dir)"
+      fi
       ;;
     *)
       printf '%s\n' "journalctl://faigate.service"
@@ -241,7 +298,11 @@ faigate_logs_stdout_path() {
 faigate_logs_stderr_path() {
   case "$(faigate_platform)" in
     Darwin)
-      printf '%s/stderr.log\n' "$(faigate_mac_logs_dir)"
+      if faigate_is_homebrew_runtime; then
+        printf '%s/var/log/faigate/error.log\n' "$(faigate_brew_prefix)"
+      else
+        printf '%s/stderr.log\n' "$(faigate_mac_logs_dir)"
+      fi
       ;;
     *)
       printf '%s\n' "journalctl://faigate.service"
@@ -252,6 +313,14 @@ faigate_logs_stderr_path() {
 faigate_service_state() {
   case "$(faigate_platform)" in
     Darwin)
+      if faigate_is_homebrew_runtime; then
+        local brew_state
+        brew_state="$("$(faigate_brew_bin)" services list 2>/dev/null | awk '$1=="faigate" {print $2; exit}')"
+        if [ -n "$brew_state" ]; then
+          printf '%s\n' "$brew_state"
+          return 0
+        fi
+      fi
       local state_line
       state_line="$(faigate_launchctl_status 2>/dev/null | awk -F'= ' '/state = / {gsub(/;$/, "", $2); print $2; exit}')"
       if [ -n "$state_line" ]; then
@@ -271,7 +340,9 @@ faigate_service_state() {
 faigate_service_enabled_state() {
   case "$(faigate_platform)" in
     Darwin)
-      if [ -f "$(faigate_mac_plist_path)" ]; then
+      if faigate_is_homebrew_runtime; then
+        printf '%s\n' "managed by brew services"
+      elif [ -f "$(faigate_mac_plist_path)" ]; then
         printf '%s\n' "configured"
       else
         printf '%s\n' "absent"
@@ -358,6 +429,10 @@ faigate_launchctl_bootout() {
   domain="$(faigate_mac_gui_domain)"
   label="$(faigate_mac_label)"
   plist="$(faigate_mac_plist_path)"
+  if faigate_is_homebrew_runtime; then
+    launchctl bootout "$domain/$label" >/dev/null 2>&1 || true
+    return 0
+  fi
   launchctl bootout "$domain/$label" >/dev/null 2>&1 || launchctl bootout "$domain" "$plist" >/dev/null 2>&1 || true
 }
 
@@ -366,12 +441,20 @@ faigate_launchctl_start() {
   domain="$(faigate_mac_gui_domain)"
   label="$(faigate_mac_label)"
   plist="$(faigate_mac_plist_path)"
+  if faigate_is_homebrew_runtime; then
+    "$(faigate_brew_bin)" services restart faigate
+    return 0
+  fi
   faigate_launchctl_bootout
   launchctl bootstrap "$domain" "$plist"
   launchctl kickstart -k "$domain/$label"
 }
 
 faigate_launchctl_stop() {
+  if faigate_is_homebrew_runtime; then
+    "$(faigate_brew_bin)" services stop faigate
+    return 0
+  fi
   faigate_launchctl_bootout
 }
 
@@ -379,5 +462,9 @@ faigate_launchctl_status() {
   local domain label
   domain="$(faigate_mac_gui_domain)"
   label="$(faigate_mac_label)"
+  if faigate_is_homebrew_runtime; then
+    launchctl print "$domain/$label"
+    return 0
+  fi
   launchctl print "$domain/$label"
 }

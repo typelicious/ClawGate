@@ -6,6 +6,12 @@ The format is intentionally lightweight and human-readable. Group entries by rel
 
 ## Unreleased
 
+### Changed
+
+- Fixed the standalone shell helpers on macOS/Homebrew so service status, logs, and service-manager labels now recognize the Brew-managed `homebrew.mxcl.faigate` path instead of assuming only the manual LaunchAgent path
+- Fixed `faigate-menu` model listing so it parses the `/v1/models` payload correctly instead of trying to read JSON through a broken stdin pipeline
+- Fixed `faigate-auto-update` on macOS's default Bash 3.2 by removing the `mapfile` dependency from its payload parsing path
+
 ## v1.4.5 - 2026-03-19
 
 ### Added

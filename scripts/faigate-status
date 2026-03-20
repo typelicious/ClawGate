@@ -39,7 +39,19 @@ show_raw_status() {
   port="$(faigate_port)"
   case "$(faigate_platform)" in
     Darwin)
-      faigate_launchctl_status
+      if faigate_is_homebrew_runtime; then
+        local brew_row
+        brew_row="$("$(faigate_brew_bin)" services list 2>/dev/null | awk '$1=="faigate" {print $0; exit}')"
+        if [ -n "$brew_row" ]; then
+          printf '%s\n' "$brew_row"
+        else
+          echo "brew services does not list faigate."
+        fi
+        echo
+        faigate_launchctl_status 2>/dev/null || echo "launchd details unavailable for $(faigate_service_target)."
+      else
+        faigate_launchctl_status 2>/dev/null || echo "launchd details unavailable for $(faigate_service_target)."
+      fi
       echo
       lsof -nP -iTCP:"${port}" -sTCP:LISTEN || true
       ;;
