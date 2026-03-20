@@ -103,6 +103,7 @@ fallback_chain: [deepseek-chat]
     assert "Preset matches" in result.stdout
     assert "Best next step" in result.stdout
     assert "opencode" in result.stdout
+    assert "Dashboard" in result.stdout
     assert "Tip:" in result.stdout
 
 
@@ -720,7 +721,7 @@ fallback_chain: [deepseek-chat]
         ["bash", "scripts/faigate-menu"],
         cwd=REPO_ROOT,
         env=env,
-        input="2\n3\n\nc\nq\n",
+        input="3\n3\n\nc\nq\n",
         capture_output=True,
         text=True,
         check=True,
@@ -787,7 +788,7 @@ fallback_chain: []
         ["bash", "scripts/faigate-menu"],
         cwd=REPO_ROOT,
         env=env,
-        input="8\n1\n\nc\nq\n",
+        input="9\n1\n\nc\nq\n",
         capture_output=True,
         text=True,
         check=True,
@@ -846,7 +847,7 @@ client_profiles:
     )
 
     assert "fusionAIze Gate Quick Setup" in result.stdout
-    assert "Start with API Keys" in result.stdout
+    assert "Start with Provider Setup" in result.stdout
 
 
 def test_faigate_menu_quick_setup_validate_shows_next_steps(tmp_path: Path):
@@ -893,7 +894,7 @@ client_profiles:
         ["bash", "scripts/faigate-menu"],
         cwd=REPO_ROOT,
         env=env,
-        input="1\n3\n\nc\nq\n",
+        input="1\n5\n\nc\nq\n",
         capture_output=True,
         text=True,
         check=True,
@@ -981,6 +982,368 @@ def test_faigate_api_keys_updates_env_file(tmp_path: Path):
     assert "API key env updated" in result.stdout
     assert "optional upstream provider overrides" in result.stdout
     assert "OPENAI_BASE_URL (upstream)" in result.stdout
+
+
+def test_faigate_provider_setup_help_lists_supported_modes():
+    result = subprocess.run(
+        ["bash", "scripts/faigate-provider-setup", "--help"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "faigate-provider-setup" in result.stdout
+    assert "--known --text" in result.stdout
+    assert "--current --text" in result.stdout
+
+
+def test_faigate_provider_probe_help_lists_usage():
+    result = subprocess.run(
+        ["bash", "scripts/faigate-provider-probe", "--help"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "faigate-provider-probe" in result.stdout
+    assert "--json|--text" in result.stdout
+
+
+def test_faigate_dashboard_help_lists_views():
+    result = subprocess.run(
+        ["bash", "scripts/faigate-dashboard", "--help"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "faigate-dashboard" in result.stdout
+    assert "--providers" in result.stdout
+    assert "--alerts" in result.stdout
+
+
+def test_faigate_dashboard_overview_summarizes_live_stats(tmp_path: Path):
+    fake_bin = _write_fake_curl(
+        tmp_path,
+        {
+            "/health": json.dumps(
+                {
+                    "status": "ok",
+                    "summary": {
+                        "providers_total": 3,
+                        "providers_healthy": 2,
+                        "providers_unhealthy": 1,
+                    },
+                    "providers": {
+                        "deepseek-chat": {"healthy": True},
+                        "gemini-flash": {"healthy": True},
+                        "openrouter-fallback": {
+                            "healthy": False,
+                            "last_error": "rate limit",
+                        },
+                    },
+                }
+            ),
+            "/api/stats": json.dumps(
+                {
+                    "totals": {
+                        "total_requests": 120,
+                        "total_failures": 3,
+                        "total_prompt_tokens": 42000,
+                        "total_compl_tokens": 21000,
+                        "total_cost_usd": 3.4,
+                        "avg_latency_ms": 812.5,
+                        "first_request": 1700000000,
+                        "last_request": 4102444800,
+                    },
+                    "providers": [
+                        {
+                            "provider": "deepseek-chat",
+                            "requests": 72,
+                            "failures": 1,
+                            "total_tokens": 36000,
+                            "cost_usd": 1.4,
+                            "avg_latency_ms": 610.0,
+                        },
+                        {
+                            "provider": "openrouter-fallback",
+                            "requests": 28,
+                            "failures": 2,
+                            "total_tokens": 19000,
+                            "cost_usd": 1.6,
+                            "avg_latency_ms": 1240.0,
+                        },
+                    ],
+                    "routing": [
+                        {
+                            "layer": "fallback",
+                            "rule_name": "fallback",
+                            "provider": "openrouter-fallback",
+                            "requests": 28,
+                            "cost_usd": 1.6,
+                        },
+                        {
+                            "layer": "heuristic",
+                            "rule_name": "default",
+                            "provider": "deepseek-chat",
+                            "requests": 92,
+                            "cost_usd": 1.4,
+                        },
+                    ],
+                    "client_totals": [
+                        {
+                            "client_profile": "opencode",
+                            "client_tag": "opencode",
+                            "requests": 74,
+                            "failures": 2,
+                            "success_pct": 97.3,
+                            "total_tokens": 44000,
+                            "cost_usd": 2.5,
+                            "avg_latency_ms": 860.0,
+                            "providers": "deepseek-chat,openrouter-fallback",
+                        }
+                    ],
+                    "client_highlights": {
+                        "top_requests": {
+                            "client_profile": "opencode",
+                            "client_tag": "opencode",
+                            "requests": 74,
+                            "cost_usd": 2.5,
+                            "avg_latency_ms": 860.0,
+                            "total_tokens": 44000,
+                        }
+                    },
+                    "operator_actions": [
+                        {
+                            "event_type": "update",
+                            "action": "check",
+                            "status": "unavailable",
+                            "update_type": "unknown",
+                            "events": 2,
+                        }
+                    ],
+                    "hourly": [
+                        {"hour_offset": 0, "requests": 18, "cost_usd": 0.3, "tokens": 9000},
+                        {"hour_offset": 1, "requests": 12, "cost_usd": 0.2, "tokens": 7000},
+                    ],
+                    "daily": [
+                        {
+                            "day": "2026-03-18",
+                            "requests": 40,
+                            "cost_usd": 1.2,
+                            "tokens": 18000,
+                            "failures": 1,
+                        },
+                        {
+                            "day": "2026-03-19",
+                            "requests": 80,
+                            "cost_usd": 2.2,
+                            "tokens": 45000,
+                            "failures": 2,
+                        },
+                    ],
+                }
+            ),
+        },
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    env["FAIGATE_PYTHON"] = sys.executable
+    env["PYTHONPATH"] = str(REPO_ROOT)
+    env["FAIGATE_DB_PATH"] = str(tmp_path / "faigate.db")
+
+    result = subprocess.run(
+        ["bash", "scripts/faigate-dashboard", "--overview"],
+        cwd=REPO_ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "fusionAIze Gate Dashboard" in result.stdout
+    assert "Source: live-api" in result.stdout
+    assert "Top provider        deepseek-chat" in result.stdout
+    assert "Top client          opencode" in result.stdout
+    assert "Fallback traffic    28 requests" in result.stdout
+    assert "Top alert" in result.stdout
+
+
+def test_faigate_provider_probe_summarizes_config_env_and_health(tmp_path: Path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        """
+providers:
+  deepseek-chat:
+    backend: openai-compat
+    api_key: "${DEEPSEEK_API_KEY}"
+    base_url: "https://api.deepseek.com/v1"
+    model: "deepseek-chat"
+    tier: default
+  anthropic-claude:
+    backend: anthropic-compat
+    api_key: "${ANTHROPIC_API_KEY}"
+    base_url: "https://api.anthropic.com/v1"
+    model: "claude-opus-4-6"
+    tier: mid
+""".strip(),
+        encoding="utf-8",
+    )
+    env_file = tmp_path / ".env"
+    env_file.write_text("DEEPSEEK_API_KEY=sk-demo\n", encoding="utf-8")
+    fake_bin = _write_fake_curl(
+        tmp_path,
+        {
+            "/health": json.dumps(
+                {
+                    "providers": {
+                        "deepseek-chat": {"healthy": True, "avg_latency_ms": 42.0},
+                        "anthropic-claude": {"healthy": False, "last_error": "rate limit"},
+                    }
+                }
+            )
+        },
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    env["FAIGATE_CONFIG_FILE"] = str(config_file)
+    env["FAIGATE_ENV_FILE"] = str(env_file)
+    env["FAIGATE_PYTHON"] = sys.executable
+    env["PYTHONPATH"] = str(REPO_ROOT)
+
+    result = subprocess.run(
+        ["bash", "scripts/faigate-provider-probe"],
+        cwd=REPO_ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "Provider probe" in result.stdout
+    assert "Configured: 2 | Ready now: 1" in result.stdout
+    assert "- deepseek-chat  (ready)" in result.stdout
+    assert "- anthropic-claude  (missing-key)" in result.stdout
+
+
+def test_faigate_client_scenarios_help_lists_usage():
+    result = subprocess.run(
+        ["bash", "scripts/faigate-client-scenarios", "--help"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "faigate-client-scenarios" in result.stdout
+    assert "--scenario ID --apply" in result.stdout
+
+
+def test_faigate_client_scenarios_text_lists_opencode_templates(tmp_path: Path):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "DEEPSEEK_API_KEY=sk-demo\nOPENAI_API_KEY=sk-openai\nANTHROPIC_API_KEY=sk-ant\n",
+        encoding="utf-8",
+    )
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("providers: {}\n", encoding="utf-8")
+
+    env = os.environ.copy()
+    env["FAIGATE_ENV_FILE"] = str(env_file)
+    env["FAIGATE_CONFIG_FILE"] = str(config_file)
+    env["FAIGATE_PYTHON"] = sys.executable
+    env["PYTHONPATH"] = str(REPO_ROOT)
+
+    result = subprocess.run(
+        ["bash", "scripts/faigate-client-scenarios", "--text"],
+        cwd=REPO_ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "Client scenarios" in result.stdout
+    assert "opencode / quality" in result.stdout
+    assert "ready now:" in result.stdout
+
+
+def test_faigate_provider_setup_known_text_lists_curated_sources(tmp_path: Path):
+    env_file = tmp_path / ".env"
+    env_file.write_text("DEEPSEEK_API_KEY=sk-demo\n", encoding="utf-8")
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        """
+providers:
+  deepseek-chat:
+    backend: openai-compat
+    api_key: "${DEEPSEEK_API_KEY}"
+    base_url: "https://api.deepseek.com/v1"
+    model: "deepseek-chat"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    env = os.environ.copy()
+    env["FAIGATE_ENV_FILE"] = str(env_file)
+    env["FAIGATE_CONFIG_FILE"] = str(config_file)
+    env["FAIGATE_PYTHON"] = sys.executable
+
+    result = subprocess.run(
+        ["bash", "scripts/faigate-provider-setup", "--known", "--text"],
+        cwd=REPO_ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "Known providers" in result.stdout
+    assert "deepseek-chat  (key ready · already in config)" in result.stdout
+    assert "anthropic-claude  (needs ANTHROPIC_API_KEY)" in result.stdout
+
+
+def test_faigate_menu_quick_setup_lists_provider_setup(tmp_path: Path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        """
+server:
+  host: "127.0.0.1"
+  port: 8090
+providers: {}
+fallback_chain: []
+client_profiles:
+  enabled: true
+  default: generic
+  profiles:
+    generic: {}
+""".strip(),
+        encoding="utf-8",
+    )
+    env_file = tmp_path / ".env"
+    env_file.write_text("", encoding="utf-8")
+    env = os.environ.copy()
+    env["FAIGATE_CONFIG_FILE"] = str(config_file)
+    env["FAIGATE_ENV_FILE"] = str(env_file)
+    env["FAIGATE_PYTHON"] = sys.executable
+
+    result = subprocess.run(
+        ["bash", "scripts/faigate-menu"],
+        cwd=REPO_ROOT,
+        env=env,
+        input="1\nc\nq\n",
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert "Provider Setup" in result.stdout
+    assert "Add known providers, custom endpoints, or local workers" in result.stdout
 
 
 def test_faigate_routing_settings_updates_default_and_profile_modes(tmp_path: Path):

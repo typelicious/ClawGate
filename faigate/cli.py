@@ -114,7 +114,7 @@ def cmd_overview(metrics: MetricsStore):
 
     print()
     print(_c("  ╔══════════════════════════════════════╗", BLUE))
-    print(_c("  ║", BLUE) + _c("  FOUNDRYGATE STATS", BOLD) + _c("          ║", BLUE))
+    print(_c("  ║", BLUE) + _c("  fusionAIze Gate Stats", BOLD) + _c("       ║", BLUE))
     print(_c("  ╚══════════════════════════════════════╝", BLUE))
     print()
 

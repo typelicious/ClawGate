@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/faigate-service-lib.sh"
+
+python_bin="$(faigate_python_bin)"
+db_path="$(faigate_db_path)"
+view="overview"
+mode="text"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ./scripts/faigate-dashboard
+  ./scripts/faigate-dashboard --providers
+  ./scripts/faigate-dashboard --clients
+  ./scripts/faigate-dashboard --activity
+  ./scripts/faigate-dashboard --alerts
+  ./scripts/faigate-dashboard --json
+
+Operator-facing performance dashboard for fusionAIze Gate.
+
+Views:
+  --overview   Compact global confidence view (default)
+  --providers  Provider load, health, failures, and spend
+  --clients    Client-level traffic, cost, and latency
+  --activity   24h activity, recent daily trend, and operator actions
+  --alerts     Alerts and decision support
+  --json       Raw dashboard report as JSON
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --overview)
+      view="overview"
+      shift
+      ;;
+    --providers)
+      view="providers"
+      shift
+      ;;
+    --clients)
+      view="clients"
+      shift
+      ;;
+    --activity)
+      view="activity"
+      shift
+      ;;
+    --alerts)
+      view="alerts"
+      shift
+      ;;
+    --json)
+      mode="json"
+      shift
+      ;;
+    --text)
+      mode="text"
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+health_payload=""
+stats_payload=""
+
+if payload="$(curl -fsS -m 2 "$(faigate_health_url)" 2>/dev/null)"; then
+  health_payload="$payload"
+fi
+
+if payload="$(curl -fsS -m 2 "$(faigate_stats_url)" 2>/dev/null)"; then
+  stats_payload="$payload"
+fi
+
+FAIGATE_DASHBOARD_DB="$db_path" \
+FAIGATE_DASHBOARD_VIEW="$view" \
+FAIGATE_DASHBOARD_MODE="$mode" \
+FAIGATE_DASHBOARD_HEALTH="$health_payload" \
+FAIGATE_DASHBOARD_STATS="$stats_payload" \
+"$python_bin" - <<'PY'
+import json
+import os
+
+from faigate.dashboard import build_dashboard_report, render_dashboard_text, report_as_json
+
+health_raw = os.environ.get("FAIGATE_DASHBOARD_HEALTH", "").strip()
+stats_raw = os.environ.get("FAIGATE_DASHBOARD_STATS", "").strip()
+
+health_payload = json.loads(health_raw) if health_raw else None
+stats_payload = json.loads(stats_raw) if stats_raw else None
+
+report = build_dashboard_report(
+    db_path=os.environ["FAIGATE_DASHBOARD_DB"],
+    stats_payload=stats_payload,
+    health_payload=health_payload,
+)
+
+if os.environ["FAIGATE_DASHBOARD_MODE"] == "json":
+    print(report_as_json(report))
+else:
+    print(render_dashboard_text(report, view=os.environ["FAIGATE_DASHBOARD_VIEW"]), end="")
+PY
