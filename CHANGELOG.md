@@ -15,6 +15,7 @@ The format is intentionally lightweight and human-readable. Group entries by rel
 - Improved `faigate-health`, `faigate-update-check`, and `faigate-menu` so operators now see compact human-readable summaries before diving into raw payloads
 - Added a service-manager mismatch warning when `/health` responds but the configured manager reports a stopped or missing service, which helps catch stale old runtimes still bound to the same port
 - Polished the terminal header to align more closely with the intended fusionAIze Gate visual identity in interactive terminals
+- Started the `v1.5.0` control-center UX line with a dedicated `Quick Setup` happy path and summary cards for gateway, config, providers, and clients in the main menu flows
 
 ## v1.4.5 - 2026-03-19
 

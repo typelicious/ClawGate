@@ -83,13 +83,23 @@ Then use the onboarding helpers to move from “the server starts” to “real 
 ./scripts/faigate-onboarding-validate
 ```
 
-`./scripts/faigate-menu` now also gives you one Gate-native shell entrypoint for API keys, HTTP settings, routing modes, client quickstarts, client-scoped wizard flows, validation helpers, service control, and update checks.
+`./scripts/faigate-menu` now also gives you one Gate-native shell entrypoint for `Quick Setup`, API keys, HTTP settings, routing modes, client quickstarts, client-scoped wizard flows, validation helpers, service control, and update checks.
+
+The main menu now starts with compact summary cards for gateway, config, providers, and clients so the current local state is readable before you drill into any helper.
 
 Inside `Configure`, the control center now follows a clearer split:
 
 - `Current Config` for a concise Gate snapshot
 - `Guided Setup` for full or client-scoped wizard flows
 - `Direct Settings` for API keys, bind settings, and routing defaults
+
+`Quick Setup` is now the fastest happy path for first use:
+
+- API Keys
+- Full Config Wizard
+- Validate
+- Restart + Verify
+- Client Quickstarts
 
 The main menu and the service/config submenus now also show compact runtime snapshots plus short inline tips, so the shell UX stays orienting even before you drill into a helper.
 

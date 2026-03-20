@@ -25,6 +25,92 @@ This roadmap now shifts from "rename and foundation" to "deepen the gateway plan
 
 The next block should stay disciplined: build on the workstation baseline, keep packaging practical, and avoid turning fusionAIze Gate into a sprawling platform.
 
+## `v1.5.0`: guided control-center UX
+
+Primary goals:
+
+- make the standalone Gate shell feel like the first serious product surface instead of a loose set of helper scripts
+- introduce one obvious happy path for first setup, validation, restart, and client connection
+- replace raw JSON-first operator views with compact human summaries plus drill-downs where needed
+- keep the Gate UX aligned with the later Grid orchestration direction so the products feel like one family
+
+Recommended minimal slices:
+
+1. `Quick Setup` happy path inside `faigate-menu`
+2. compact summary cards for gateway, config, providers, and clients in the main operational menus
+3. shorter, recommendation-first client quickstarts with per-client drilldown instead of long first-contact dumps
+4. explicit next-step receipts after wizard, validation, restart, and client-setup actions
+
+Guardrails:
+
+- keep the shell UX scriptable and helper-driven; do not turn `faigate-menu` into a full-screen TUI yet
+- prefer compact default output plus optional detail/raw views over large payload dumps
+- keep wording calm and operational, especially when health, service-manager state, and bound port state disagree
+
+Post-`1.5.0` UX items already worth bookmarking:
+
+- readiness score and richer setup progress scoring
+- port/runtime conflict auto-detection with one-step recovery suggestions
+- client route previews that show where a given client would land right now
+- richer action receipts and broader `what to do next` guidance
+- more compact client cards before the long quickstart text
+
+## Licensing direction to bookmark after `v1.5.0`
+
+The likely direction for the wider fusionAIze stack is hybrid:
+
+- open what accelerates adoption, integration, and ecosystem fit
+- protect what becomes the real differentiation and operating moat
+
+Proposed tiering:
+
+### Tier A — Open (`Apache-2.0`)
+
+Best fit for:
+
+- SDKs
+- schemas
+- reference adapters
+- integration libraries
+- local helper tooling
+- generic client/provider compatibility layers
+
+For fusionAIze Gate specifically, the likely open surface is:
+
+- baseline local gateway core
+- config schemas
+- local/dev install flow
+- generic provider adapters
+- generic client adapters
+- API specifications
+- sample configs and reference templates
+
+### Tier B — Open-core / source-available
+
+Best fit for:
+
+- advanced routing logic
+- premium policy packs
+- advanced observability packs
+- orchestration helpers
+- managed-operations modules
+- enterprise connectors
+
+### Tier C — Proprietary / commercial
+
+Best fit for:
+
+- managed control-plane features
+- billing / metering / org policy layers
+- enterprise governance integrations
+- higher-value orchestration IP that belongs with the broader fusionAIze stack
+
+Working conclusion for Gate:
+
+- Gate still looks like a strong open-core product
+- keep the baseline gateway broadly adoptable
+- reserve the differentiated premium logic for later, once the `1.5.x` UX and product boundaries are settled cleanly
+
 ## `v1.3.0`: guided setup and catalog-assisted updates
 
 Primary goals:

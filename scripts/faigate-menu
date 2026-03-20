@@ -43,34 +43,66 @@ run_and_pause() {
 }
 
 menu_snapshot() {
-  FAIGATE_MENU_CONFIG="$config_file" "$python_bin" - <<'PY'
+  FAIGATE_MENU_CONFIG="$config_file" FAIGATE_MENU_ENV="$env_file" "$python_bin" - <<'PY'
 from pathlib import Path
 import os
+import re
 
 import yaml
 
 config_path = Path(os.environ["FAIGATE_MENU_CONFIG"])
+env_path = Path(os.environ["FAIGATE_MENU_ENV"])
 raw = {}
 if config_path.exists():
     with config_path.open(encoding="utf-8") as handle:
         raw = yaml.safe_load(handle) or {}
+
+env_values = {}
+if env_path.exists():
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        env_values[key.strip()] = value.strip().strip('"').strip("'")
 
 providers = raw.get("providers") or {}
 fallback_chain = raw.get("fallback_chain") or []
 routing = raw.get("routing_modes") or {}
 client_profiles = raw.get("client_profiles") or {}
 profiles = (client_profiles.get("profiles") or {}) if isinstance(client_profiles, dict) else {}
+presets = (client_profiles.get("presets") or []) if isinstance(client_profiles, dict) else []
+providers_ready = 0
+providers_missing_keys = 0
+
+for payload in providers.values():
+    if not isinstance(payload, dict):
+        continue
+    api_key = payload.get("api_key")
+    if isinstance(api_key, str):
+        match = re.fullmatch(r"\$\{([^}:]+)(?::-[^}]*)?\}", api_key.strip())
+        if match:
+            if env_values.get(match.group(1), ""):
+                providers_ready += 1
+            else:
+                providers_missing_keys += 1
+            continue
+    providers_ready += 1
 
 print(f"providers={len(providers)}")
+print(f"providers_ready={providers_ready}")
+print(f"providers_missing_keys={providers_missing_keys}")
 print(f"fallbacks={len(fallback_chain)}")
 print(f"default_mode={routing.get('default', 'auto')}")
 print(f"default_profile={client_profiles.get('default', 'generic') if isinstance(client_profiles, dict) else 'generic'}")
 print(f"profiles={len(profiles)}")
+print(f"presets={len(presets)}")
 PY
 }
 
-render_main_snapshot() {
-  local state health_state bind snapshot_output line providers_count fallback_count default_mode default_profile profile_count
+collect_runtime_snapshot() {
+  local state health_state bind snapshot_output line providers_count providers_ready providers_missing_keys
+  local fallback_count default_mode default_profile profile_count preset_count
   state="$(faigate_service_state)"
   if faigate_is_healthy; then
     health_state="healthy"
@@ -80,31 +112,109 @@ render_main_snapshot() {
   bind="$(faigate_host):$(faigate_port)"
   snapshot_output="$(menu_snapshot)"
   providers_count="0"
+  providers_ready="0"
+  providers_missing_keys="0"
   fallback_count="0"
   default_mode="auto"
   default_profile="generic"
   profile_count="0"
+  preset_count="0"
   while IFS= read -r line; do
     case "$line" in
       providers=*) providers_count="${line#providers=}" ;;
+      providers_ready=*) providers_ready="${line#providers_ready=}" ;;
+      providers_missing_keys=*) providers_missing_keys="${line#providers_missing_keys=}" ;;
       fallbacks=*) fallback_count="${line#fallbacks=}" ;;
       default_mode=*) default_mode="${line#default_mode=}" ;;
       default_profile=*) default_profile="${line#default_profile=}" ;;
       profiles=*) profile_count="${line#profiles=}" ;;
+      presets=*) preset_count="${line#presets=}" ;;
     esac
   done <<EOF
 $snapshot_output
 EOF
 
-  printf "  %bRuntime snapshot%b\n" "$FAIGATE_UI_BOLD" "$FAIGATE_UI_RESET"
+  printf 'state=%s\n' "$state"
+  printf 'health=%s\n' "$health_state"
+  printf 'bind=%s\n' "$bind"
+  printf 'providers=%s\n' "$providers_count"
+  printf 'providers_ready=%s\n' "$providers_ready"
+  printf 'providers_missing_keys=%s\n' "$providers_missing_keys"
+  printf 'fallbacks=%s\n' "$fallback_count"
+  printf 'default_mode=%s\n' "$default_mode"
+  printf 'default_profile=%s\n' "$default_profile"
+  printf 'profiles=%s\n' "$profile_count"
+  printf 'presets=%s\n' "$preset_count"
+}
+
+render_summary_cards() {
+  local snapshot_output line state health_state bind providers_count providers_ready providers_missing_keys
+  local fallback_count default_mode default_profile profile_count preset_count
+  snapshot_output="$(collect_runtime_snapshot)"
+  while IFS= read -r line; do
+    case "$line" in
+      state=*) state="${line#state=}" ;;
+      health=*) health_state="${line#health=}" ;;
+      bind=*) bind="${line#bind=}" ;;
+      providers=*) providers_count="${line#providers=}" ;;
+      providers_ready=*) providers_ready="${line#providers_ready=}" ;;
+      providers_missing_keys=*) providers_missing_keys="${line#providers_missing_keys=}" ;;
+      fallbacks=*) fallback_count="${line#fallbacks=}" ;;
+      default_mode=*) default_mode="${line#default_mode=}" ;;
+      default_profile=*) default_profile="${line#default_profile=}" ;;
+      profiles=*) profile_count="${line#profiles=}" ;;
+      presets=*) preset_count="${line#presets=}" ;;
+    esac
+  done <<EOF
+$snapshot_output
+EOF
+
+  printf "  %bGateway%b\n" "$FAIGATE_UI_BOLD" "$FAIGATE_UI_RESET"
   printf "  %-18s %s\n" "Service" "$state"
   printf "  %-18s %s\n" "Health" "$health_state"
   printf "  %-18s %s\n" "Bind" "$bind"
-  printf "  %-18s %s\n" "Providers" "$providers_count configured"
-  printf "  %-18s %s\n" "Fallbacks" "$fallback_count targets"
+  echo ""
+  printf "  %bConfig%b\n" "$FAIGATE_UI_BOLD" "$FAIGATE_UI_RESET"
   printf "  %-18s %s\n" "Default mode" "$default_mode"
-  printf "  %-18s %s\n" "Client default" "$default_profile (${profile_count} profiles)"
+  printf "  %-18s %s\n" "Config" "$config_file"
+  printf "  %-18s %s\n" "Env" "$env_file"
+  echo ""
+  printf "  %bProviders%b\n" "$FAIGATE_UI_BOLD" "$FAIGATE_UI_RESET"
+  printf "  %-18s %s\n" "Configured" "$providers_count"
+  printf "  %-18s %s\n" "Ready" "$providers_ready"
+  printf "  %-18s %s\n" "Missing keys" "$providers_missing_keys"
+  printf "  %-18s %s\n" "Fallbacks" "$fallback_count"
+  echo ""
+  printf "  %bClients%b\n" "$FAIGATE_UI_BOLD" "$FAIGATE_UI_RESET"
+  printf "  %-18s %s\n" "Default profile" "$default_profile"
+  printf "  %-18s %s\n" "Profiles" "$profile_count"
+  printf "  %-18s %s\n" "Presets" "$preset_count"
   printf "\n"
+}
+
+render_quick_setup_guidance() {
+  local snapshot_output line health_state providers_count providers_ready providers_missing_keys
+  snapshot_output="$(collect_runtime_snapshot)"
+  while IFS= read -r line; do
+    case "$line" in
+      health=*) health_state="${line#health=}" ;;
+      providers=*) providers_count="${line#providers=}" ;;
+      providers_ready=*) providers_ready="${line#providers_ready=}" ;;
+      providers_missing_keys=*) providers_missing_keys="${line#providers_missing_keys=}" ;;
+    esac
+  done <<EOF
+$snapshot_output
+EOF
+
+  if [ "${providers_count:-0}" = "0" ]; then
+    faigate_ui_tip "Start with API Keys if you already know your providers, then run Full Config Wizard to generate the first usable config."
+  elif [ "${providers_missing_keys:-0}" != "0" ] || [ "${providers_ready:-0}" = "0" ]; then
+    faigate_ui_tip "Some configured providers are still missing API keys. Fill the env file first, then rerun Validate."
+  elif [ "${health_state:-unreachable}" != "healthy" ]; then
+    faigate_ui_tip "Config looks close. Restart + Verify is the next best step so the gateway can pick up the current config."
+  else
+    faigate_ui_tip "The gateway looks ready. Open Client Quickstarts next and wire in the first client."
+  fi
 }
 
 show_status_overview() {
@@ -319,6 +429,7 @@ status_menu() {
   while true; do
     show_status_overview
     echo ""
+    render_summary_cards
     faigate_ui_tip "Use Service Status when you want the raw manager output and bound listener details."
     echo ""
     printf "    1)  Service Status   Detailed service/runtime status\n"
@@ -340,10 +451,41 @@ status_menu() {
   done
 }
 
+quick_setup_menu() {
+  while true; do
+    faigate_ui_header "fusionAIze Gate Quick Setup" "Fastest path from first keys to first healthy client"
+    render_summary_cards
+    render_quick_setup_guidance
+    echo ""
+    printf "    1)  API Keys           Set provider keys in the env file\n"
+    printf "    2)  Full Config Wizard Generate or update the main config\n"
+    printf "    3)  Validate           Run doctor checks against the current config\n"
+    printf "    4)  Restart + Verify   Restart the gateway and wait for /health\n"
+    printf "    5)  Client Quickstarts Show client-specific next steps\n"
+    printf "    6)  Current Config     Review the current config snapshot\n"
+    printf "\n"
+    printf "    c)  Cancel\n"
+    printf "    q)  Quit\n\n"
+    printf "  ▸ Choice: "
+    read -r choice
+    case "$choice" in
+      1) run_and_pause bash "${script_dir}/faigate-api-keys" ;;
+      2) run_config_wizard ;;
+      3) run_and_pause bash "${script_dir}/faigate-doctor" ;;
+      4) run_and_pause bash "${script_dir}/faigate-restart" ;;
+      5) run_and_pause bash "${script_dir}/faigate-client-integrations" ;;
+      6) run_and_pause bash "${script_dir}/faigate-config-overview" ;;
+      c|C|"") return 0 ;;
+      q|Q) exit 0 ;;
+      *) faigate_ui_warn "Invalid choice."; faigate_ui_pause ;;
+    esac
+  done
+}
+
 configure_menu() {
   while true; do
     faigate_ui_header "fusionAIze Gate Configure" "Config, providers, and local gateway settings"
-    render_main_snapshot
+    render_summary_cards
     faigate_ui_tip "Use Guided Setup for provider/client recommendations. Use Direct Settings when you already know the exact values to change."
     echo ""
     printf "    1)  Current Config   Snapshot of bind settings, providers, modes, and profiles\n"
@@ -500,7 +642,7 @@ validate_menu() {
 control_menu() {
   while true; do
     faigate_ui_header "fusionAIze Gate Control" "Start, stop, restart, status, and logs"
-    render_main_snapshot
+    render_summary_cards
     faigate_ui_tip "Use Service Overview before restart work, and prefer Recent Logs before jumping into a live tail."
     echo ""
     printf "    1)  Service Overview   Manager, paths, bind target, and raw status\n"
@@ -562,28 +704,30 @@ update_menu() {
 
 while true; do
   faigate_ui_header "fusionAIze Gate Control Center" "Standalone operations menu"
-  render_main_snapshot
-  faigate_ui_tip "A good default path is Configure -> Guided Setup -> Validate -> Control."
+  render_summary_cards
+  faigate_ui_tip "A good default path is Quick Setup -> Validate -> Clients."
   echo ""
-  printf "    1)  Status       Version, paths, service state, and models\n"
-  printf "    2)  Configure    Wizard, API keys, HTTP settings, routing modes\n"
-  printf "    3)  Clients      Quickstarts, matrix, and client-scoped wizard flows\n"
-  printf "    4)  Explore      Provider discovery and exposed models\n"
-  printf "    5)  Validate     Doctor, onboarding report, validation\n"
-  printf "    6)  Control      Start, stop, restart, status, logs\n"
-  printf "    7)  Update       Release checks and auto-update flows\n"
+  printf "    1)  Quick Setup  Guided path from API keys to first healthy client\n"
+  printf "    2)  Status       Version, paths, service state, and models\n"
+  printf "    3)  Configure    Wizard, API keys, HTTP settings, routing modes\n"
+  printf "    4)  Clients      Quickstarts, matrix, and client-scoped wizard flows\n"
+  printf "    5)  Explore      Provider discovery and exposed models\n"
+  printf "    6)  Validate     Doctor, onboarding report, validation\n"
+  printf "    7)  Control      Start, stop, restart, status, logs\n"
+  printf "    8)  Update       Release checks and auto-update flows\n"
   printf "\n"
   printf "    q)  Quit\n\n"
   printf "  ▸ Choice: "
   read -r choice
   case "$choice" in
-    1) status_menu ;;
-    2) configure_menu ;;
-    3) clients_menu ;;
-    4) explore_menu ;;
-    5) validate_menu ;;
-    6) control_menu ;;
-    7) update_menu ;;
+    1) quick_setup_menu ;;
+    2) status_menu ;;
+    3) configure_menu ;;
+    4) clients_menu ;;
+    5) explore_menu ;;
+    6) validate_menu ;;
+    7) control_menu ;;
+    8) update_menu ;;
     q|Q) exit 0 ;;
     *) faigate_ui_warn "Invalid choice."; faigate_ui_pause ;;
   esac

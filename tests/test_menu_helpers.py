@@ -95,8 +95,9 @@ fallback_chain: [deepseek-chat]
         check=True,
     )
 
-    assert "Runtime snapshot" in result.stdout
+    assert "Gateway" in result.stdout
     assert "Default mode" in result.stdout
+    assert "Providers" in result.stdout
     assert "Tip:" in result.stdout
 
 
@@ -539,7 +540,7 @@ fallback_chain: [deepseek-chat]
         ["bash", "scripts/faigate-menu"],
         cwd=REPO_ROOT,
         env=env,
-        input="1\n3\n\nc\nq\n",
+        input="2\n3\n\nc\nq\n",
         capture_output=True,
         text=True,
         check=True,
@@ -601,7 +602,7 @@ fallback_chain: []
         ["bash", "scripts/faigate-menu"],
         cwd=REPO_ROOT,
         env=env,
-        input="7\n1\n\nc\nq\n",
+        input="8\n1\n\nc\nq\n",
         capture_output=True,
         text=True,
         check=True,
@@ -609,6 +610,51 @@ fallback_chain: []
 
     assert "Current runtime: 1.2.3" in result.stdout
     assert "Warning: /api/update is reporting a different repository" in result.stdout
+
+
+def test_faigate_menu_quick_setup_renders_guidance(tmp_path: Path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        """
+server:
+  host: "127.0.0.1"
+  port: 8090
+  log_level: "info"
+providers: {}
+fallback_chain: []
+client_profiles:
+  enabled: true
+  default: generic
+  profiles:
+    generic: {}
+""".strip(),
+        encoding="utf-8",
+    )
+    env_file = tmp_path / ".env"
+    env_file.write_text("", encoding="utf-8")
+    fake_bin = _write_fake_curl(
+        tmp_path,
+        {"/health": json.dumps({"status": "ok", "summary": {"providers_total": 0, "providers_healthy": 0}})},
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    env["FAIGATE_CONFIG_FILE"] = str(config_file)
+    env["FAIGATE_ENV_FILE"] = str(env_file)
+    env["FAIGATE_PYTHON"] = sys.executable
+
+    result = subprocess.run(
+        ["bash", "scripts/faigate-menu"],
+        cwd=REPO_ROOT,
+        env=env,
+        input="1\nc\nq\n",
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert "fusionAIze Gate Quick Setup" in result.stdout
+    assert "Start with API Keys" in result.stdout
 
 
 def test_faigate_server_settings_updates_config_and_creates_backup(tmp_path: Path):
