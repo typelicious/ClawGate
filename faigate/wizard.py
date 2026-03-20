@@ -715,8 +715,7 @@ def render_known_provider_sources_text(
             status_bits.append("already in config")
         lines.append(f"- {row['provider']}  ({' · '.join(status_bits)})")
         lines.append(
-            "  "
-            + f"model: {row['model']} | tier: {row['tier']} | source: {row['provider_type']}"
+            "  " + f"model: {row['model']} | tier: {row['tier']} | source: {row['provider_type']}"
         )
         if row["notes"]:
             lines.append("  " + f"why: {row['notes']}")
@@ -818,9 +817,7 @@ def apply_provider_setup(
             "timeout": {"connect_s": 10, "read_s": 90},
             "capabilities": {
                 "cost_tier": str(custom_provider.get("cost_tier", "custom") or "custom"),
-                "latency_tier": str(
-                    custom_provider.get("latency_tier", "balanced") or "balanced"
-                ),
+                "latency_tier": str(custom_provider.get("latency_tier", "balanced") or "balanced"),
             },
         }
         providers[name] = provider_payload
@@ -1002,8 +999,7 @@ def render_provider_probe_text(report: dict[str, Any]) -> str:
     for row in report.get("providers", []):
         lines.append(f"- {row['provider']}  ({row['status']})")
         lines.append(
-            "  "
-            + f"model: {row['model']} | tier: {row['tier']} | contract: {row['contract']}"
+            "  " + f"model: {row['model']} | tier: {row['tier']} | contract: {row['contract']}"
         )
         if row.get("avg_latency_ms"):
             lines.append("  " + f"latency: {row['avg_latency_ms']:.1f} ms")
@@ -1158,8 +1154,7 @@ def render_client_scenario_summary(payload: dict[str, Any]) -> str:
     if summary.get("changed_profile_modes"):
         for item in summary["changed_profile_modes"]:
             lines.append(
-                "- profile mode: "
-                + f"{item['profile']} {item['from_mode']} -> {item['to_mode']}"
+                "- profile mode: " + f"{item['profile']} {item['from_mode']} -> {item['to_mode']}"
             )
     if lines[-1] == "Change preview":
         lines.append("- no config changes beyond confirming the current scenario")

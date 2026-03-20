@@ -342,7 +342,9 @@ def build_dashboard_report(
                     + " before increasing spend on the current top-cost provider."
                 )
 
-    rate_limited = [item["provider"] for item in unhealthy_providers if item["category"] == "rate-limited"]
+    rate_limited = [
+        item["provider"] for item in unhealthy_providers if item["category"] == "rate-limited"
+    ]
     quota_exhausted = [
         item["provider"] for item in unhealthy_providers if item["category"] == "quota-exhausted"
     ]
