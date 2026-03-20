@@ -167,6 +167,7 @@ def test_faigate_client_integrations_help_lists_usage():
     assert "faigate-client-integrations" in result.stdout
     assert "--client NAME" in result.stdout
     assert "--matrix" in result.stdout
+    assert "--recommended" in result.stdout
 
 
 def test_faigate_config_overview_help_lists_output_modes():
@@ -342,6 +343,108 @@ fallback_chain: [deepseek-chat]
     assert payload["integrations"]["openclaw"]["profile"] == "openclaw"
     assert payload["client_matrix"]
     assert any(row["name"] == "openclaw" for row in payload["client_matrix"])
+
+
+def test_faigate_client_integrations_text_shows_recommended_cards_and_more_available(tmp_path: Path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        """
+server:
+  host: "127.0.0.1"
+  port: 8090
+  log_level: "info"
+providers:
+  deepseek-chat:
+    backend: openai-compat
+    api_key: "${DEEPSEEK_API_KEY}"
+    base_url: "https://api.deepseek.com/v1"
+    model: "deepseek-chat"
+    tier: default
+client_profiles:
+  enabled: true
+  default: generic
+  presets: [openclaw, n8n, cli]
+  profiles:
+    generic: {}
+    openclaw: {}
+    n8n: {}
+    cli: {}
+    opencode: {}
+fallback_chain: [deepseek-chat]
+""".strip(),
+        encoding="utf-8",
+    )
+    env_file = tmp_path / ".env"
+    env_file.write_text("DEEPSEEK_API_KEY=test-key\n", encoding="utf-8")
+
+    env = os.environ.copy()
+    env["FAIGATE_CONFIG_FILE"] = str(config_file)
+    env["FAIGATE_ENV_FILE"] = str(env_file)
+    env["FAIGATE_PYTHON"] = sys.executable
+
+    result = subprocess.run(
+        ["bash", "scripts/faigate-client-integrations"],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert "Recommended clients now" in result.stdout
+    assert "- openclaw" in result.stdout
+    assert "- n8n" in result.stdout
+    assert "- cli" in result.stdout
+    assert "More available" in result.stdout
+    assert "Use --client NAME for a detailed drilldown." in result.stdout
+
+
+def test_faigate_client_integrations_text_drilldown_for_opencode(tmp_path: Path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        """
+server:
+  host: "127.0.0.1"
+  port: 8090
+  log_level: "info"
+providers:
+  deepseek-chat:
+    backend: openai-compat
+    api_key: "${DEEPSEEK_API_KEY}"
+    base_url: "https://api.deepseek.com/v1"
+    model: "deepseek-chat"
+    tier: default
+client_profiles:
+  enabled: true
+  default: generic
+  profiles:
+    generic: {}
+    opencode: {}
+fallback_chain: [deepseek-chat]
+""".strip(),
+        encoding="utf-8",
+    )
+    env_file = tmp_path / ".env"
+    env_file.write_text("DEEPSEEK_API_KEY=test-key\n", encoding="utf-8")
+
+    env = os.environ.copy()
+    env["FAIGATE_CONFIG_FILE"] = str(config_file)
+    env["FAIGATE_ENV_FILE"] = str(env_file)
+    env["FAIGATE_PYTHON"] = sys.executable
+
+    result = subprocess.run(
+        ["bash", "scripts/faigate-client-integrations", "--client", "opencode"],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert "Client drilldown" in result.stdout
+    assert "- opencode: ready" in result.stdout
+    assert "best for: Coding-heavy editor and agent flows" in result.stdout
+    assert "header: X-faigate-Client: opencode" in result.stdout
 
 
 def test_faigate_auto_update_parses_payload_without_mapfile(tmp_path: Path):

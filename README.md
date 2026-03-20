@@ -107,8 +107,10 @@ If you want the client quickstarts or the current profile matrix without steppin
 
 ```bash
 ./scripts/faigate-client-integrations
+./scripts/faigate-client-integrations --recommended
 ./scripts/faigate-client-integrations --matrix
 ./scripts/faigate-client-integrations --json --client openclaw
+./scripts/faigate-client-integrations --client opencode
 ./scripts/faigate-config-overview
 ./scripts/faigate-config-overview --json
 ```
