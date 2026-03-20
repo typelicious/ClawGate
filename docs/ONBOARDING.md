@@ -22,23 +22,38 @@ Run the generic helpers before changing config:
 ```bash
 ./scripts/faigate-menu
 ./scripts/faigate-bootstrap
-./scripts/faigate-config-wizard --purpose general --client generic > config.yaml
-$EDITOR .env
+./scripts/faigate-provider-setup
 ./scripts/faigate-doctor
 ./scripts/faigate-onboarding-report
 ```
 
-If you prefer a guided shell flow over remembering individual helper names, start with `./scripts/faigate-menu`. It wraps the wizard, API-key editing, HTTP settings, routing-mode editing, client quickstarts, validation helpers, service control, and update checks behind one consistent control-center layout.
+If you prefer a guided shell flow over remembering individual helper names, start with `./scripts/faigate-menu`. It wraps the new performance dashboard, provider setup, the wizard, API-key editing, HTTP settings, routing-mode editing, client quickstarts, validation helpers, service control, and update checks behind one consistent control-center layout.
 
 The `Configure` section now splits cleanly into:
 
 - `Current Config`
+- `Provider Setup`
 - `Guided Setup`
 - `Direct Settings`
 
 That keeps the Gate-native flow closer to the later Grid orchestration pattern without hiding the low-level settings when you need them.
 
-The main menu and the service/config submenus also show small runtime snapshots and inline tips now, so operators get a quick sense of the current bind, health, provider count, and default routing posture before choosing the next action.
+The main menu and the service/config submenus also show small runtime snapshots and inline tips now, so operators get a quick sense of the current bind, health, provider count, and default routing posture before choosing the next action. Once requests are flowing, the `Dashboard` section becomes the operator surface for traffic, latency, spend, token volume, provider/client hotspots, and routing pressure.
+
+`Provider Setup` is the right first stop when the source itself is missing, not just the key:
+
+- `Known Providers` for the curated source list
+- `Custom Provider` for an OpenAI-compatible upstream not yet in the catalog
+- `Local Worker` for LM Studio, Ollama-style bridges, or another local/LAN worker
+
+After the sources exist, `Provider Probe` is now the compact operator check for:
+
+- which configured providers really look ready right now
+- which providers still only have config but no usable key
+- whether `/health` already sees them as healthy
+- common failure classes such as rate-limited, quota-exhausted, or model-unavailable
+
+Then `Client Scenarios` gives named templates such as `opencode / eco` or `n8n / reliable`, so the next step feels like choosing an intended client posture instead of hand-editing profile modes.
 
 `faigate-doctor` now also checks whether provider env placeholders referenced in `config.yaml` are actually present in `.env`.
 

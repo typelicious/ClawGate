@@ -1,0 +1,586 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/faigate-service-lib.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/faigate-ui-lib.sh"
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(faigate_repo_root)"
+config_file="$(faigate_config_file)"
+env_file="$(faigate_env_file)"
+python_bin="$(faigate_python_bin)"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ./scripts/faigate-provider-setup
+  ./scripts/faigate-provider-setup --known --text
+  ./scripts/faigate-provider-setup --current --text
+
+Interactive helper to add provider sources to fusionAIze Gate.
+
+Modes:
+  --known --text    Print the curated known-provider setup view
+  --current --text  Print the current configured provider source view
+
+Env resolution:
+  FAIGATE_CONFIG_FILE   config path
+  FAIGATE_ENV_FILE      env path
+  FAIGATE_PYTHON        python interpreter used by helper scripts
+EOF
+}
+
+ensure_files() {
+  mkdir -p "$(dirname "$env_file")" "$(dirname "$config_file")"
+  if [ ! -f "$env_file" ]; then
+    if [ -f "$(faigate_example_env_file)" ]; then
+      cp "$(faigate_example_env_file)" "$env_file"
+    else
+      : >"$env_file"
+    fi
+  fi
+  if [ ! -f "$config_file" ] && [ -f "$repo_root/config.yaml" ]; then
+    cp "$repo_root/config.yaml" "$config_file"
+  fi
+}
+
+show_next_steps() {
+  local title="$1"
+  shift
+  echo ""
+  printf "  %bNext step%b  %s\n" "$FAIGATE_UI_BOLD" "$FAIGATE_UI_RESET" "$title"
+  for item in "$@"; do
+    printf "    - %s\n" "$item"
+  done
+}
+
+run_wizard_python() {
+  FAIGATE_PROVIDER_SETUP_CONFIG="$config_file" \
+    FAIGATE_PROVIDER_SETUP_ENV="$env_file" \
+    "$python_bin" "$@"
+}
+
+show_known_sources() {
+  run_wizard_python - <<'PY'
+import os
+from faigate.wizard import render_known_provider_sources_text
+
+print(
+    render_known_provider_sources_text(
+        env_file=os.environ["FAIGATE_PROVIDER_SETUP_ENV"],
+        config_path=os.environ["FAIGATE_PROVIDER_SETUP_CONFIG"],
+    ),
+    end="",
+)
+PY
+}
+
+show_current_sources() {
+  run_wizard_python - <<'PY'
+import os
+from faigate.wizard import render_current_provider_sources_text
+
+print(
+    render_current_provider_sources_text(
+        env_file=os.environ["FAIGATE_PROVIDER_SETUP_ENV"],
+        config_path=os.environ["FAIGATE_PROVIDER_SETUP_CONFIG"],
+    ),
+    end="",
+)
+PY
+}
+
+provider_meta() {
+  local provider_name="$1"
+  FAIGATE_PROVIDER_NAME="$provider_name" run_wizard_python - <<'PY'
+import os
+from faigate.wizard import list_known_provider_sources
+
+name = os.environ["FAIGATE_PROVIDER_NAME"]
+rows = list_known_provider_sources(
+    env_file=os.environ["FAIGATE_PROVIDER_SETUP_ENV"],
+    config_path=os.environ["FAIGATE_PROVIDER_SETUP_CONFIG"],
+)
+for row in rows:
+    if row["provider"] == name:
+        print(
+            "|".join(
+                [
+                    row["provider"],
+                    row["env"],
+                    row.get("base_url_env", ""),
+                    "1" if row["key_present"] else "0",
+                    "1" if row["configured"] else "0",
+                ]
+            )
+        )
+        break
+PY
+}
+
+slugify_identifier() {
+  local value="$1"
+  value="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')"
+  value="$(printf '%s' "$value" | tr -cs 'a-z0-9' '-')"
+  value="${value#-}"
+  value="${value%-}"
+  printf '%s\n' "${value:-provider}"
+}
+
+uppercase_slug() {
+  local value="$1"
+  printf '%s\n' "$value" | tr '[:lower:]-' '[:upper:]_'
+}
+
+apply_setup_payload() {
+  local payload_file="$1"
+  local mode="$2"
+  local config_target="$config_file"
+  local env_target="$env_file"
+  if [ "$mode" = "write" ]; then
+    FAIGATE_PROVIDER_SETUP_PAYLOAD="$payload_file" \
+      FAIGATE_PROVIDER_SETUP_MODE="$mode" \
+      FAIGATE_PROVIDER_SETUP_CONFIG="$config_target" \
+      FAIGATE_PROVIDER_SETUP_ENV="$env_target" \
+      "$python_bin" - <<'PY'
+import json
+import os
+from pathlib import Path
+
+from faigate.wizard import (
+    apply_provider_setup,
+    render_provider_setup_summary,
+    write_env_updates,
+)
+
+payload = json.loads(Path(os.environ["FAIGATE_PROVIDER_SETUP_PAYLOAD"]).read_text(encoding="utf-8"))
+result = apply_provider_setup(
+    config_path=os.environ["FAIGATE_PROVIDER_SETUP_CONFIG"],
+    env_file=os.environ["FAIGATE_PROVIDER_SETUP_ENV"],
+    known_providers=payload.get("known_providers"),
+    custom_provider=payload.get("custom_provider"),
+    local_worker=payload.get("local_worker"),
+)
+print(render_provider_setup_summary(result), end="")
+Path(os.environ["FAIGATE_PROVIDER_SETUP_CONFIG"]).write_text(
+    __import__("yaml").safe_dump(result["config"], sort_keys=False, allow_unicode=False),
+    encoding="utf-8",
+)
+write_env_updates(
+    env_path=os.environ["FAIGATE_PROVIDER_SETUP_ENV"],
+    env_updates=result["env_updates"],
+)
+PY
+  else
+    FAIGATE_PROVIDER_SETUP_PAYLOAD="$payload_file" \
+      FAIGATE_PROVIDER_SETUP_CONFIG="$config_target" \
+      FAIGATE_PROVIDER_SETUP_ENV="$env_target" \
+      "$python_bin" - <<'PY'
+import json
+import os
+from pathlib import Path
+
+from faigate.wizard import apply_provider_setup, render_provider_setup_summary
+
+payload = json.loads(Path(os.environ["FAIGATE_PROVIDER_SETUP_PAYLOAD"]).read_text(encoding="utf-8"))
+result = apply_provider_setup(
+    config_path=os.environ["FAIGATE_PROVIDER_SETUP_CONFIG"],
+    env_file=os.environ["FAIGATE_PROVIDER_SETUP_ENV"],
+    known_providers=payload.get("known_providers"),
+    custom_provider=payload.get("custom_provider"),
+    local_worker=payload.get("local_worker"),
+)
+print(render_provider_setup_summary(result), end="")
+PY
+  fi
+}
+
+prompt_secret() {
+  local label="$1"
+  local current="$2"
+  local result_var="$3"
+  local value
+  printf "  %-28s [%s]: " "$label" "$(faigate_mask_secret "$current")"
+  read -r -s value
+  echo ""
+  case "$value" in
+    :q) exit 0 ;;
+    :c) return 1 ;;
+  esac
+  printf -v "$result_var" '%s' "$value"
+  return 0
+}
+
+prompt_plain() {
+  local label="$1"
+  local current="$2"
+  local result_var="$3"
+  local value
+  printf "  %-28s [%s]: " "$label" "${current:-not set}"
+  read -r value
+  case "$value" in
+    :q) exit 0 ;;
+    :c) return 1 ;;
+  esac
+  printf -v "$result_var" '%s' "$value"
+  return 0
+}
+
+known_provider_flow() {
+  local selection apply_mode payload_file current_key current_base raw meta provider env_var base_url_env
+  local -a provider_list=()
+
+  faigate_ui_header "fusionAIze Gate Provider Setup" "Curated providers from the current catalog"
+  show_known_sources
+  echo ""
+  printf "  %bSelect providers%b  %s\n" "$FAIGATE_UI_BOLD" "$FAIGATE_UI_RESET" "(comma-separated IDs, Enter cancels)"
+  printf "  q) Quit\n"
+  printf "  c) Cancel\n"
+  printf "  ▸ Selection: "
+  read -r selection
+  case "$selection" in
+    q|Q) exit 0 ;;
+    c|C|"") return 0 ;;
+  esac
+
+  IFS=',' read -r -a raw_list <<<"$selection"
+  for raw in "${raw_list[@]}"; do
+    raw="${raw#"${raw%%[![:space:]]*}"}"
+    raw="${raw%"${raw##*[![:space:]]}"}"
+    [ -n "$raw" ] && provider_list+=("$raw")
+  done
+
+  payload_file="$(mktemp)"
+  printf '{"known_providers":[' >"$payload_file"
+  local first=1
+  for provider in "${provider_list[@]}"; do
+    meta="$(provider_meta "$provider")"
+    if [ -z "$meta" ]; then
+      faigate_ui_warn "Skipping unknown provider: $provider"
+      continue
+    fi
+    IFS='|' read -r _ env_var base_url_env _ _ <<<"$meta"
+    current_key="$(faigate_env_value "$env_var" 2>/dev/null || true)"
+    current_base=""
+    if [ -n "$base_url_env" ]; then
+      current_base="$(faigate_env_value "$base_url_env" 2>/dev/null || true)"
+    fi
+    echo ""
+    printf "  %b%s%b\n" "$FAIGATE_UI_BOLD" "$provider" "$FAIGATE_UI_RESET"
+    local entered_key="" entered_base=""
+    prompt_secret "$env_var" "$current_key" entered_key || return 0
+    if [ -n "$base_url_env" ]; then
+      prompt_plain "${base_url_env} (upstream)" "$current_base" entered_base || return 0
+    fi
+    [ "$first" -eq 0 ] && printf ',' >>"$payload_file"
+    first=0
+    FAIGATE_PROVIDER="$provider" FAIGATE_ENV_VAR="$env_var" \
+      FAIGATE_ENV_VALUE="${entered_key:-}" FAIGATE_BASE_ENV="${base_url_env:-}" \
+      FAIGATE_BASE_VALUE="${entered_base:-}" "$python_bin" - <<'PY' >>"$payload_file"
+import json
+import os
+
+payload = {
+    "provider": os.environ["FAIGATE_PROVIDER"],
+}
+if os.environ.get("FAIGATE_ENV_VALUE", ""):
+    payload["env_value"] = os.environ["FAIGATE_ENV_VALUE"]
+if os.environ.get("FAIGATE_BASE_VALUE", ""):
+    payload["base_url_value"] = os.environ["FAIGATE_BASE_VALUE"]
+print(json.dumps(payload), end="")
+PY
+  done
+  printf ']}\n' >>"$payload_file"
+
+  echo ""
+  printf "  %bApply mode%b\n" "$FAIGATE_UI_BOLD"
+  printf "    1)  Dry-run only    Preview source changes, no writes\n"
+  printf "    2)  Write setup     Update config.yaml and faigate.env\n"
+  printf "    c)  Cancel\n"
+  printf "    q)  Quit\n"
+  printf "  ▸ [1]: "
+  read -r apply_mode
+  case "${apply_mode:-1}" in
+    q|Q) rm -f "$payload_file"; exit 0 ;;
+    c|C) rm -f "$payload_file"; return 0 ;;
+  esac
+
+  echo ""
+  apply_setup_payload "$payload_file" "$([ "${apply_mode:-1}" = "2" ] && printf write || printf dry)"
+  rm -f "$payload_file"
+  echo ""
+  show_next_steps "Provider source setup completed." \
+    "Run Validate next to catch missing keys or config drift." \
+    "Run Full Config Wizard when you want purpose- and client-aware routing suggestions." \
+    "Provider Probe is the natural next UX slice once it lands."
+  faigate_ui_pause
+}
+
+custom_provider_flow() {
+  local name base_url model env_var api_key tier apply_mode payload_file
+
+  faigate_ui_header "fusionAIze Gate Provider Setup" "Custom OpenAI-compatible provider"
+  faigate_ui_tip "Use this for providers not yet in the curated list."
+  echo ""
+  printf "  %bName / ID%b  %s\n" "$FAIGATE_UI_BOLD" "$FAIGATE_UI_RESET" "(used as the config key)"
+  printf "  q) Quit\n"
+  printf "  c) Cancel\n"
+  printf "  ▸ [custom-provider]: "
+  read -r name
+  case "${name:-custom-provider}" in
+    q|Q) exit 0 ;;
+    c|C) return 0 ;;
+    "") name="custom-provider" ;;
+  esac
+  name="$(slugify_identifier "$name")"
+
+  echo ""
+  printf "  %bBase URL%b  %s\n" "$FAIGATE_UI_BOLD" "$FAIGATE_UI_RESET" "(OpenAI-compatible upstream endpoint)"
+  printf "  ▸ [https://api.example.com/v1]: "
+  read -r base_url
+  case "${base_url:-https://api.example.com/v1}" in
+    q|Q) exit 0 ;;
+    c|C) return 0 ;;
+    "") base_url="https://api.example.com/v1" ;;
+  esac
+
+  echo ""
+  printf "  %bDefault model%b\n" "$FAIGATE_UI_BOLD"
+  printf "  ▸ [gpt-4o-mini]: "
+  read -r model
+  case "${model:-gpt-4o-mini}" in
+    q|Q) exit 0 ;;
+    c|C) return 0 ;;
+    "") model="gpt-4o-mini" ;;
+  esac
+
+  env_var="CUSTOM_$(uppercase_slug "$name")_API_KEY"
+  echo ""
+  printf "  %bAPI key env var%b  %s\n" "$FAIGATE_UI_BOLD" "$FAIGATE_UI_RESET" "(stored in faigate.env)"
+  printf "  ▸ [%s]: " "$env_var"
+  read -r env_input
+  case "${env_input:-$env_var}" in
+    q|Q) exit 0 ;;
+    c|C) return 0 ;;
+    "") ;;
+    *) env_var="${env_input}" ;;
+  esac
+
+  echo ""
+  printf "  %bTier%b  %s\n" "$FAIGATE_UI_BOLD" "$FAIGATE_UI_RESET" "(default | cheap | mid | fallback)"
+  printf "  ▸ [default]: "
+  read -r tier
+  case "${tier:-default}" in
+    q|Q) exit 0 ;;
+    c|C) return 0 ;;
+    "") tier="default" ;;
+  esac
+
+  echo ""
+  prompt_secret "$env_var" "" api_key || return 0
+
+  payload_file="$(mktemp)"
+  FAIGATE_CUSTOM_NAME="$name" FAIGATE_CUSTOM_BASE_URL="$base_url" \
+    FAIGATE_CUSTOM_MODEL="$model" FAIGATE_CUSTOM_ENV="$env_var" \
+    FAIGATE_CUSTOM_API_KEY="${api_key:-}" FAIGATE_CUSTOM_TIER="$tier" \
+    "$python_bin" - <<'PY' >"$payload_file"
+import json
+import os
+
+slug = os.environ["FAIGATE_CUSTOM_NAME"].upper().replace("-", "_")
+payload = {
+    "custom_provider": {
+        "name": os.environ["FAIGATE_CUSTOM_NAME"],
+        "base_url": os.environ["FAIGATE_CUSTOM_BASE_URL"],
+        "base_url_env": f"CUSTOM_{slug}_BASE_URL",
+        "model": os.environ["FAIGATE_CUSTOM_MODEL"],
+        "api_env": os.environ["FAIGATE_CUSTOM_ENV"],
+        "api_key_value": os.environ.get("FAIGATE_CUSTOM_API_KEY", ""),
+        "tier": os.environ.get("FAIGATE_CUSTOM_TIER", "default"),
+    }
+}
+print(json.dumps(payload))
+PY
+
+  echo ""
+  printf "  %bApply mode%b\n" "$FAIGATE_UI_BOLD"
+  printf "    1)  Dry-run only    Preview source changes, no writes\n"
+  printf "    2)  Write setup     Update config.yaml and faigate.env\n"
+  printf "    c)  Cancel\n"
+  printf "    q)  Quit\n"
+  printf "  ▸ [1]: "
+  read -r apply_mode
+  case "${apply_mode:-1}" in
+    q|Q) rm -f "$payload_file"; exit 0 ;;
+    c|C) rm -f "$payload_file"; return 0 ;;
+  esac
+
+  echo ""
+  apply_setup_payload "$payload_file" "$([ "${apply_mode:-1}" = "2" ] && printf write || printf dry)"
+  rm -f "$payload_file"
+  echo ""
+  show_next_steps "Custom provider setup completed." \
+    "Run Validate next to confirm the new endpoint shape and auth wiring." \
+    "Use Full Config Wizard if you want routing defaults refreshed around the new source." \
+    "Keep the custom provider model and base URL handy for the future Provider Probe step."
+  faigate_ui_pause
+}
+
+local_worker_flow() {
+  local preset name base_url model api_env api_key apply_mode payload_file
+
+  faigate_ui_header "fusionAIze Gate Provider Setup" "Local worker on the same machine or LAN"
+  printf "    1)  LM Studio preset     http://127.0.0.1:1234/v1\n"
+  printf "    2)  Ollama preset        http://127.0.0.1:11434/v1\n"
+  printf "    3)  Custom local worker  choose your own URL\n"
+  printf "\n"
+  printf "    c)  Cancel\n"
+  printf "    q)  Quit\n\n"
+  printf "  ▸ Choice: "
+  read -r preset
+  case "$preset" in
+    q|Q) exit 0 ;;
+    c|C|"") return 0 ;;
+    1) name="lmstudio-local"; base_url="http://127.0.0.1:1234/v1" ;;
+    2) name="ollama-local"; base_url="http://127.0.0.1:11434/v1" ;;
+    3) name="local-worker"; base_url="http://127.0.0.1:8080/v1" ;;
+    *) name="local-worker"; base_url="http://127.0.0.1:8080/v1" ;;
+  esac
+
+  echo ""
+  printf "  %bProvider ID%b\n" "$FAIGATE_UI_BOLD"
+  printf "  ▸ [%s]: " "$name"
+  read -r entered_name
+  case "${entered_name:-$name}" in
+    q|Q) exit 0 ;;
+    c|C) return 0 ;;
+    "") ;;
+    *) name="$(slugify_identifier "$entered_name")" ;;
+  esac
+
+  echo ""
+  printf "  %bBase URL%b\n" "$FAIGATE_UI_BOLD"
+  printf "  ▸ [%s]: " "$base_url"
+  read -r entered_base
+  case "${entered_base:-$base_url}" in
+    q|Q) exit 0 ;;
+    c|C) return 0 ;;
+    "") ;;
+    *) base_url="$entered_base" ;;
+  esac
+
+  echo ""
+  printf "  %bDefault model%b\n" "$FAIGATE_UI_BOLD"
+  printf "  ▸ [local-model]: "
+  read -r model
+  case "${model:-local-model}" in
+    q|Q) exit 0 ;;
+    c|C) return 0 ;;
+    "") model="local-model" ;;
+  esac
+
+  api_env=""
+  api_key=""
+  echo ""
+  printf "  %bOptional API key env var%b  %s\n" "$FAIGATE_UI_BOLD" "$FAIGATE_UI_RESET" "(leave empty for no key)"
+  printf "  ▸ [none]: "
+  read -r api_env
+  case "${api_env:-}" in
+    q|Q) exit 0 ;;
+    c|C) return 0 ;;
+  esac
+  if [ -n "$api_env" ]; then
+    echo ""
+    prompt_secret "$api_env" "" api_key || return 0
+  fi
+
+  payload_file="$(mktemp)"
+  FAIGATE_LOCAL_NAME="$name" FAIGATE_LOCAL_BASE_URL="$base_url" \
+    FAIGATE_LOCAL_MODEL="$model" FAIGATE_LOCAL_ENV="${api_env:-}" \
+    FAIGATE_LOCAL_API_KEY="${api_key:-}" "$python_bin" - <<'PY' >"$payload_file"
+import json
+import os
+
+payload = {
+    "local_worker": {
+        "name": os.environ["FAIGATE_LOCAL_NAME"],
+        "base_url": os.environ["FAIGATE_LOCAL_BASE_URL"],
+        "model": os.environ["FAIGATE_LOCAL_MODEL"],
+    }
+}
+if os.environ.get("FAIGATE_LOCAL_ENV", ""):
+    payload["local_worker"]["api_env"] = os.environ["FAIGATE_LOCAL_ENV"]
+    payload["local_worker"]["api_key_value"] = os.environ.get("FAIGATE_LOCAL_API_KEY", "")
+print(json.dumps(payload))
+PY
+
+  echo ""
+  printf "  %bApply mode%b\n" "$FAIGATE_UI_BOLD"
+  printf "    1)  Dry-run only    Preview source changes, no writes\n"
+  printf "    2)  Write setup     Update config.yaml and faigate.env\n"
+  printf "    c)  Cancel\n"
+  printf "    q)  Quit\n"
+  printf "  ▸ [1]: "
+  read -r apply_mode
+  case "${apply_mode:-1}" in
+    q|Q) rm -f "$payload_file"; exit 0 ;;
+    c|C) rm -f "$payload_file"; return 0 ;;
+  esac
+
+  echo ""
+  apply_setup_payload "$payload_file" "$([ "${apply_mode:-1}" = "2" ] && printf write || printf dry)"
+  rm -f "$payload_file"
+  echo ""
+  show_next_steps "Local worker setup completed." \
+    "Run Validate next to confirm the worker URL is accepted as local." \
+    "Use Current Sources to confirm the new local-worker contract in config.yaml." \
+    "Provider Probe will be the best next UX step once it lands."
+  faigate_ui_pause
+}
+
+interactive_menu() {
+  while true; do
+    faigate_ui_header "fusionAIze Gate Provider Setup" "Add known providers, custom endpoints, and local workers"
+    show_current_sources
+    echo ""
+    faigate_ui_tip "Start with Known Providers when one of the curated sources already fits."
+    echo ""
+    printf "    1)  Known Providers   Curated provider list with key/config status\n"
+    printf "    2)  Custom Provider   Add an OpenAI-compatible upstream not in the catalog\n"
+    printf "    3)  Local Worker      Add a local or LAN OpenAI-compatible worker\n"
+    printf "    4)  Current Sources   Review configured provider blocks\n"
+    printf "\n"
+    printf "    c)  Cancel\n"
+    printf "    q)  Quit\n\n"
+    printf "  ▸ Choice: "
+    read -r choice
+    case "$choice" in
+      1) known_provider_flow ;;
+      2) custom_provider_flow ;;
+      3) local_worker_flow ;;
+      4) echo ""; show_current_sources; echo ""; faigate_ui_pause ;;
+      c|C|"") return 0 ;;
+      q|Q) exit 0 ;;
+      *) faigate_ui_warn "Invalid choice."; faigate_ui_pause ;;
+    esac
+  done
+}
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  usage
+  exit 0
+fi
+
+ensure_files
+
+if [[ "${1:-}" == "--known" && "${2:-}" == "--text" ]]; then
+  show_known_sources
+  exit 0
+fi
+
+if [[ "${1:-}" == "--current" && "${2:-}" == "--text" ]]; then
+  show_current_sources
+  exit 0
+fi
+
+interactive_menu

@@ -4,16 +4,27 @@ import subprocess
 from pathlib import Path
 
 from faigate.wizard import (
+    apply_client_scenario,
+    apply_provider_setup,
     apply_update_suggestions,
     build_config_change_summary,
     build_initial_config,
     build_interactive_candidate_sections,
+    build_provider_probe_report,
     build_update_suggestions,
     detect_wizard_providers,
+    list_client_scenarios,
     list_provider_candidates,
     merge_initial_config,
     render_candidate_cards_text,
+    render_client_scenario_summary,
+    render_client_scenarios_text,
+    render_current_provider_sources_text,
     render_initial_config_yaml,
+    render_known_provider_sources_text,
+    render_provider_probe_text,
+    render_provider_setup_summary,
+    write_env_updates,
     write_output_file,
 )
 
@@ -205,6 +216,130 @@ client_profiles:
     assert "deepseek-chat  (recommended · already in config)" in rendered
     assert "openai-gpt4o  (needs OPENAI_API_KEY)" in rendered
     assert "discovery_env_var" not in rendered
+
+
+def test_render_known_provider_sources_text_marks_key_and_config_status(tmp_path: Path):
+    env_file = tmp_path / ".env"
+    env_file.write_text("DEEPSEEK_API_KEY=sk-demo\n", encoding="utf-8")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        """
+providers:
+  deepseek-chat:
+    backend: openai-compat
+    api_key: "${DEEPSEEK_API_KEY}"
+    base_url: "https://api.deepseek.com/v1"
+    model: "deepseek-chat"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    rendered = render_known_provider_sources_text(env_file=env_file, config_path=config_path)
+
+    assert "Known providers" in rendered
+    assert "deepseek-chat  (key ready · already in config)" in rendered
+    assert "anthropic-claude  (needs ANTHROPIC_API_KEY)" in rendered
+
+
+def test_apply_provider_setup_can_add_known_custom_and_local_sources(tmp_path: Path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("providers: {}\n", encoding="utf-8")
+
+    payload = apply_provider_setup(
+        config_path=config_path,
+        env_file=tmp_path / ".env",
+        known_providers=[
+            {
+                "provider": "anthropic-claude",
+                "env_value": "sk-ant",
+            }
+        ],
+        custom_provider={
+            "name": "agency-router",
+            "base_url": "https://api.example.com/v1",
+            "base_url_env": "CUSTOM_AGENCY_ROUTER_BASE_URL",
+            "model": "example-model",
+            "api_env": "CUSTOM_AGENCY_ROUTER_API_KEY",
+            "api_key_value": "sk-custom",
+            "tier": "mid",
+        },
+        local_worker={
+            "name": "lmstudio-local",
+            "base_url": "http://127.0.0.1:1234/v1",
+            "model": "local-model",
+        },
+    )
+
+    providers = payload["config"]["providers"]
+    assert "anthropic-claude" in providers
+    assert providers["agency-router"]["base_url"] == "${CUSTOM_AGENCY_ROUTER_BASE_URL}"
+    assert providers["lmstudio-local"]["contract"] == "local-worker"
+    assert payload["env_updates"]["ANTHROPIC_API_KEY"] == "sk-ant"
+    assert payload["env_updates"]["CUSTOM_AGENCY_ROUTER_API_KEY"] == "sk-custom"
+    assert payload["env_updates"]["CUSTOM_AGENCY_ROUTER_BASE_URL"] == "https://api.example.com/v1"
+
+
+def test_write_env_updates_preserves_existing_lines(tmp_path: Path):
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "# comment\nDEEPSEEK_API_KEY=old\nUNCHANGED=value\n",
+        encoding="utf-8",
+    )
+
+    result = write_env_updates(
+        env_path=env_path,
+        env_updates={
+            "DEEPSEEK_API_KEY": "new",
+            "ANTHROPIC_API_KEY": "sk-ant",
+        },
+    )
+
+    payload = env_path.read_text(encoding="utf-8")
+    assert "DEEPSEEK_API_KEY=new" in payload
+    assert "UNCHANGED=value" in payload
+    assert "ANTHROPIC_API_KEY=sk-ant" in payload
+    assert result["updated_keys"] == ["ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY"]
+
+
+def test_render_current_provider_sources_text_summarizes_existing_config(tmp_path: Path):
+    env_file = tmp_path / ".env"
+    env_file.write_text("LOCAL_WORKER_KEY=abc\n", encoding="utf-8")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        """
+providers:
+  local-worker:
+    contract: local-worker
+    backend: openai-compat
+    api_key: "${LOCAL_WORKER_KEY}"
+    base_url: "http://127.0.0.1:1234/v1"
+    model: "local-model"
+    tier: local
+""".strip(),
+        encoding="utf-8",
+    )
+
+    rendered = render_current_provider_sources_text(env_file=env_file, config_path=config_path)
+
+    assert "Current provider sources" in rendered
+    assert "local-worker  (ready · local-worker)" in rendered
+    assert "base_url: http://127.0.0.1:1234/v1" in rendered
+
+
+def test_render_provider_setup_summary_lists_added_providers_and_env_updates(tmp_path: Path):
+    summary = render_provider_setup_summary(
+        {
+            "config": {"providers": {"deepseek-chat": {}, "anthropic-claude": {}}},
+            "added_providers": ["anthropic-claude"],
+            "env_updates": {"ANTHROPIC_API_KEY": "sk-ant", "OPENAI_BASE_URL": ""},
+        }
+    )
+
+    assert "Providers to add/update" in summary
+    assert "- anthropic-claude" in summary
+    assert "- ANTHROPIC_API_KEY  (set)" in summary
+    assert "- OPENAI_BASE_URL  (left blank)" in summary
+    assert "Resulting configured providers: 2" in summary
 
 
 def test_build_initial_config_honors_multiselect(tmp_path: Path):
@@ -540,3 +675,118 @@ def test_write_output_file_can_create_backup_snapshot(tmp_path: Path):
     assert result["backup_created"] is True
     assert result["backup_path"].endswith(".before-wizard")
     assert Path(result["backup_path"]).read_text(encoding="utf-8") == "old: config\n"
+
+
+def test_build_provider_probe_report_classifies_missing_key_and_ready_states(tmp_path: Path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        """
+providers:
+  deepseek-chat:
+    backend: openai-compat
+    api_key: "${DEEPSEEK_API_KEY}"
+    base_url: "https://api.deepseek.com/v1"
+    model: "deepseek-chat"
+    tier: default
+  anthropic-claude:
+    backend: anthropic-compat
+    api_key: "${ANTHROPIC_API_KEY}"
+    base_url: "https://api.anthropic.com/v1"
+    model: "claude-opus-4-6"
+    tier: mid
+""".strip(),
+        encoding="utf-8",
+    )
+    env_file = tmp_path / ".env"
+    env_file.write_text("DEEPSEEK_API_KEY=sk-demo\n", encoding="utf-8")
+
+    report = build_provider_probe_report(
+        config_path=config_path,
+        env_file=env_file,
+        health_payload={
+            "providers": {
+                "deepseek-chat": {"healthy": True, "avg_latency_ms": 112.0},
+                "anthropic-claude": {"healthy": False, "last_error": "insufficient_quota"},
+            }
+        },
+    )
+
+    by_name = {row["provider"]: row for row in report["providers"]}
+    assert by_name["deepseek-chat"]["status"] == "ready"
+    assert by_name["anthropic-claude"]["status"] == "missing-key"
+    rendered = render_provider_probe_text(report)
+    assert "Configured: 2 | Ready now: 1" in rendered
+    assert "- deepseek-chat  (ready)" in rendered
+
+
+def test_list_client_scenarios_exposes_opencode_quality_path(tmp_path: Path):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "DEEPSEEK_API_KEY=sk-demo\nOPENAI_API_KEY=sk-openai\nANTHROPIC_API_KEY=sk-ant\n",
+        encoding="utf-8",
+    )
+
+    scenarios = list_client_scenarios(env_file=env_file, config_path=tmp_path / "missing.yaml")
+    by_id = {item["id"]: item for item in scenarios}
+
+    assert by_id["opencode-quality"]["routing_mode"] == "premium"
+    assert "anthropic-claude" in by_id["opencode-quality"]["ready_providers"]
+
+
+def test_apply_client_scenario_sets_client_profile_mode_and_adds_providers(tmp_path: Path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        """
+server:
+  host: "127.0.0.1"
+  port: 8090
+providers:
+  deepseek-chat:
+    backend: openai-compat
+    api_key: "${DEEPSEEK_API_KEY}"
+    base_url: "https://api.deepseek.com/v1"
+    model: "deepseek-chat"
+fallback_chain:
+  - deepseek-chat
+client_profiles:
+  enabled: true
+  default: generic
+  profiles:
+    generic: {}
+    opencode:
+      routing_mode: auto
+""".strip(),
+        encoding="utf-8",
+    )
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "DEEPSEEK_API_KEY=sk-demo\nOPENAI_API_KEY=sk-openai\nANTHROPIC_API_KEY=sk-ant\n",
+        encoding="utf-8",
+    )
+
+    payload = apply_client_scenario(
+        scenario_id="opencode-quality",
+        config_path=config_path,
+        env_file=env_file,
+    )
+
+    assert payload["config"]["client_profiles"]["profiles"]["opencode"]["routing_mode"] == "premium"
+    assert "anthropic-claude" in payload["config"]["providers"]
+    summary = render_client_scenario_summary(payload)
+    assert "Scenario: opencode / quality" in summary
+    assert "Operator guidance" in summary
+    assert "best when:" in summary
+    assert "Change preview" in summary
+
+
+def test_render_client_scenarios_text_mentions_opencode_free(tmp_path: Path):
+    env_file = tmp_path / ".env"
+    env_file.write_text("KILOCODE_API_KEY=kilo-demo\nBLACKBOX_API_KEY=bb-demo\n", encoding="utf-8")
+
+    rendered = render_client_scenarios_text(env_file=env_file, config_path=tmp_path / "none.yaml")
+
+    assert "opencode / free" in rendered
+    assert "budget: free" in rendered
+    assert "best when:" in rendered
+    assert "tradeoff:" in rendered
+    assert "ready now" in rendered or "needs keys for" in rendered

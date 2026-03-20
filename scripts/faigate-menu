@@ -288,9 +288,9 @@ $snapshot_output
 EOF
 
   if [ "${providers_count:-0}" = "0" ]; then
-    faigate_ui_tip "Start with API Keys if you already know your providers, then run Full Config Wizard to generate the first usable config."
+    faigate_ui_tip "Start with Provider Setup to add sources, then fill in keys and run Full Config Wizard to generate the first usable config."
   elif [ "${providers_missing_keys:-0}" != "0" ] || [ "${providers_ready:-0}" = "0" ]; then
-    faigate_ui_tip "Some configured providers are still missing API keys. Fill the env file first, then rerun Validate."
+    faigate_ui_tip "Some configured providers are still missing API keys. Fill them in next, then rerun Validate."
   elif [ "${health_state:-unreachable}" != "healthy" ]; then
     faigate_ui_tip "Config looks close. Restart + Verify is the next best step so the gateway can pick up the current config."
   else
@@ -560,40 +560,58 @@ quick_setup_menu() {
     render_summary_cards
     render_quick_setup_guidance
     echo ""
-    printf "    1)  API Keys           Set provider keys in the env file\n"
-    printf "    2)  Full Config Wizard Generate or update the main config\n"
-    printf "    3)  Validate           Run doctor checks against the current config\n"
-    printf "    4)  Restart + Verify   Restart the gateway and wait for /health\n"
-    printf "    5)  Client Quickstarts Show client-specific next steps\n"
-    printf "    6)  Current Config     Review the current config snapshot\n"
+    printf "    1)  Provider Setup     Add known providers, custom endpoints, or local workers\n"
+    printf "    2)  API Keys           Set provider keys in the env file\n"
+    printf "    3)  Provider Probe     Check which configured providers really look ready\n"
+    printf "    4)  Full Config Wizard Generate or update the main config\n"
+    printf "    5)  Validate           Run doctor checks against the current config\n"
+    printf "    6)  Restart + Verify   Restart the gateway and wait for /health\n"
+    printf "    7)  Client Scenarios   Apply client-specific templates like opencode/eco\n"
+    printf "    8)  Client Quickstarts Show client-specific next steps\n"
+    printf "    9)  Current Config     Review the current config snapshot\n"
     printf "\n"
     printf "    c)  Cancel\n"
     printf "    q)  Quit\n\n"
     printf "  ▸ Choice: "
     read -r choice
     case "$choice" in
-      1) run_and_pause_with_receipt "API keys updated." 3 \
+      1) run_and_pause_with_receipt "Provider sources updated." 3 \
+        "Use API Keys next when one or more selected providers still need credentials." \
+        "Run Full Config Wizard after provider setup to refresh routing defaults around the new sources." \
+        "Run Validate once config and env both look close." \
+        bash "${script_dir}/faigate-provider-setup" ;;
+      2) run_and_pause_with_receipt "API keys updated." 3 \
         "Run Full Config Wizard when providers are still missing from config.yaml." \
         "Run Validate next to confirm provider env coverage." \
         "Restart + Verify only after config and env are both where you want them." \
         bash "${script_dir}/faigate-api-keys" ;;
-      2) run_config_wizard ;;
-      3) run_and_pause_with_receipt "Validation completed." 3 \
+      3) run_and_pause_with_receipt "Provider probe completed." 3 \
+        "Fix missing-key, model-unavailable, or quota states before routing real client traffic." \
+        "Use Full Config Wizard next when the provider set is right but the client defaults still are not." \
+        "Client Scenarios are the next layer once the providers themselves look ready." \
+        bash "${script_dir}/faigate-provider-probe" ;;
+      4) run_config_wizard ;;
+      5) run_and_pause_with_receipt "Validation completed." 3 \
         "Fix any missing env or endpoint warnings before restart work." \
         "Restart + Verify once the doctor output is clean enough." \
         "Open Client Quickstarts when the gateway looks healthy." \
         bash "${script_dir}/faigate-doctor" ;;
-      4) run_and_pause_with_receipt "Gateway restart completed." 3 \
+      6) run_and_pause_with_receipt "Gateway restart completed." 3 \
         "Run Health Check if you want the live runtime summary again." \
         "Open Status when you need service-manager and listener details." \
         "Open Client Quickstarts to connect the first real client." \
         bash "${script_dir}/faigate-restart" ;;
-      5) run_and_pause_with_receipt "Client quickstarts loaded." 3 \
+      7) run_and_pause_with_receipt "Client scenarios loaded." 3 \
+        "Pick one scenario when you want opencode, n8n, or CLI traffic to get a deliberate default mode." \
+        "Restart + Verify after writing a scenario so the live runtime picks it up." \
+        "Return to Client Quickstarts when you want copyable connection details for one client." \
+        bash "${script_dir}/faigate-client-scenarios" ;;
+      8) run_and_pause_with_receipt "Client quickstarts loaded." 3 \
         "Open one client drilldown when you want copyable details for exactly one tool." \
         "Use a client-scoped wizard when one client needs a tuned routing default." \
         "Return to Quick Setup when you want the shortest path again." \
         bash "${script_dir}/faigate-client-integrations" --recommended ;;
-      6) run_and_pause bash "${script_dir}/faigate-config-overview" ;;
+      9) run_and_pause bash "${script_dir}/faigate-config-overview" ;;
       c|C|"") return 0 ;;
       q|Q) exit 0 ;;
       *) faigate_ui_warn "Invalid choice."; faigate_ui_pause ;;
@@ -605,11 +623,12 @@ configure_menu() {
   while true; do
     faigate_ui_header "fusionAIze Gate Configure" "Config, providers, and local gateway settings"
     render_summary_cards
-    faigate_ui_tip "Use Guided Setup for provider/client recommendations. Use Direct Settings when you already know the exact values to change."
+    faigate_ui_tip "Use Provider Setup when you need to add sources first. Use Guided Setup for purpose- and client-aware defaults after the sources exist."
     echo ""
     printf "    1)  Current Config   Snapshot of bind settings, providers, modes, and profiles\n"
-    printf "    2)  Guided Setup     Wizard-led provider and client-profile flows\n"
-    printf "    3)  Direct Settings  API keys, HTTP settings, and routing defaults\n"
+    printf "    2)  Provider Setup   Add known providers, custom endpoints, or local workers\n"
+    printf "    3)  Guided Setup     Wizard-led provider and client-profile flows\n"
+    printf "    4)  Direct Settings  API keys, HTTP settings, and routing defaults\n"
     printf "\n"
     printf "    c)  Cancel\n"
     printf "    q)  Quit\n\n"
@@ -617,8 +636,9 @@ configure_menu() {
     read -r choice
     case "$choice" in
       1) run_and_pause bash "${script_dir}/faigate-config-overview" ;;
-      2) configure_guided_menu ;;
-      3) configure_direct_menu ;;
+      2) run_and_pause bash "${script_dir}/faigate-provider-setup" ;;
+      3) configure_guided_menu ;;
+      4) configure_direct_menu ;;
       c|C|"") return 0 ;;
       q|Q) exit 0 ;;
       *) faigate_ui_warn "Invalid choice."; faigate_ui_pause ;;
@@ -629,7 +649,7 @@ configure_menu() {
 configure_guided_menu() {
   while true; do
     faigate_ui_header "fusionAIze Gate Guided Setup" "Wizard-led flows similar to the later Grid orchestration model"
-    faigate_ui_tip "Start with Full Config Wizard when bootstrapping Gate itself. Use the client-scoped wizards when only one client needs a tuned default."
+    faigate_ui_tip "Provider Setup comes first when the source itself is missing. Use these flows once the right providers already exist."
     echo ""
     printf "    1)  Full Config Wizard   Providers, routing modes, and client profiles\n"
     printf "    2)  OpenClaw Wizard      Client-scoped wizard for OpenClaw\n"
@@ -681,22 +701,55 @@ configure_direct_menu() {
 explore_menu() {
   while true; do
     faigate_ui_header "fusionAIze Gate Explore" "Providers, discovery links, and exposed models"
-    faigate_ui_tip "Start with text discovery for a quick scan. Use the JSON export when another tool or UI will consume the results."
+    faigate_ui_tip "Start with Provider Probe when you want a readiness view. Use discovery for link/source browsing after that."
     echo ""
-    printf "    1)  Provider Discovery   Browse provider links and offer tracks\n"
-    printf "    2)  Provider Discovery   JSON export\n"
-    printf "    3)  Models               List exposed model ids\n"
-    printf "    4)  Health Check         Query /health\n"
+    printf "    1)  Provider Probe       Probe configured sources against config, env, and /health\n"
+    printf "    2)  Provider Discovery   Browse provider links and offer tracks\n"
+    printf "    3)  Provider Discovery   JSON export\n"
+    printf "    4)  Models               List exposed model ids\n"
+    printf "    5)  Health Check         Query /health\n"
     printf "\n"
     printf "    c)  Cancel\n"
     printf "    q)  Quit\n\n"
     printf "  ▸ Choice: "
     read -r choice
     case "$choice" in
-      1) run_and_pause bash "${script_dir}/faigate-provider-discovery" --text ;;
-      2) run_and_pause bash "${script_dir}/faigate-provider-discovery" --json ;;
-      3) run_and_pause show_models ;;
-      4) run_and_pause bash "${script_dir}/faigate-health" ;;
+      1) run_and_pause bash "${script_dir}/faigate-provider-probe" ;;
+      2) run_and_pause bash "${script_dir}/faigate-provider-discovery" --text ;;
+      3) run_and_pause bash "${script_dir}/faigate-provider-discovery" --json ;;
+      4) run_and_pause show_models ;;
+      5) run_and_pause bash "${script_dir}/faigate-health" ;;
+      c|C|"") return 0 ;;
+      q|Q) exit 0 ;;
+      *) faigate_ui_warn "Invalid choice."; faigate_ui_pause ;;
+    esac
+  done
+}
+
+dashboard_menu() {
+  while true; do
+    faigate_ui_header "fusionAIze Gate Dashboard" "Performance, spend, client load, and operator confidence"
+    render_summary_cards
+    faigate_ui_tip "Overview is the fastest confidence check. Providers and Clients explain where traffic, failures, and spend really come from."
+    echo ""
+    printf "    1)  Overview           Global confidence view with traffic, spend, and top drivers\n"
+    printf "    2)  Providers          Provider health, failures, latency, and spend\n"
+    printf "    3)  Clients            Client-level traffic, cost, and latency\n"
+    printf "    4)  Activity           24h activity, daily trend, and operator actions\n"
+    printf "    5)  Alerts + Decisions Operator alerts and budget/routing hints\n"
+    printf "    6)  Raw JSON           Full dashboard report for scripts or UIs\n"
+    printf "\n"
+    printf "    c)  Cancel\n"
+    printf "    q)  Quit\n\n"
+    printf "  ▸ Choice: "
+    read -r choice
+    case "$choice" in
+      1) run_and_pause bash "${script_dir}/faigate-dashboard" --overview ;;
+      2) run_and_pause bash "${script_dir}/faigate-dashboard" --providers ;;
+      3) run_and_pause bash "${script_dir}/faigate-dashboard" --clients ;;
+      4) run_and_pause bash "${script_dir}/faigate-dashboard" --activity ;;
+      5) run_and_pause bash "${script_dir}/faigate-dashboard" --alerts ;;
+      6) run_and_pause bash "${script_dir}/faigate-dashboard" --json ;;
       c|C|"") return 0 ;;
       q|Q) exit 0 ;;
       *) faigate_ui_warn "Invalid choice."; faigate_ui_pause ;;
@@ -710,22 +763,23 @@ clients_menu() {
     faigate_ui_header "fusionAIze Gate Clients" "Client quickstarts, matrix, and client-scoped wizard flows"
     next_client="$(best_next_client || true)"
     if [ -n "${next_client:-}" ]; then
-      faigate_ui_tip "Best next step: open ${next_client} Details, then use the ${next_client} Wizard if that client needs its own default."
+      faigate_ui_tip "Best next step: open ${next_client} Details, then use Scenarios or the ${next_client} Wizard if that client needs its own default."
     else
-      faigate_ui_tip "Start with recommended client cards for a compact view. Use one-client drilldowns when you want copyable details without the long cross-client dump."
+      faigate_ui_tip "Start with Scenarios when you know the client and outcome. Use one-client drilldowns when you want copyable details without the long cross-client dump."
     fi
     echo ""
     printf "    1)  Recommended Cards  Compact client recommendations\n"
-    printf "    2)  Client Matrix      Show active client profiles and match intent\n"
-    printf "    3)  OpenClaw Details   Drill into OpenClaw setup hints\n"
-    printf "    4)  n8n Details        Drill into n8n setup hints\n"
-    printf "    5)  opencode Details   Drill into opencode setup hints\n"
-    printf "    6)  CLI Details        Drill into generic CLI setup hints\n"
-    printf "    7)  All Quickstarts    Show the full client quickstart list\n"
-    printf "    8)  OpenClaw Wizard    Run a client-scoped wizard for OpenClaw\n"
-    printf "    9)  n8n Wizard         Run a client-scoped wizard for n8n\n"
-    printf "   10)  opencode Wizard    Run a client-scoped wizard for opencode\n"
-    printf "   11)  CLI Wizard         Run a client-scoped wizard for cli callers\n"
+    printf "    2)  Scenario Templates Apply client-specific templates like opencode/eco\n"
+    printf "    3)  Client Matrix      Show active client profiles and match intent\n"
+    printf "    4)  OpenClaw Details   Drill into OpenClaw setup hints\n"
+    printf "    5)  n8n Details        Drill into n8n setup hints\n"
+    printf "    6)  opencode Details   Drill into opencode setup hints\n"
+    printf "    7)  CLI Details        Drill into generic CLI setup hints\n"
+    printf "    8)  All Quickstarts    Show the full client quickstart list\n"
+    printf "    9)  OpenClaw Wizard    Run a client-scoped wizard for OpenClaw\n"
+    printf "   10)  n8n Wizard         Run a client-scoped wizard for n8n\n"
+    printf "   11)  opencode Wizard    Run a client-scoped wizard for opencode\n"
+    printf "   12)  CLI Wizard         Run a client-scoped wizard for cli callers\n"
     printf "\n"
     printf "    c)  Cancel\n"
     printf "    q)  Quit\n\n"
@@ -733,16 +787,17 @@ clients_menu() {
     read -r choice
     case "$choice" in
       1) run_and_pause bash "${script_dir}/faigate-client-integrations" --recommended ;;
-      2) run_and_pause bash "${script_dir}/faigate-client-integrations" --matrix ;;
-      3) run_and_pause bash "${script_dir}/faigate-client-integrations" --client openclaw ;;
-      4) run_and_pause bash "${script_dir}/faigate-client-integrations" --client n8n ;;
-      5) run_and_pause bash "${script_dir}/faigate-client-integrations" --client opencode ;;
-      6) run_and_pause bash "${script_dir}/faigate-client-integrations" --client cli ;;
-      7) run_and_pause bash "${script_dir}/faigate-client-integrations" ;;
-      8) run_client_wizard "openclaw" "general" ;;
-      9) run_client_wizard "n8n" "free" ;;
-      10) run_client_wizard "opencode" "coding" ;;
-      11) run_client_wizard "cli" "general" ;;
+      2) run_and_pause bash "${script_dir}/faigate-client-scenarios" ;;
+      3) run_and_pause bash "${script_dir}/faigate-client-integrations" --matrix ;;
+      4) run_and_pause bash "${script_dir}/faigate-client-integrations" --client openclaw ;;
+      5) run_and_pause bash "${script_dir}/faigate-client-integrations" --client n8n ;;
+      6) run_and_pause bash "${script_dir}/faigate-client-integrations" --client opencode ;;
+      7) run_and_pause bash "${script_dir}/faigate-client-integrations" --client cli ;;
+      8) run_and_pause bash "${script_dir}/faigate-client-integrations" ;;
+      9) run_client_wizard "openclaw" "general" ;;
+      10) run_client_wizard "n8n" "free" ;;
+      11) run_client_wizard "opencode" "coding" ;;
+      12) run_client_wizard "cli" "general" ;;
       c|C|"") return 0 ;;
       q|Q) exit 0 ;;
       *) faigate_ui_warn "Invalid choice."; faigate_ui_pause ;;
@@ -856,29 +911,31 @@ update_menu() {
 while true; do
   faigate_ui_header "fusionAIze Gate Control Center" "Standalone operations menu"
   render_summary_cards
-  faigate_ui_tip "A good default path is Quick Setup -> Validate -> Clients."
+  faigate_ui_tip "A good default path is Quick Setup -> Validate -> Clients. Dashboard is where you go once live traffic starts and you want confidence."
   echo ""
   printf "    1)  Quick Setup  Guided path from API keys to first healthy client\n"
-  printf "    2)  Status       Version, paths, service state, and models\n"
-  printf "    3)  Configure    Wizard, API keys, HTTP settings, routing modes\n"
-  printf "    4)  Clients      Quickstarts, matrix, and client-scoped wizard flows\n"
-  printf "    5)  Explore      Provider discovery and exposed models\n"
-  printf "    6)  Validate     Doctor, onboarding report, validation\n"
-  printf "    7)  Control      Start, stop, restart, status, logs\n"
-  printf "    8)  Update       Release checks and auto-update flows\n"
+  printf "    2)  Dashboard    Traffic, spend, providers, clients, and alerts\n"
+  printf "    3)  Status       Version, paths, service state, and models\n"
+  printf "    4)  Configure    Wizard, API keys, HTTP settings, routing modes\n"
+  printf "    5)  Clients      Quickstarts, matrix, and client-scoped wizard flows\n"
+  printf "    6)  Explore      Provider discovery and exposed models\n"
+  printf "    7)  Validate     Doctor, onboarding report, validation\n"
+  printf "    8)  Control      Start, stop, restart, status, logs\n"
+  printf "    9)  Update       Release checks and auto-update flows\n"
   printf "\n"
   printf "    q)  Quit\n\n"
   printf "  ▸ Choice: "
   read -r choice
   case "$choice" in
     1) quick_setup_menu ;;
-    2) status_menu ;;
-    3) configure_menu ;;
-    4) clients_menu ;;
-    5) explore_menu ;;
-    6) validate_menu ;;
-    7) control_menu ;;
-    8) update_menu ;;
+    2) dashboard_menu ;;
+    3) status_menu ;;
+    4) configure_menu ;;
+    5) clients_menu ;;
+    6) explore_menu ;;
+    7) validate_menu ;;
+    8) control_menu ;;
+    9) update_menu ;;
     q|Q) exit 0 ;;
     *) faigate_ui_warn "Invalid choice."; faigate_ui_pause ;;
   esac

@@ -6,6 +6,20 @@ The format is intentionally lightweight and human-readable. Group entries by rel
 
 ## Unreleased
 
+### Added
+
+- Added `faigate-provider-setup` plus matching `Quick Setup` / `Configure` menu entries so operators can add known providers, custom OpenAI-compatible upstreams, and local workers before dropping into the purpose-aware config wizard
+- Added `faigate-provider-probe` so configured sources can be checked against config, env, and the live `/health` payload before client rollout begins
+- Added `faigate-client-scenarios` plus matching menu entries so operators can apply named templates such as `opencode / eco`, `opencode / quality`, `n8n / reliable`, or `cli / free` instead of thinking only in raw profile-mode edits
+- Added `faigate-dashboard` plus a new top-level `Dashboard` menu section so operators now get one shell-native performance view for traffic, latency, spend, token volume, provider/client hotspots, and action-oriented alerts
+
+### Changed
+
+- Tightened the onboarding docs and main README around the new provider-source-first UX so first setup now reads more like `Provider Setup -> Provider Probe -> API Keys -> Full Config Wizard -> Client Scenarios -> Validate -> Client Quickstarts`
+- Renamed the old `FOUNDRYGATE STATS` CLI banner to `fusionAIze Gate Stats` so the terminal metrics surfaces stay on-brand
+- Expanded client scenarios with clearer `budget`, `best when`, and `tradeoff` guidance so operators can pick templates by intent instead of only by routing-mode names
+- Expanded the new dashboard with budget, quota, and routing-pressure hints so it now helps answer whether traffic should shift, a cheaper scenario is worth trying, or a provider likely needs more budget
+
 ## v1.5.1 - 2026-03-20
 
 ### Changed

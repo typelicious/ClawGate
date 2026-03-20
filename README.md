@@ -83,9 +83,17 @@ Then use the onboarding helpers to move from “the server starts” to “real 
 ./scripts/faigate-onboarding-validate
 ```
 
-`./scripts/faigate-menu` now also gives you one Gate-native shell entrypoint for `Quick Setup`, API keys, HTTP settings, routing modes, client quickstarts, client-scoped wizard flows, validation helpers, service control, and update checks.
+`./scripts/faigate-menu` now also gives you one Gate-native shell entrypoint for `Quick Setup`, the performance `Dashboard`, provider setup, API keys, HTTP settings, routing modes, client quickstarts, client-scoped wizard flows, validation helpers, service control, and update checks.
 
-The main menu now starts with compact summary cards for gateway, config, providers, and clients so the current local state is readable before you drill into any helper.
+The main menu now starts with compact summary cards for gateway, config, providers, and clients so the current local state is readable before you drill into any helper. Once live traffic exists, the new `Dashboard` view gives you the first operator-facing view of requests, success rate, latency, spend, token volume, provider hotspots, client hotspots, and actionable alerts.
+
+The `Client Scenarios` layer now also explains each template in more human terms:
+
+- `budget` posture
+- `best when` guidance
+- `tradeoff` to expect
+
+That keeps the choice closer to real operator intent such as “opencode but cheaper” or “n8n but more reliable” instead of only exposing raw routing-mode names.
 
 Inside `Configure`, the control center now follows a clearer split:
 
@@ -95,11 +103,34 @@ Inside `Configure`, the control center now follows a clearer split:
 
 `Quick Setup` is now the fastest happy path for first use:
 
+- Provider Setup
+- Provider Probe
 - API Keys
 - Full Config Wizard
 - Validate
+- Client Scenarios
 - Restart + Verify
 - Client Quickstarts
+
+`Provider Setup` is the new source-onboarding layer in that flow:
+
+- `Known Providers` lets you add curated providers from the catalog and optionally capture keys or upstream overrides right there
+- `Custom Provider` adds an OpenAI-compatible upstream that is not in the curated list yet
+- `Local Worker` adds a local or LAN worker with `contract: local-worker` so the rest of Gate can route against it like any other source
+
+Right after that, `Provider Probe` gives one compact readiness view over:
+
+- config present vs missing
+- key/env coverage
+- current `/health` state when the gateway is already running
+- common failure classes such as missing key, unhealthy, rate-limited, quota-exhausted, or model-unavailable
+
+`Client Scenarios` then turns the next decision into named templates such as:
+
+- `opencode / eco`
+- `opencode / balanced`
+- `opencode / quality`
+- `opencode / free`
 
 The main menu and the service/config submenus now also show compact runtime snapshots plus short inline tips, so the shell UX stays orienting even before you drill into a helper.
 

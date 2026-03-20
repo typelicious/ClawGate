@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/faigate-service-lib.sh"
+
+config_file="$(faigate_config_file)"
+env_file="$(faigate_env_file)"
+python_bin="$(faigate_python_bin)"
+mode="text"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ./scripts/faigate-provider-probe [--json|--text]
+
+Probe configured provider sources against the current config, env file, and
+local /health payload when available.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --json)
+      mode="json"
+      shift
+      ;;
+    --text)
+      mode="text"
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+health_payload=""
+if payload="$(curl -fsS -m 2 "$(faigate_health_url)" 2>/dev/null)"; then
+  health_payload="$payload"
+fi
+
+FAIGATE_PROVIDER_PROBE_CONFIG="$config_file" \
+FAIGATE_PROVIDER_PROBE_ENV="$env_file" \
+FAIGATE_PROVIDER_PROBE_MODE="$mode" \
+FAIGATE_PROVIDER_PROBE_HEALTH="$health_payload" \
+"$python_bin" - <<'PY'
+import json
+import os
+
+from faigate.wizard import build_provider_probe_report, render_provider_probe_text
+
+health_raw = os.environ.get("FAIGATE_PROVIDER_PROBE_HEALTH", "").strip()
+health_payload = json.loads(health_raw) if health_raw else None
+report = build_provider_probe_report(
+    config_path=os.environ["FAIGATE_PROVIDER_PROBE_CONFIG"],
+    env_file=os.environ["FAIGATE_PROVIDER_PROBE_ENV"],
+    health_payload=health_payload,
+)
+
+if os.environ["FAIGATE_PROVIDER_PROBE_MODE"] == "json":
+    print(json.dumps(report, indent=2, sort_keys=True))
+else:
+    print(render_provider_probe_text(report), end="")
+PY

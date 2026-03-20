@@ -346,8 +346,10 @@ def build_onboarding_report(
                 "Model: auto",
             ],
             "notes": [
-                "Keep opencode on the OpenAI-compatible path and let Gate handle the provider choice first.",
-                "Use the opencode profile when coding traffic should stay distinct from generic CLI traffic.",
+                "Keep opencode on the OpenAI-compatible path first, and let Gate choose"
+                " the provider behind it.",
+                "Use the opencode profile when coding traffic should stay separate from"
+                " generic CLI traffic.",
             ],
         },
         "cli": {

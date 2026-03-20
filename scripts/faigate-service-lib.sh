@@ -254,6 +254,10 @@ faigate_update_url() {
   printf 'http://%s:%s/api/update\n' "$(faigate_local_host)" "$(faigate_port)"
 }
 
+faigate_stats_url() {
+  printf 'http://%s:%s/api/stats\n' "$(faigate_local_host)" "$(faigate_port)"
+}
+
 faigate_service_manager() {
   case "$(faigate_platform)" in
     Darwin)

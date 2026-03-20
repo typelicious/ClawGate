@@ -18,10 +18,129 @@ ProviderFactory = dict[str, Any]
 _PURPOSES = {"general", "coding", "quality", "free"}
 _CLIENTS = {"generic", "openclaw", "n8n", "cli", "opencode"}
 
+_LOCAL_WORKER_PRESETS: dict[str, dict[str, str]] = {
+    "lmstudio": {
+        "name": "LM Studio",
+        "base_url": "http://127.0.0.1:1234/v1",
+    },
+    "ollama": {
+        "name": "Ollama (OpenAI-compatible bridge)",
+        "base_url": "http://127.0.0.1:11434/v1",
+    },
+    "custom": {
+        "name": "Custom local worker",
+        "base_url": "http://127.0.0.1:8080/v1",
+    },
+}
+
+_CLIENT_SCENARIOS: dict[str, dict[str, str]] = {
+    "opencode-eco": {
+        "client": "opencode",
+        "purpose": "coding",
+        "routing_mode": "eco",
+        "title": "opencode / eco",
+        "summary": "Lower-cost coding path with cheaper defaults and fallback coverage.",
+        "best_for": "High-volume coding and refactors where cost matters more than premium polish.",
+        "tradeoff": "May route fewer tasks into the strongest reasoning paths.",
+        "budget_posture": "save",
+    },
+    "opencode-balanced": {
+        "client": "opencode",
+        "purpose": "coding",
+        "routing_mode": "auto",
+        "title": "opencode / balanced",
+        "summary": "Balanced coding path that keeps quality and cost in the middle.",
+        "best_for": "Day-to-day coding where you want a stable default without over-optimizing.",
+        "tradeoff": "Not the cheapest and not the strongest quality-first path either.",
+        "budget_posture": "balanced",
+    },
+    "opencode-quality": {
+        "client": "opencode",
+        "purpose": "quality",
+        "routing_mode": "premium",
+        "title": "opencode / quality",
+        "summary": "Higher-quality coding defaults for harder reasoning and review tasks.",
+        "best_for": "Harder debugging, architecture work, and review-heavy coding sessions.",
+        "tradeoff": "Usually slower and more expensive than eco or balanced.",
+        "budget_posture": "invest",
+    },
+    "opencode-free": {
+        "client": "opencode",
+        "purpose": "free",
+        "routing_mode": "free",
+        "title": "opencode / free",
+        "summary": "Free-tier-first coding path when zero-cost routing matters most.",
+        "best_for": "Experiments and background coding where budget wins over consistency.",
+        "tradeoff": "Free-tier availability can move quickly and reliability is less predictable.",
+        "budget_posture": "free",
+    },
+    "openclaw-balanced": {
+        "client": "openclaw",
+        "purpose": "general",
+        "routing_mode": "auto",
+        "title": "openclaw / balanced",
+        "summary": "Balanced delegated-agent traffic with stable defaults.",
+        "best_for": "Default OpenClaw agent work when you want a safe everyday posture.",
+        "tradeoff": "Not tuned for either ultra-low-cost or premium-heavy workflows.",
+        "budget_posture": "balanced",
+    },
+    "openclaw-quality": {
+        "client": "openclaw",
+        "purpose": "quality",
+        "routing_mode": "premium",
+        "title": "openclaw / quality",
+        "summary": "Quality-first path for heavier agent reasoning and review loops.",
+        "best_for": "Longer reasoning loops and agent tasks where quality matters most.",
+        "tradeoff": "More premium usage and higher latency are both more likely.",
+        "budget_posture": "invest",
+    },
+    "n8n-eco": {
+        "client": "n8n",
+        "purpose": "free",
+        "routing_mode": "eco",
+        "title": "n8n / eco",
+        "summary": "Automation-first path that keeps cost and churn low.",
+        "best_for": "High-volume workflow automation where low unit cost matters most.",
+        "tradeoff": "Can sacrifice some resilience and premium quality headroom.",
+        "budget_posture": "save",
+    },
+    "n8n-reliable": {
+        "client": "n8n",
+        "purpose": "general",
+        "routing_mode": "auto",
+        "title": "n8n / reliable",
+        "summary": "Balanced workflow routing with steadier fallbacks than the eco path.",
+        "best_for": "Important automations where retries and fallback posture matter.",
+        "tradeoff": "Usually a little more expensive than the eco path.",
+        "budget_posture": "balanced",
+    },
+    "cli-balanced": {
+        "client": "cli",
+        "purpose": "general",
+        "routing_mode": "auto",
+        "title": "cli / balanced",
+        "summary": "General shell and coding assistant path with balanced defaults.",
+        "best_for": "Daily CLI work where you want one sensible default and fewer decisions.",
+        "tradeoff": "Not specialized for ultra-cheap or premium-only work.",
+        "budget_posture": "balanced",
+    },
+    "cli-free": {
+        "client": "cli",
+        "purpose": "free",
+        "routing_mode": "free",
+        "title": "cli / free",
+        "summary": "Free-tier-first shell path for low-cost experimentation.",
+        "best_for": "Lightweight experimentation and background CLI tasks.",
+        "tradeoff": "Free providers can rotate, saturate, or disappear faster.",
+        "budget_posture": "free",
+    },
+}
+
 
 _PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
     "deepseek-chat": {
         "env": "DEEPSEEK_API_KEY",
+        "base_url_env": "DEEPSEEK_BASE_URL",
         "provider": {
             "backend": "openai-compat",
             "base_url": "${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}",
@@ -43,6 +162,7 @@ _PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
     },
     "deepseek-reasoner": {
         "env": "DEEPSEEK_API_KEY",
+        "base_url_env": "DEEPSEEK_BASE_URL",
         "provider": {
             "backend": "openai-compat",
             "base_url": "${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}",
@@ -65,6 +185,7 @@ _PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
     },
     "gemini-flash-lite": {
         "env": "GEMINI_API_KEY",
+        "base_url_env": "GEMINI_BASE_URL",
         "provider": {
             "backend": "google-genai",
             "base_url": "${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}",
@@ -85,6 +206,7 @@ _PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
     },
     "gemini-flash": {
         "env": "GEMINI_API_KEY",
+        "base_url_env": "GEMINI_BASE_URL",
         "provider": {
             "backend": "google-genai",
             "base_url": "${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}",
@@ -105,6 +227,7 @@ _PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
     },
     "openrouter-fallback": {
         "env": "OPENROUTER_API_KEY",
+        "base_url_env": "OPENROUTER_BASE_URL",
         "provider": {
             "backend": "openai-compat",
             "base_url": "${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}",
@@ -122,6 +245,7 @@ _PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
     },
     "kilocode": {
         "env": "KILOCODE_API_KEY",
+        "base_url_env": "KILOCODE_BASE_URL",
         "provider": {
             "backend": "openai-compat",
             "base_url": "${KILOCODE_BASE_URL:-https://api.kilo.ai/api/gateway/v1}",
@@ -142,6 +266,7 @@ _PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
     },
     "blackbox-free": {
         "env": "BLACKBOX_API_KEY",
+        "base_url_env": "BLACKBOX_BASE_URL",
         "provider": {
             "backend": "openai-compat",
             "base_url": "${BLACKBOX_BASE_URL:-https://api.blackbox.ai}",
@@ -162,6 +287,7 @@ _PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
     },
     "openai-gpt4o": {
         "env": "OPENAI_API_KEY",
+        "base_url_env": "OPENAI_BASE_URL",
         "provider": {
             "backend": "openai-compat",
             "base_url": "${OPENAI_BASE_URL:-https://api.openai.com/v1}",
@@ -182,6 +308,7 @@ _PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
     },
     "openai-images": {
         "env": "OPENAI_API_KEY",
+        "base_url_env": "OPENAI_BASE_URL",
         "provider": {
             "contract": "image-provider",
             "backend": "openai-compat",
@@ -207,6 +334,7 @@ _PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
     },
     "anthropic-claude": {
         "env": "ANTHROPIC_API_KEY",
+        "base_url_env": "ANTHROPIC_BASE_URL",
         "provider": {
             "backend": "anthropic-compat",
             "base_url": "${ANTHROPIC_BASE_URL:-https://api.anthropic.com/v1}",
@@ -258,6 +386,33 @@ def _load_existing_provider_names(config_path: str | Path | None = None) -> set[
     if not isinstance(providers, dict):
         return set()
     return set(providers.keys())
+
+
+def _load_existing_provider_configs(
+    config_path: str | Path | None = None,
+) -> dict[str, dict[str, Any]]:
+    if config_path is None:
+        return {}
+    path = Path(config_path)
+    if not path.exists():
+        return {}
+    with path.open(encoding="utf-8") as handle:
+        raw = yaml.safe_load(handle) or {}
+    providers = raw.get("providers") or {}
+    if not isinstance(providers, dict):
+        return {}
+    result: dict[str, dict[str, Any]] = {}
+    for name, provider in providers.items():
+        if isinstance(provider, dict):
+            result[str(name)] = dict(provider)
+    return result
+
+
+def _extract_env_reference(value: str) -> str:
+    stripped = value.strip()
+    if stripped.startswith("${") and stripped.endswith("}"):
+        return stripped[2:-1].split(":-", 1)[0].split(":", 1)[0]
+    return ""
 
 
 def _load_existing_provider_models(config_path: str | Path | None = None) -> dict[str, str]:
@@ -506,6 +661,503 @@ def render_candidate_cards_text(
     lines.append(
         "Tip: Use --json or --yaml with --list-candidates when you want the full metadata dump."
     )
+    return "\n".join(lines) + "\n"
+
+
+def list_known_provider_sources(
+    *,
+    env_file: str | Path | None = None,
+    config_path: str | Path | None = None,
+) -> list[dict[str, Any]]:
+    """Return one compact setup-oriented view over known provider sources."""
+    env_values = _load_env_values(env_file)
+    catalog = get_provider_catalog()
+    configured = _load_existing_provider_configs(config_path)
+    rows: list[dict[str, Any]] = []
+    for name, factory in _PROVIDER_FACTORIES.items():
+        provider = factory["provider"]
+        catalog_entry = catalog.get(name, {})
+        env_key = str(factory["env"])
+        base_url_env = str(factory.get("base_url_env", "") or "")
+        rows.append(
+            {
+                "provider": name,
+                "env": env_key,
+                "base_url_env": base_url_env,
+                "key_present": bool(env_values.get(env_key)),
+                "configured": name in configured,
+                "contract": provider.get("contract", "generic"),
+                "provider_type": catalog_entry.get("provider_type", "direct"),
+                "offer_track": catalog_entry.get("offer_track", "direct"),
+                "model": provider.get("model", ""),
+                "tier": provider.get("tier", "default"),
+                "notes": catalog_entry.get("notes", ""),
+                "signup_url": (catalog_entry.get("discovery") or {}).get("resolved_url", ""),
+            }
+        )
+    return rows
+
+
+def render_known_provider_sources_text(
+    *,
+    env_file: str | Path | None = None,
+    config_path: str | Path | None = None,
+) -> str:
+    rows = list_known_provider_sources(env_file=env_file, config_path=config_path)
+    lines = [
+        "Known providers",
+        "",
+    ]
+    for row in rows:
+        status_bits = []
+        status_bits.append("key ready" if row["key_present"] else f"needs {row['env']}")
+        if row["configured"]:
+            status_bits.append("already in config")
+        lines.append(f"- {row['provider']}  ({' · '.join(status_bits)})")
+        lines.append(
+            "  " + f"model: {row['model']} | tier: {row['tier']} | source: {row['provider_type']}"
+        )
+        if row["notes"]:
+            lines.append("  " + f"why: {row['notes']}")
+    lines.append("")
+    lines.append("Tip: Select one or more provider IDs in Provider Setup to add or update them.")
+    return "\n".join(lines) + "\n"
+
+
+def render_current_provider_sources_text(
+    *,
+    env_file: str | Path | None = None,
+    config_path: str | Path | None = None,
+) -> str:
+    env_values = _load_env_values(env_file)
+    configured = _load_existing_provider_configs(config_path)
+    if not configured:
+        return (
+            "Current provider sources\n\n"
+            "- none yet\n"
+            "  why: config.yaml does not contain any provider blocks yet.\n"
+        )
+
+    lines = ["Current provider sources", ""]
+    for name in sorted(configured):
+        provider = configured[name]
+        api_key = str(provider.get("api_key", "") or "").strip()
+        env_name = ""
+        match = None
+        if api_key.startswith("${") and api_key.endswith("}"):
+            match = api_key[2:-1].split(":-", 1)[0].split(":", 1)[0]
+        if match:
+            env_name = match
+        status = (
+            "ready"
+            if (env_name and env_values.get(env_name)) or (api_key and not env_name)
+            else "missing key"
+        )
+        contract = str(provider.get("contract", "generic") or "generic")
+        tier = str(provider.get("tier", "default") or "default")
+        lines.append(f"- {name}  ({status} · {contract})")
+        lines.append(
+            "  "
+            + "model: "
+            + f"{provider.get('model', '')} | tier: {tier} | base_url: "
+            + f"{provider.get('base_url', '')}"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def apply_provider_setup(
+    *,
+    config_path: str | Path | None,
+    env_file: str | Path | None,
+    known_providers: list[dict[str, Any]] | None = None,
+    custom_provider: dict[str, Any] | None = None,
+    local_worker: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Apply one provider-setup mutation to config and env payloads."""
+    if config_path is None:
+        raise ValueError("config_path is required")
+
+    existing_config = (
+        _load_existing_config(config_path) if Path(config_path).exists() else {"providers": {}}
+    )
+    providers = dict(existing_config.get("providers") or {})
+    env_updates: dict[str, str] = {}
+    added_providers: list[str] = []
+    updated_env_vars: list[str] = []
+
+    def track_env_var(name: str, value: str) -> None:
+        env_updates[name] = value
+        updated_env_vars.append(name)
+
+    for provider_item in known_providers or []:
+        provider_name = str(provider_item["provider"])
+        if provider_name not in _PROVIDER_FACTORIES:
+            raise ValueError(f"Unsupported known provider '{provider_name}'")
+        factory = _PROVIDER_FACTORIES[provider_name]
+        providers[provider_name] = _clone(factory["provider"])
+        added_providers.append(provider_name)
+        key_value = str(provider_item.get("env_value", "") or "")
+        if key_value:
+            track_env_var(str(factory["env"]), key_value)
+        base_url_env = str(factory.get("base_url_env", "") or "")
+        base_url_value = str(provider_item.get("base_url_value", "") or "")
+        if base_url_env and base_url_value:
+            track_env_var(base_url_env, base_url_value)
+
+    if custom_provider:
+        name = str(custom_provider["name"])
+        api_env = str(custom_provider["api_env"])
+        provider_payload = {
+            "backend": "openai-compat",
+            "base_url": f"${{{custom_provider['base_url_env']}}}",
+            "api_key": f"${{{api_env}}}",
+            "model": str(custom_provider["model"]),
+            "max_tokens": int(custom_provider.get("max_tokens", 8000)),
+            "tier": str(custom_provider.get("tier", "default") or "default"),
+            "timeout": {"connect_s": 10, "read_s": 90},
+            "capabilities": {
+                "cost_tier": str(custom_provider.get("cost_tier", "custom") or "custom"),
+                "latency_tier": str(custom_provider.get("latency_tier", "balanced") or "balanced"),
+            },
+        }
+        providers[name] = provider_payload
+        added_providers.append(name)
+        track_env_var(str(custom_provider["base_url_env"]), str(custom_provider["base_url"]))
+        track_env_var(api_env, str(custom_provider.get("api_key_value", "") or ""))
+
+    if local_worker:
+        name = str(local_worker["name"])
+        provider_payload = {
+            "contract": "local-worker",
+            "backend": "openai-compat",
+            "base_url": str(local_worker["base_url"]),
+            "model": str(local_worker["model"]),
+            "max_tokens": int(local_worker.get("max_tokens", 8000)),
+            "tier": "local",
+            "timeout": {"connect_s": 5, "read_s": 120},
+            "capabilities": {
+                "chat": True,
+                "streaming": True,
+                "local": True,
+                "cloud": False,
+                "network_zone": "local",
+                "cost_tier": "local",
+                "latency_tier": "local",
+            },
+        }
+        api_env = str(local_worker.get("api_env", "") or "")
+        if api_env:
+            provider_payload["api_key"] = f"${{{api_env}}}"
+            track_env_var(api_env, str(local_worker.get("api_key_value", "") or ""))
+        providers[name] = provider_payload
+        added_providers.append(name)
+
+    existing_config["providers"] = providers
+    if "fallback_chain" not in existing_config:
+        existing_config["fallback_chain"] = []
+
+    return {
+        "config": existing_config,
+        "env_updates": env_updates,
+        "added_providers": added_providers,
+        "updated_env_vars": _unique_preserve_order(updated_env_vars),
+    }
+
+
+def render_provider_setup_summary(payload: dict[str, Any]) -> str:
+    lines = ["Provider setup summary", ""]
+    added = list(payload.get("added_providers", []) or [])
+    if added:
+        lines.append("Providers to add/update")
+        for name in added:
+            lines.append(f"- {name}")
+        lines.append("")
+    env_updates = dict(payload.get("env_updates", {}) or {})
+    if env_updates:
+        lines.append("Env updates")
+        for key, value in env_updates.items():
+            status = "set" if value else "left blank"
+            lines.append(f"- {key}  ({status})")
+        lines.append("")
+    provider_count = len((payload.get("config") or {}).get("providers") or {})
+    lines.append(f"Resulting configured providers: {provider_count}")
+    return "\n".join(lines) + "\n"
+
+
+def render_provider_setup_yaml(payload: dict[str, Any]) -> str:
+    return yaml.safe_dump(payload.get("config") or {}, sort_keys=False, allow_unicode=False)
+
+
+def write_env_updates(
+    *,
+    env_path: str | Path,
+    env_updates: dict[str, str],
+) -> dict[str, Any]:
+    path = Path(env_path)
+    existing_lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    preserved: list[str] = []
+    remaining = dict(env_updates)
+    for line in existing_lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in line:
+            preserved.append(line)
+            continue
+        key = line.split("=", 1)[0].strip()
+        if key in remaining:
+            preserved.append(f"{key}={remaining.pop(key)}")
+        else:
+            preserved.append(line)
+    for key, value in remaining.items():
+        preserved.append(f"{key}={value}")
+    payload = "\n".join(preserved).rstrip() + "\n"
+    path.write_text(payload, encoding="utf-8")
+    return {"output_path": str(path), "updated_keys": sorted(env_updates)}
+
+
+def build_provider_probe_report(
+    *,
+    config_path: str | Path | None = None,
+    env_file: str | Path | None = None,
+    health_payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    configured = _load_existing_provider_configs(config_path)
+    env_values = _load_env_values(env_file)
+    provider_health = ((health_payload or {}).get("providers")) or {}
+    rows: list[dict[str, Any]] = []
+    ready_count = 0
+
+    for name, provider in sorted(configured.items()):
+        api_key = str(provider.get("api_key", "") or "").strip()
+        env_name = _extract_env_reference(api_key)
+        missing_key = bool(env_name) and not bool(env_values.get(env_name))
+        health = provider_health.get(name) or {}
+        healthy = bool(health.get("healthy"))
+        last_error = str(health.get("last_error", "") or "").strip()
+        contract = str(provider.get("contract", "generic") or "generic")
+        if missing_key:
+            status = "missing-key"
+            status_reason = f"needs {env_name}"
+        elif health_payload is None:
+            status = "configured"
+            status_reason = "health endpoint unavailable; config and env look present"
+        elif healthy:
+            status = "ready"
+            status_reason = "responding through /health"
+            ready_count += 1
+        elif contract == "local-worker":
+            status = "unhealthy"
+            status_reason = last_error or "local worker configured but not healthy yet"
+        else:
+            lowered = last_error.lower()
+            if "quota" in lowered or "insufficient_quota" in lowered:
+                status = "quota-exhausted"
+            elif "rate limit" in lowered or "429" in lowered:
+                status = "rate-limited"
+            elif "model" in lowered and ("unavailable" in lowered or "not found" in lowered):
+                status = "model-unavailable"
+            elif last_error:
+                status = "unhealthy"
+            else:
+                status = "configured"
+            status_reason = last_error or "configured but not reporting healthy yet"
+        rows.append(
+            {
+                "provider": name,
+                "status": status,
+                "reason": status_reason,
+                "contract": contract,
+                "tier": str(provider.get("tier", "default") or "default"),
+                "model": str(provider.get("model", "") or ""),
+                "base_url": str(provider.get("base_url", "") or ""),
+                "env": env_name,
+                "healthy": healthy,
+                "avg_latency_ms": float(health.get("avg_latency_ms", 0.0) or 0.0),
+            }
+        )
+
+    return {
+        "providers": rows,
+        "summary": {
+            "configured": len(rows),
+            "ready": ready_count,
+            "health_live": health_payload is not None,
+        },
+    }
+
+
+def render_provider_probe_text(report: dict[str, Any]) -> str:
+    lines = ["Provider probe", ""]
+    summary = report.get("summary") or {}
+    lines.append(
+        f"Configured: {summary.get('configured', 0)} | Ready now: {summary.get('ready', 0)}"
+    )
+    lines.append(
+        "Live health: "
+        + ("available" if summary.get("health_live") else "not available; config/env only")
+    )
+    lines.append("")
+    for row in report.get("providers", []):
+        lines.append(f"- {row['provider']}  ({row['status']})")
+        lines.append(
+            "  " + f"model: {row['model']} | tier: {row['tier']} | contract: {row['contract']}"
+        )
+        if row.get("avg_latency_ms"):
+            lines.append("  " + f"latency: {row['avg_latency_ms']:.1f} ms")
+        lines.append("  " + f"why: {row['reason']}")
+    lines.append("")
+    lines.append("Tip: Ready means config, env, and the current /health payload all line up.")
+    lines.append(
+        "Tip: Missing-key or model-unavailable states should be fixed before client rollout."
+    )
+    return "\n".join(lines) + "\n"
+
+
+def _scenario_provider_selection(*, purpose: str, client: str) -> list[str]:
+    preferred = _preferred_provider_set(list(_PROVIDER_FACTORIES), purpose=purpose, client=client)
+    return [
+        name
+        for name in preferred
+        if _PROVIDER_FACTORIES[name]["provider"].get("contract", "generic") == "generic"
+    ]
+
+
+def list_client_scenarios(
+    *,
+    env_file: str | Path | None = None,
+    config_path: str | Path | None = None,
+) -> list[dict[str, Any]]:
+    configured = _load_existing_provider_names(config_path)
+    detected = set(detect_wizard_providers(env_file=env_file))
+    scenarios: list[dict[str, Any]] = []
+    for scenario_id, spec in _CLIENT_SCENARIOS.items():
+        preferred = _scenario_provider_selection(purpose=spec["purpose"], client=spec["client"])
+        ready = [name for name in preferred if name in detected]
+        configured_hits = [name for name in preferred if name in configured]
+        scenarios.append(
+            {
+                "id": scenario_id,
+                "title": spec["title"],
+                "client": spec["client"],
+                "purpose": spec["purpose"],
+                "routing_mode": spec["routing_mode"],
+                "summary": spec["summary"],
+                "best_for": spec.get("best_for", ""),
+                "tradeoff": spec.get("tradeoff", ""),
+                "budget_posture": spec.get("budget_posture", "balanced"),
+                "recommended_providers": preferred,
+                "ready_providers": ready,
+                "configured_providers": configured_hits,
+            }
+        )
+    return scenarios
+
+
+def render_client_scenarios_text(
+    *,
+    env_file: str | Path | None = None,
+    config_path: str | Path | None = None,
+) -> str:
+    lines = ["Client scenarios", ""]
+    for item in list_client_scenarios(env_file=env_file, config_path=config_path):
+        lines.append(f"- {item['title']}  ({item['id']})")
+        lines.append(
+            "  "
+            + f"client: {item['client']} | purpose: {item['purpose']} | "
+            + f"mode: {item['routing_mode']} | budget: {item['budget_posture']}"
+        )
+        lines.append("  " + f"why: {item['summary']}")
+        if item["best_for"]:
+            lines.append("  " + f"best when: {item['best_for']}")
+        if item["tradeoff"]:
+            lines.append("  " + f"tradeoff: {item['tradeoff']}")
+        if item["ready_providers"]:
+            lines.append("  " + "ready now: " + ", ".join(item["ready_providers"]))
+        elif item["recommended_providers"]:
+            lines.append(
+                "  "
+                + "needs keys for: "
+                + ", ".join(item["recommended_providers"][:4])
+                + (" ..." if len(item["recommended_providers"]) > 4 else "")
+            )
+    lines.append("")
+    lines.append(
+        "Tip: Apply one scenario when you want a client-specific default "
+        "without hand-editing profile modes."
+    )
+    return "\n".join(lines) + "\n"
+
+
+def apply_client_scenario(
+    *,
+    scenario_id: str,
+    config_path: str | Path,
+    env_file: str | Path | None = None,
+) -> dict[str, Any]:
+    if scenario_id not in _CLIENT_SCENARIOS:
+        raise ValueError(f"Unsupported client scenario '{scenario_id}'")
+    spec = _CLIENT_SCENARIOS[scenario_id]
+    suggestion = build_initial_config(
+        env_file=env_file,
+        purpose=spec["purpose"],
+        client=spec["client"],
+        selected_providers=_scenario_provider_selection(
+            purpose=spec["purpose"],
+            client=spec["client"],
+        ),
+    )
+    merged = merge_initial_config(config_path=config_path, suggestion=suggestion)
+    profiles = merged.setdefault("client_profiles", {}).setdefault("profiles", {})
+    profile = dict(profiles.get(spec["client"], {}))
+    profile["routing_mode"] = spec["routing_mode"]
+    profiles[spec["client"]] = profile
+    return {
+        "scenario": {
+            "id": scenario_id,
+            "title": spec["title"],
+            "client": spec["client"],
+            "purpose": spec["purpose"],
+            "routing_mode": spec["routing_mode"],
+        },
+        "config": merged,
+        "summary": build_config_change_summary(config_path=config_path, updated_config=merged),
+    }
+
+
+def render_client_scenario_summary(payload: dict[str, Any]) -> str:
+    scenario = payload.get("scenario") or {}
+    summary = payload.get("summary") or {}
+    scenario_spec = _CLIENT_SCENARIOS.get(str(scenario.get("id", "")), {})
+    lines = [
+        "Client scenario summary",
+        "",
+        f"Scenario: {scenario.get('title', scenario.get('id', 'unknown'))}",
+        f"Client  : {scenario.get('client', 'unknown')}",
+        f"Purpose : {scenario.get('purpose', 'unknown')}",
+        f"Mode    : {scenario.get('routing_mode', 'unknown')}",
+        "",
+        "Operator guidance",
+        "- best when: " + str(scenario_spec.get("best_for", "n/a")),
+        "- tradeoff : " + str(scenario_spec.get("tradeoff", "n/a")),
+        "",
+        "Change preview",
+    ]
+    if summary.get("added_providers"):
+        lines.append("- add providers: " + ", ".join(summary["added_providers"]))
+    if summary.get("replaced_models"):
+        for item in summary["replaced_models"]:
+            lines.append(
+                "- replace model: "
+                + f"{item['provider']} {item['from_model']} -> {item['to_model']}"
+            )
+    if summary.get("fallback_additions"):
+        lines.append("- fallback additions: " + ", ".join(summary["fallback_additions"]))
+    if summary.get("changed_profile_modes"):
+        for item in summary["changed_profile_modes"]:
+            lines.append(
+                "- profile mode: " + f"{item['profile']} {item['from_mode']} -> {item['to_mode']}"
+            )
+    if lines[-1] == "Change preview":
+        lines.append("- no config changes beyond confirming the current scenario")
     return "\n".join(lines) + "\n"
 
 
