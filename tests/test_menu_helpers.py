@@ -760,6 +760,55 @@ client_profiles:
     assert "Start with API Keys" in result.stdout
 
 
+def test_faigate_menu_quick_setup_validate_shows_next_steps(tmp_path: Path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        """
+server:
+  host: "127.0.0.1"
+  port: 8090
+  log_level: "info"
+providers: {}
+fallback_chain: []
+client_profiles:
+  enabled: true
+  default: generic
+  profiles:
+    generic: {}
+""".strip(),
+        encoding="utf-8",
+    )
+    env_file = tmp_path / ".env"
+    env_file.write_text("", encoding="utf-8")
+    fake_bin = _write_fake_curl(
+        tmp_path,
+        {
+            "/health": json.dumps({"status": "ok", "summary": {"providers_total": 0, "providers_healthy": 0}}),
+            "/v1/models": json.dumps({"data": [{"id": "auto"}]}),
+        },
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    env["FAIGATE_CONFIG_FILE"] = str(config_file)
+    env["FAIGATE_ENV_FILE"] = str(env_file)
+    env["FAIGATE_PYTHON"] = sys.executable
+    env["PYTHONPATH"] = str(REPO_ROOT)
+
+    result = subprocess.run(
+        ["bash", "scripts/faigate-menu"],
+        cwd=REPO_ROOT,
+        env=env,
+        input="1\n3\n\nc\nq\n",
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert "Validation completed." in result.stdout
+    assert "Fix any missing env or endpoint warnings before restart work." in result.stdout
+
+
 def test_faigate_server_settings_updates_config_and_creates_backup(tmp_path: Path):
     config_file = tmp_path / "config.yaml"
     config_file.write_text(

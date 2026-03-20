@@ -42,6 +42,40 @@ run_and_pause() {
   return 0
 }
 
+show_next_steps() {
+  local title="$1"
+  shift
+  echo ""
+  printf "  %bNext step%b  %s\n" "$FAIGATE_UI_BOLD" "$FAIGATE_UI_RESET" "$title"
+  for item in "$@"; do
+    printf "    - %s\n" "$item"
+  done
+}
+
+run_and_pause_with_receipt() {
+  local title="$1"
+  shift
+  local step_count="$1"
+  shift
+  local -a steps=()
+  local index
+  for ((index = 0; index < step_count; index++)); do
+    steps+=("$1")
+    shift
+  done
+
+  local command_rc=0
+  echo ""
+  "$@" || command_rc=$?
+  echo ""
+  if [ "$command_rc" -ne 0 ]; then
+    faigate_ui_warn "Command exited with status ${command_rc}."
+  fi
+  show_next_steps "$title" "${steps[@]}"
+  faigate_ui_pause
+  return 0
+}
+
 menu_snapshot() {
   FAIGATE_MENU_CONFIG="$config_file" FAIGATE_MENU_ENV="$env_file" "$python_bin" - <<'PY'
 from pathlib import Path
@@ -343,16 +377,28 @@ run_config_wizard() {
   if [ "${apply_mode:-1}" = "2" ]; then
     backup_suffix=".before-wizard-$(date +%Y%m%d%H%M%S)"
     cmd_args+=(--write "$config_file" --write-backup --backup-suffix "$backup_suffix")
-    run_and_pause env FAIGATE_PYTHON="$python_bin" FAIGATE_ENV_FILE="$env_file" \
+    run_and_pause_with_receipt "Wizard wrote the config." 3 \
+      "Restart + Verify to load the new config." \
+      "Run Validate if you changed providers or routing defaults." \
+      "Open Clients when you want the first consumer wired in." \
+      env FAIGATE_PYTHON="$python_bin" FAIGATE_ENV_FILE="$env_file" \
       bash "${script_dir}/faigate-config-wizard" "${cmd_args[@]}"
     printf "  Restart fusionAIze Gate to apply changes? [y/N]: "
     read -r restart_choice
     if [[ "${restart_choice:-N}" =~ ^[Yy]$ ]]; then
-      run_and_pause bash "${script_dir}/faigate-restart"
+      run_and_pause_with_receipt "Gateway restart completed." 3 \
+        "Run Health Check to confirm the active runtime." \
+        "Open Status if you want the manager and bound port details." \
+        "Open Clients to connect the first workflow or coding tool." \
+        bash "${script_dir}/faigate-restart"
     fi
   else
     cmd_args+=(--dry-run-summary)
-    run_and_pause env FAIGATE_PYTHON="$python_bin" FAIGATE_ENV_FILE="$env_file" \
+    run_and_pause_with_receipt "Dry-run completed." 3 \
+      "Write config when the provider set and mode changes look right." \
+      "Update API Keys first if the suggested providers are not ready yet." \
+      "Use Validate after writing changes to catch missing pieces early." \
+      env FAIGATE_PYTHON="$python_bin" FAIGATE_ENV_FILE="$env_file" \
       bash "${script_dir}/faigate-config-wizard" "${cmd_args[@]}"
   fi
 }
@@ -416,11 +462,19 @@ run_client_wizard() {
   if [ "${apply_mode:-1}" = "2" ]; then
     backup_suffix=".client-${client}-$(date +%Y%m%d%H%M%S)"
     cmd_args+=(--write "$config_file" --write-backup --backup-suffix "$backup_suffix")
-    run_and_pause env FAIGATE_PYTHON="$python_bin" FAIGATE_ENV_FILE="$env_file" \
+    run_and_pause_with_receipt "Client-scoped config update completed." 3 \
+      "Restart + Verify to activate the new client default." \
+      "Use Client Matrix to confirm the profile and match intent." \
+      "Use the client drilldown to grab the exact setup hints again." \
+      env FAIGATE_PYTHON="$python_bin" FAIGATE_ENV_FILE="$env_file" \
       bash "${script_dir}/faigate-config-wizard" "${cmd_args[@]}"
   else
     cmd_args+=(--dry-run-summary)
-    run_and_pause env FAIGATE_PYTHON="$python_bin" FAIGATE_ENV_FILE="$env_file" \
+    run_and_pause_with_receipt "Client-scoped dry-run completed." 3 \
+      "Write config when the client-specific routing change looks right." \
+      "Check Client Matrix if you want to confirm the current profile posture." \
+      "Run the matching client drilldown for copyable setup details." \
+      env FAIGATE_PYTHON="$python_bin" FAIGATE_ENV_FILE="$env_file" \
       bash "${script_dir}/faigate-config-wizard" "${cmd_args[@]}"
   fi
 }
@@ -469,11 +523,27 @@ quick_setup_menu() {
     printf "  ▸ Choice: "
     read -r choice
     case "$choice" in
-      1) run_and_pause bash "${script_dir}/faigate-api-keys" ;;
+      1) run_and_pause_with_receipt "API keys updated." 3 \
+        "Run Full Config Wizard when providers are still missing from config.yaml." \
+        "Run Validate next to confirm provider env coverage." \
+        "Restart + Verify only after config and env are both where you want them." \
+        bash "${script_dir}/faigate-api-keys" ;;
       2) run_config_wizard ;;
-      3) run_and_pause bash "${script_dir}/faigate-doctor" ;;
-      4) run_and_pause bash "${script_dir}/faigate-restart" ;;
-      5) run_and_pause bash "${script_dir}/faigate-client-integrations" ;;
+      3) run_and_pause_with_receipt "Validation completed." 3 \
+        "Fix any missing env or endpoint warnings before restart work." \
+        "Restart + Verify once the doctor output is clean enough." \
+        "Open Client Quickstarts when the gateway looks healthy." \
+        bash "${script_dir}/faigate-doctor" ;;
+      4) run_and_pause_with_receipt "Gateway restart completed." 3 \
+        "Run Health Check if you want the live runtime summary again." \
+        "Open Status when you need service-manager and listener details." \
+        "Open Client Quickstarts to connect the first real client." \
+        bash "${script_dir}/faigate-restart" ;;
+      5) run_and_pause_with_receipt "Client quickstarts loaded." 3 \
+        "Open one client drilldown when you want copyable details for exactly one tool." \
+        "Use a client-scoped wizard when one client needs a tuned routing default." \
+        "Return to Quick Setup when you want the shortest path again." \
+        bash "${script_dir}/faigate-client-integrations" --recommended ;;
       6) run_and_pause bash "${script_dir}/faigate-config-overview" ;;
       c|C|"") return 0 ;;
       q|Q) exit 0 ;;
@@ -639,9 +709,21 @@ validate_menu() {
     printf "  ▸ Choice: "
     read -r choice
     case "$choice" in
-      1) run_and_pause bash "${script_dir}/faigate-doctor" ;;
-      2) run_and_pause bash "${script_dir}/faigate-onboarding-report" ;;
-      3) run_and_pause bash "${script_dir}/faigate-onboarding-validate" ;;
+      1) run_and_pause_with_receipt "Doctor completed." 3 \
+        "Address missing env or endpoint warnings before restart work." \
+        "Open Onboarding Report when you want the fuller operator handoff view." \
+        "Restart + Verify once the local checks look clean enough." \
+        bash "${script_dir}/faigate-doctor" ;;
+      2) run_and_pause_with_receipt "Onboarding report rendered." 3 \
+        "Use Onboarding Validate for blocker/warning output you can act on." \
+        "Open Client Quickstarts if you want the next integration hints only." \
+        "Return to Configure when the report shows obvious provider or profile gaps." \
+        bash "${script_dir}/faigate-onboarding-report" ;;
+      3) run_and_pause_with_receipt "Onboarding validation completed." 3 \
+        "Resolve blockers before treating the gateway as production-ready." \
+        "Use Doctor for a tighter local operator check after fixes." \
+        "Restart + Verify when config or env changes just landed." \
+        bash "${script_dir}/faigate-onboarding-validate" ;;
       c|C|"") return 0 ;;
       q|Q) exit 0 ;;
       *) faigate_ui_warn "Invalid choice."; faigate_ui_pause ;;
@@ -671,7 +753,11 @@ control_menu() {
       1) run_and_pause bash "${script_dir}/faigate-status" ;;
       2) run_and_pause bash "${script_dir}/faigate-start" ;;
       3) run_and_pause bash "${script_dir}/faigate-stop" ;;
-      4) run_and_pause bash "${script_dir}/faigate-restart" ;;
+      4) run_and_pause_with_receipt "Restart + Verify completed." 3 \
+        "Run Health Check if you want the compact runtime summary." \
+        "Open Recent Logs when the service recovered but behavior still looks odd." \
+        "Go to Clients when the gateway is healthy and ready to connect tools." \
+        bash "${script_dir}/faigate-restart" ;;
       5) run_and_pause bash "${script_dir}/faigate-logs" --lines 80 ;;
       6) run_and_pause bash "${script_dir}/faigate-logs" --follow ;;
       7) run_and_pause bash "${script_dir}/faigate-health" ;;

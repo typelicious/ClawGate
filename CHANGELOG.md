@@ -17,6 +17,7 @@ The format is intentionally lightweight and human-readable. Group entries by rel
 - Polished the terminal header to align more closely with the intended fusionAIze Gate visual identity in interactive terminals
 - Started the `v1.5.0` control-center UX line with a dedicated `Quick Setup` happy path and summary cards for gateway, config, providers, and clients in the main menu flows
 - Started the next `v1.5.0` clients UX slice so the client helper and menu can show compact recommendation cards first and then drill into one client without dumping the full cross-client quickstart wall every time
+- Added first `Next step` receipts after the key guided actions in the shell flow so wizard, validation, restart, and client-setup paths now end with a short operator-oriented “what to do next” block
 
 ## v1.4.5 - 2026-03-19
 
