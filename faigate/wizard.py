@@ -10,7 +10,7 @@ from typing import Any
 import yaml
 from dotenv import dotenv_values
 
-from .lane_registry import get_provider_lane_binding
+from .lane_registry import get_canonical_model_routes, get_provider_lane_binding
 from .provider_catalog import get_provider_catalog
 
 ProviderFactory = dict[str, Any]
@@ -675,6 +675,13 @@ def render_candidate_cards_text(
                 "  "
                 + f"model: {row['model']} | tier: {row['tier']} | source: {row['provider_type']}"
             )
+            if row["canonical_model"]:
+                lines.append(
+                    "  "
+                    + "lane: "
+                    + f"{row['canonical_model']} | route: {row['route_type'] or 'n/a'}"
+                    + (f" | cluster: {row['lane_cluster']}" if row["lane_cluster"] else "")
+                )
             if row["notes"]:
                 lines.append("  " + f"why: {row['notes']}")
         lines.append("")
@@ -697,6 +704,13 @@ def render_candidate_cards_text(
                 "  "
                 + f"model: {row['model']} | tier: {row['tier']} | source: {row['provider_type']}"
             )
+            if row["canonical_model"]:
+                lines.append(
+                    "  "
+                    + "lane: "
+                    + f"{row['canonical_model']} | route: {row['route_type'] or 'n/a'}"
+                    + (f" | cluster: {row['lane_cluster']}" if row["lane_cluster"] else "")
+                )
             if row["notes"]:
                 lines.append("  " + f"why: {row['notes']}")
         lines.append("")
@@ -708,6 +722,13 @@ def render_candidate_cards_text(
             availability = "ready now" if row["ready_now"] else f"needs {row['env']}"
             lines.append(f"- {row['provider']}  ({availability})")
             lines.append("  " + f"model: {row['model']} | tier: {row['tier']}")
+            if row["canonical_model"]:
+                lines.append(
+                    "  "
+                    + "lane: "
+                    + f"{row['canonical_model']} | route: {row['route_type'] or 'n/a'}"
+                    + (f" | cluster: {row['lane_cluster']}" if row["lane_cluster"] else "")
+                )
             if row["notes"]:
                 lines.append("  " + f"why: {row['notes']}")
         lines.append("")
@@ -1184,6 +1205,25 @@ def _scenario_provider_role(provider_name: str) -> str:
     return str(taxonomy.get("role") or "")
 
 
+def _provider_route_registry_summary(provider_name: str) -> dict[str, Any]:
+    lane = get_provider_lane_binding(provider_name)
+    canonical_model = str(lane.get("canonical_model") or "")
+    if not canonical_model:
+        return {"canonical_model": "", "known_routes": [], "mirror_providers": []}
+    routes = get_canonical_model_routes(canonical_model)
+    mirror_providers = [
+        str(route.get("provider_name") or "")
+        for route in routes
+        if str(route.get("provider_name") or "")
+        and str(route.get("provider_name") or "") != provider_name
+    ]
+    return {
+        "canonical_model": canonical_model,
+        "known_routes": routes,
+        "mirror_providers": mirror_providers,
+    }
+
+
 def _scenario_lane_descriptions(provider_names: list[str]) -> list[tuple[str, list[str]]]:
     detailed_lanes: list[tuple[str, list[str]]] = []
     for lane_name, lane_members in _scenario_provider_lanes(provider_names):
@@ -1196,6 +1236,36 @@ def _scenario_lane_descriptions(provider_names: list[str]) -> list[tuple[str, li
                 enriched.append(provider_name)
         detailed_lanes.append((lane_name, enriched))
     return detailed_lanes
+
+
+def _scenario_route_mirrors(provider_names: list[str]) -> list[str]:
+    summaries: list[str] = []
+    seen: set[str] = set()
+    for provider_name in provider_names:
+        route_info = _provider_route_registry_summary(provider_name)
+        canonical_model = route_info["canonical_model"]
+        mirror_providers = route_info["mirror_providers"]
+        if not canonical_model or not mirror_providers or canonical_model in seen:
+            continue
+        seen.add(canonical_model)
+        previews = ", ".join(mirror_providers[:3])
+        suffix = "" if len(mirror_providers) <= 3 else f" +{len(mirror_providers) - 3} more"
+        summaries.append(f"{canonical_model}: {previews}{suffix}")
+    return summaries
+
+
+def _scenario_degrade_chains(provider_names: list[str]) -> list[str]:
+    lines: list[str] = []
+    seen: set[str] = set()
+    for provider_name in provider_names:
+        lane = get_provider_lane_binding(provider_name)
+        canonical_model = str(lane.get("canonical_model") or "")
+        degrade_to = [str(item) for item in (lane.get("degrade_to") or []) if str(item)]
+        if not canonical_model or not degrade_to or canonical_model in seen:
+            continue
+        seen.add(canonical_model)
+        lines.append(f"{canonical_model} -> " + " -> ".join(degrade_to[:3]))
+    return lines
 
 
 def _scenario_family_coverage(provider_names: list[str]) -> list[str]:
@@ -1284,6 +1354,8 @@ def list_client_scenarios(
                 "family_coverage": _scenario_family_coverage(preferred),
                 "deemphasized_providers": _scenario_deemphasized_providers(preferred),
                 "family_hint": _scenario_family_hint(preferred),
+                "route_mirrors": _scenario_route_mirrors(preferred),
+                "degrade_chains": _scenario_degrade_chains(preferred),
             }
         )
     return scenarios
@@ -1310,6 +1382,12 @@ def render_client_scenarios_text(
         if item["lane_descriptions"]:
             for lane_name, lane_members in item["lane_descriptions"]:
                 lines.append("  " + f"{lane_name}: " + ", ".join(lane_members))
+        if item.get("route_mirrors"):
+            for mirror_line in item["route_mirrors"]:
+                lines.append("  " + f"known route mirrors: {mirror_line}")
+        if item.get("degrade_chains"):
+            for degrade_line in item["degrade_chains"]:
+                lines.append("  " + f"degrade chain: {degrade_line}")
         if item["ready_providers"]:
             lines.append("  " + "ready now: " + ", ".join(item["ready_providers"]))
         elif item["recommended_providers"]:

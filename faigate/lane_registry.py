@@ -345,6 +345,141 @@ _PROVIDER_LANE_BINDINGS: dict[str, dict[str, Any]] = {
     },
 }
 
+_CANONICAL_MODEL_ROUTE_REGISTRY: dict[str, list[dict[str, Any]]] = {
+    "anthropic/opus-4.6": [
+        {
+            "route_id": "anthropic-direct/opus-4.6",
+            "provider_name": "anthropic-claude",
+            "provider_family": "anthropic",
+            "route_type": "direct",
+            "availability": "configured",
+            "route_group": "same-lane",
+        },
+        {
+            "route_id": "openrouter/anthropic-opus-4.6",
+            "provider_name": "openrouter-anthropic-opus",
+            "provider_family": "openrouter",
+            "route_type": "aggregator",
+            "availability": "catalog",
+            "route_group": "same-lane",
+        },
+        {
+            "route_id": "kilocode/anthropic-opus-4.6",
+            "provider_name": "kilocode-anthropic-opus",
+            "provider_family": "kilo",
+            "route_type": "aggregator",
+            "availability": "catalog",
+            "route_group": "same-lane",
+        },
+        {
+            "route_id": "blackbox/anthropic-opus-4.6",
+            "provider_name": "blackbox-anthropic-opus",
+            "provider_family": "blackbox",
+            "route_type": "aggregator",
+            "availability": "catalog",
+            "route_group": "same-lane",
+        },
+    ],
+    "openai/gpt-4o": [
+        {
+            "route_id": "openai-direct/gpt-4o",
+            "provider_name": "openai-gpt4o",
+            "provider_family": "openai",
+            "route_type": "direct",
+            "availability": "configured",
+            "route_group": "same-lane",
+        },
+        {
+            "route_id": "openrouter/openai-gpt-4o",
+            "provider_name": "openrouter-openai-gpt4o",
+            "provider_family": "openrouter",
+            "route_type": "aggregator",
+            "availability": "catalog",
+            "route_group": "same-lane",
+        },
+    ],
+    "deepseek/reasoner": [
+        {
+            "route_id": "deepseek-direct/reasoner",
+            "provider_name": "deepseek-reasoner",
+            "provider_family": "deepseek",
+            "route_type": "direct",
+            "availability": "configured",
+            "route_group": "same-lane",
+        },
+        {
+            "route_id": "openrouter/deepseek-reasoner",
+            "provider_name": "openrouter-deepseek-reasoner",
+            "provider_family": "openrouter",
+            "route_type": "aggregator",
+            "availability": "catalog",
+            "route_group": "same-lane",
+        },
+    ],
+    "deepseek/chat": [
+        {
+            "route_id": "deepseek-direct/chat",
+            "provider_name": "deepseek-chat",
+            "provider_family": "deepseek",
+            "route_type": "direct",
+            "availability": "configured",
+            "route_group": "same-lane",
+        },
+        {
+            "route_id": "openrouter/deepseek-chat",
+            "provider_name": "openrouter-fallback",
+            "provider_family": "openrouter",
+            "route_type": "aggregator",
+            "availability": "configured",
+            "route_group": "same-lane",
+        },
+    ],
+    "google/gemini-flash": [
+        {
+            "route_id": "google-direct/gemini-flash",
+            "provider_name": "gemini-flash",
+            "provider_family": "google",
+            "route_type": "direct",
+            "availability": "configured",
+            "route_group": "same-lane",
+        },
+        {
+            "route_id": "openrouter/gemini-flash",
+            "provider_name": "openrouter-gemini-flash",
+            "provider_family": "openrouter",
+            "route_type": "aggregator",
+            "availability": "catalog",
+            "route_group": "same-lane",
+        },
+    ],
+    "google/gemini-flash-lite": [
+        {
+            "route_id": "google-direct/gemini-flash-lite",
+            "provider_name": "gemini-flash-lite",
+            "provider_family": "google",
+            "route_type": "direct",
+            "availability": "configured",
+            "route_group": "same-lane",
+        },
+        {
+            "route_id": "kilocode/glm-5-free",
+            "provider_name": "kilocode",
+            "provider_family": "kilo",
+            "route_type": "aggregator",
+            "availability": "configured",
+            "route_group": "cluster-alternative",
+        },
+        {
+            "route_id": "blackbox/grok-code-fast",
+            "provider_name": "blackbox-free",
+            "provider_family": "blackbox",
+            "route_type": "aggregator",
+            "availability": "configured",
+            "route_group": "cluster-alternative",
+        },
+    ],
+}
+
 
 def get_canonical_model_catalog() -> dict[str, dict[str, Any]]:
     """Return the canonical model-lane catalog."""
@@ -355,3 +490,9 @@ def get_provider_lane_binding(provider_name: str) -> dict[str, Any]:
     """Return lane metadata for one configured provider or route."""
     binding = _PROVIDER_LANE_BINDINGS.get(provider_name, {})
     return deepcopy(binding)
+
+
+def get_canonical_model_routes(canonical_model: str) -> list[dict[str, Any]]:
+    """Return known direct and aggregator execution routes for one canonical model."""
+    routes = _CANONICAL_MODEL_ROUTE_REGISTRY.get(canonical_model, [])
+    return deepcopy(routes)

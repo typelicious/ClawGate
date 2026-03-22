@@ -195,6 +195,13 @@ Recommended minimal slices:
 3. wizard/catalog exposure of canonical lane and route metadata
 4. roadmap, architecture, and config docs that describe the new model clearly
 
+Current branch status:
+
+- done: canonical lane registry and provider-route bindings
+- done: `provider.lane` config metadata with validation and normalization
+- done: wizard and provider-catalog exposure of canonical lane metadata
+- in progress: lane-aware scoring, same-lane-route fallback, and first dashboard/provider-detail explainability
+
 Guardrails:
 
 - no breaking config migration
