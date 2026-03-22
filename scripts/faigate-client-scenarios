@@ -240,6 +240,7 @@ while true; do
           "Provider Probe is useful when the scenario added providers you have not tested yet."
       fi
       faigate_ui_pause
+      exit 0
       ;;
   esac
 done
