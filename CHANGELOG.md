@@ -4,6 +4,14 @@ All notable changes to fusionAIze Gate should be documented here.
 
 The format is intentionally lightweight and human-readable. Group entries by release and focus on user-visible behavior, operational changes, and compatibility notes.
 
+## v1.6.3 - 2026-03-22
+
+### Changed
+
+- Hardened config-wizard merge writes so existing configs with `null` sections such as `client_profiles.rules`, `routing_policies.rules`, or `request_hooks.hooks` now merge into real runtime config safely instead of failing mid-write
+- Closed the remaining Homebrew helper-parity gap so user-facing commands such as `faigate-config-wizard`, `faigate-status`, `faigate-restart`, `faigate-logs`, `faigate-start`, `faigate-stop`, `faigate-update`, and `faigate-auto-update` ship through the Brew formula too
+- Refined the terminal wordmark again with the new three-color brand palette and kept the inline version sourced dynamically from the current package version
+
 ## v1.6.2 - 2026-03-22
 
 ### Changed
