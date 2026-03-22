@@ -418,12 +418,12 @@ class Router:
         fallback = self.config.fallback_chain[0] if self.config.fallback_chain else "deepseek-chat"
         return self._enrich_decision_details(
             RoutingDecision(
-            provider_name=fallback,
-            layer="fallback",
-            rule_name="no-match",
-            confidence=0.3,
-            reason="No routing layer matched, using first fallback",
-            elapsed_ms=elapsed,
+                provider_name=fallback,
+                layer="fallback",
+                rule_name="no-match",
+                confidence=0.3,
+                reason="No routing layer matched, using first fallback",
+                elapsed_ms=elapsed,
             ),
             ctx,
         )
@@ -1086,9 +1086,7 @@ class Router:
             selection_path = "same-lane-route"
         elif same_cluster or same_benchmark_cluster:
             relation_score += weights["same_cluster"]
-            selection_path = (
-                "same-cluster-degrade" if same_cluster else "same-benchmark-degrade"
-            )
+            selection_path = "same-cluster-degrade" if same_cluster else "same-benchmark-degrade"
         elif preferred_degrade:
             relation_score += weights["preferred_degrade"]
             selection_path = "preferred-degrade"
@@ -1435,17 +1433,17 @@ class Router:
                 best_fallback = fallback_ranking[0]["provider"]
                 return self._enrich_decision_details(
                     RoutingDecision(
-                    provider_name=best_fallback,
-                    layer=decision.layer,
-                    rule_name=f"{decision.rule_name}→fallback",
-                    confidence=decision.confidence * 0.8,
-                    reason=f"{decision.reason} ({reason_suffix}, fell to {best_fallback})",
-                    elapsed_ms=decision.elapsed_ms,
-                    details={
-                        **decision.details,
-                        "fallback_reason": reason_suffix,
-                        "fallback_ranking": fallback_ranking,
-                    },
+                        provider_name=best_fallback,
+                        layer=decision.layer,
+                        rule_name=f"{decision.rule_name}→fallback",
+                        confidence=decision.confidence * 0.8,
+                        reason=f"{decision.reason} ({reason_suffix}, fell to {best_fallback})",
+                        elapsed_ms=decision.elapsed_ms,
+                        details={
+                            **decision.details,
+                            "fallback_reason": reason_suffix,
+                            "fallback_ranking": fallback_ranking,
+                        },
                     ),
                     ctx,
                     extra_details={

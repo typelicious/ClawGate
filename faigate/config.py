@@ -471,9 +471,7 @@ def _normalize_provider_lane(name: str, cfg: dict[str, Any]) -> dict[str, Any]:
     normalized["degrade_to"] = []
     for item in degrade_to:
         if not isinstance(item, str) or not item.strip():
-            raise ConfigError(
-                f"Provider '{name}' lane.degrade_to must contain non-empty strings"
-            )
+            raise ConfigError(f"Provider '{name}' lane.degrade_to must contain non-empty strings")
         normalized["degrade_to"].append(item.strip())
 
     return normalized

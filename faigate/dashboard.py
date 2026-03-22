@@ -214,7 +214,9 @@ def build_dashboard_report(
 
     totals = stats.get("totals") or {}
     inventory_provider_map = _inventory_provider_map(inventory_payload)
-    providers = _enrich_provider_rows_with_lane(stats.get("providers") or [], inventory_provider_map)
+    providers = _enrich_provider_rows_with_lane(
+        stats.get("providers") or [], inventory_provider_map
+    )
     routing = stats.get("routing") or []
     client_totals = stats.get("client_totals") or []
     client_highlights = stats.get("client_highlights") or _client_highlights(client_totals)
@@ -571,16 +573,8 @@ def _render_providers(report: dict[str, Any]) -> str:
                 (
                     "  lane: "
                     + row.get("canonical_model")
-                    + (
-                        f" | route: {row.get('route_type')}"
-                        if row.get("route_type")
-                        else ""
-                    )
-                    + (
-                        f" | cluster: {row.get('lane_cluster')}"
-                        if row.get("lane_cluster")
-                        else ""
-                    )
+                    + (f" | route: {row.get('route_type')}" if row.get("route_type") else "")
+                    + (f" | cluster: {row.get('lane_cluster')}" if row.get("lane_cluster") else "")
                 )
                 if row.get("canonical_model")
                 else "  lane: n/a",

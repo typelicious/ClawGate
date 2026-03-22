@@ -906,10 +906,7 @@ def test_list_client_scenarios_exposes_opencode_quality_path(tmp_path: Path):
 
     assert by_id["opencode-quality"]["routing_mode"] == "premium"
     assert "anthropic-claude" in by_id["opencode-quality"]["ready_providers"]
-    assert any(
-        "anthropic/opus-4.6:" in line
-        for line in by_id["opencode-quality"]["route_mirrors"]
-    )
+    assert any("anthropic/opus-4.6:" in line for line in by_id["opencode-quality"]["route_mirrors"])
     assert any(
         line.startswith("anthropic/opus-4.6 ->")
         for line in by_id["opencode-quality"]["degrade_chains"]

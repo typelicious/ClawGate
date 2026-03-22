@@ -912,9 +912,7 @@ def apply_provider_setup(
                     custom_provider.get("context_strength", "custom") or "custom"
                 ),
                 "tool_strength": str(custom_provider.get("tool_strength", "custom") or "custom"),
-                "same_model_group": str(
-                    custom_provider.get("same_model_group", name) or name
-                ),
+                "same_model_group": str(custom_provider.get("same_model_group", name) or name),
                 "degrade_to": list(custom_provider.get("degrade_to", []) or []),
             },
         }
@@ -953,9 +951,7 @@ def apply_provider_setup(
                 "reasoning_strength": str(
                     local_worker.get("reasoning_strength", "custom") or "custom"
                 ),
-                "context_strength": str(
-                    local_worker.get("context_strength", "custom") or "custom"
-                ),
+                "context_strength": str(local_worker.get("context_strength", "custom") or "custom"),
                 "tool_strength": str(local_worker.get("tool_strength", "custom") or "custom"),
                 "same_model_group": str(local_worker.get("same_model_group", name) or name),
                 "degrade_to": list(local_worker.get("degrade_to", []) or []),

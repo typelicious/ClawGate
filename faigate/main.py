@@ -416,7 +416,9 @@ def _decorate_direct_decision(decision: RoutingDecision) -> RoutingDecision:
         details.setdefault("lane_name", str(lane.get("name") or ""))
         details.setdefault("route_type", str(lane.get("route_type") or ""))
         details.setdefault("lane_cluster", str(lane.get("cluster") or ""))
-    details.setdefault("route_runtime_state", _provider_runtime_state_snapshot().get(provider.name, {}))
+    details.setdefault(
+        "route_runtime_state", _provider_runtime_state_snapshot().get(provider.name, {})
+    )
     decision.details = details
     return decision
 
