@@ -17,6 +17,10 @@ _OPENCODE_COMPLEXITY_HINTS = (
     "architecture",
     "tradeoff",
     "trade-off",
+    "system design",
+    "design review",
+    "implementation plan",
+    "rollout plan",
     "rollback",
     "idempot",
     "backpressure",
@@ -27,6 +31,11 @@ _OPENCODE_COMPLEXITY_HINTS = (
     "refactor",
     "debug",
     "code review",
+    "event processing",
+    "under load",
+    "throughput",
+    "queue",
+    "consistency",
     "performance bottleneck",
     "race condition",
     "deadlock",
@@ -47,6 +56,8 @@ _OPENCODE_COMPLEXITY_RULE_KEYWORDS = {
     "deadlock",
     "tradeoff",
     "trade-off",
+    "system design",
+    "implementation plan",
     "migration",
     "rollback",
     "idempotency",
@@ -55,7 +66,14 @@ _OPENCODE_COMPLEXITY_RULE_KEYWORDS = {
     "reliability",
 }
 _OPENCODE_SIGNAL_GROUPS = {
-    "architecture": ("architecture", "tradeoff", "trade-off", "design pattern"),
+    "architecture": (
+        "architecture",
+        "tradeoff",
+        "trade-off",
+        "design pattern",
+        "system design",
+        "design review",
+    ),
     "change-risk": (
         "migration",
         "rollback",
@@ -63,10 +81,27 @@ _OPENCODE_SIGNAL_GROUPS = {
         "failure mode",
         "failure modes",
         "reliability",
+        "consistency",
     ),
-    "concurrency": ("concurrency", "race condition", "deadlock", "backpressure"),
+    "concurrency": (
+        "concurrency",
+        "race condition",
+        "deadlock",
+        "backpressure",
+        "queue",
+        "throughput",
+        "under load",
+        "event processing",
+    ),
     "debugging": ("debug", "memory leak", "type error", "performance bottleneck"),
-    "quality": ("refactor", "code review", "optimize", "security vulnerability"),
+    "quality": (
+        "refactor",
+        "code review",
+        "optimize",
+        "security vulnerability",
+        "implementation plan",
+        "rollout plan",
+    ),
 }
 
 
@@ -445,11 +480,26 @@ def _build_request_insights(
     """Summarize request complexity signals for routing and operator surfaces."""
     search_text = (last_user_message or "").lower()
     opencode_hits = _collect_keyword_hits(search_text, _OPENCODE_COMPLEXITY_HINTS)
-    signal_groups = [
-        group
+    signal_hits = {
+        group: _collect_keyword_hits(search_text, keywords)
         for group, keywords in _OPENCODE_SIGNAL_GROUPS.items()
-        if _collect_keyword_hits(search_text, keywords)
-    ]
+    }
+    signal_hits = {group: hits for group, hits in signal_hits.items() if hits}
+    signal_groups = list(signal_hits.keys())
+    planning_terms = _collect_keyword_hits(
+        search_text,
+        (
+            "plan",
+            "strategy",
+            "approach",
+            "design",
+            "review",
+            "safely",
+            "safe",
+        ),
+    )
+    short_complex = total_tokens < 80 and len(signal_groups) >= 2
+    architecture_risk = bool({"architecture", "change-risk"} & set(signal_groups))
 
     score = 0
     score += min(4, len(opencode_hits))
@@ -464,6 +514,12 @@ def _build_request_insights(
         score += 1
     if client_profile == "opencode" and opencode_hits:
         score += 1
+    if short_complex:
+        score += 2
+    if client_profile == "opencode" and planning_terms and signal_groups:
+        score += 1
+    if architecture_risk and planning_terms:
+        score += 1
 
     if score >= 6:
         complexity_profile = "high"
@@ -472,13 +528,35 @@ def _build_request_insights(
     else:
         complexity_profile = "low"
 
+    complexity_reasons: list[str] = []
+    if short_complex:
+        complexity_reasons.append(
+            "Brief prompt, but multiple risk-heavy coding signal groups are present."
+        )
+    if architecture_risk:
+        complexity_reasons.append(
+            "Architecture and change-risk signals suggest a higher-cost mistake surface."
+        )
+    if planning_terms and signal_groups:
+        complexity_reasons.append(
+            "Planning or design language appears together with implementation-risk signals."
+        )
+    if has_tools:
+        complexity_reasons.append("Tool usage raises the likelihood of multi-step coding work.")
+
     return {
         "complexity_profile": complexity_profile,
         "complexity_score": score,
         "signal_groups": signal_groups,
+        "signal_hits": signal_hits,
         "matched_signals": opencode_hits,
         "length_bucket": _request_length_bucket(total_tokens),
         "tool_context": bool(has_tools),
+        "planning_context": bool(planning_terms),
+        "planning_terms": planning_terms,
+        "short_complex": short_complex,
+        "architecture_risk": architecture_risk,
+        "complexity_reasons": complexity_reasons,
         "opencode_bias_eligible": client_profile == "opencode"
         and complexity_profile
         in {
@@ -1670,10 +1748,13 @@ class Router:
                     "score_total": details["score_total"],
                     "routing_posture": details["routing_posture"],
                     "lane_family": details["lane_family"],
+                    "lane_name": details["lane_name"],
                     "canonical_model": details["canonical_model"],
                     "route_type": details["route_type"],
                     "lane_cluster": details["lane_cluster"],
                     "benchmark_cluster": details["benchmark_cluster"],
+                    "quality_tier": details["quality_tier"],
+                    "reasoning_strength": details["reasoning_strength"],
                     "benchmark_request_score": details["benchmark_request_score"],
                     "cost_score": details["cost_score"],
                     "estimated_request_cost_usd": details["estimated_request_cost_usd"],
@@ -1893,7 +1974,22 @@ class Router:
             if (
                 ctx.client_profile == "opencode"
                 and complexity_profile == "high"
-                and any(token in rule_name.lower() for token in ("complex", "reason", "debug"))
+                and any(
+                    token in rule_name.lower()
+                    for token in ("complex", "reason", "debug", "review", "plan", "design")
+                )
+                and matched_keywords
+            ):
+                min_matches = max(1, int(min_matches) - 1)
+                opencode_bias_applied = True
+
+            if (
+                ctx.client_profile == "opencode"
+                and bool(request_insights.get("short_complex"))
+                and any(
+                    token in rule_name.lower()
+                    for token in ("complex", "reason", "debug", "review", "plan", "design")
+                )
                 and matched_keywords
             ):
                 min_matches = max(1, int(min_matches) - 1)
@@ -1917,6 +2013,7 @@ class Router:
                     "suppressed_for_complexity": suppressed_for_complexity,
                     "complexity_profile": complexity_profile,
                     "signal_groups": signal_groups,
+                    "short_complex": bool(request_insights.get("short_complex")),
                 }
             )
 

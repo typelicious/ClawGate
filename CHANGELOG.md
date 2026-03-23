@@ -4,6 +4,13 @@ All notable changes to fusionAIze Gate should be documented here.
 
 The format is intentionally lightweight and human-readable. Group entries by release and focus on user-visible behavior, operational changes, and compatibility notes.
 
+## v1.9.0 - Unreleased
+
+### Changed
+
+- Strengthened short-but-risky `opencode` prompt detection so brief architecture, queue/backpressure, and rollout-planning requests escalate out of cheap lanes earlier instead of being flattened by generic short-query heuristics
+- Expanded route-preview explainability with structured complexity reasons plus explicit `why_not_selected` guidance for cheaper alternatives, so operators can now see why a lower-cost lane lost on reasoning depth, benchmark fit, freshness, or runtime pressure
+
 ## v1.8.0 - 2026-03-22
 
 ### Changed

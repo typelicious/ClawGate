@@ -678,6 +678,80 @@ def _trace_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _alternative_loss_reasons(
+    *,
+    selected: dict[str, Any],
+    alternative: dict[str, Any],
+    request_insights: dict[str, Any],
+    routing_posture: str,
+) -> list[str]:
+    reasons: list[str] = []
+    selected_cost = float(selected.get("estimated_request_cost_usd") or 0.0)
+    alternative_cost = float(alternative.get("estimated_request_cost_usd") or 0.0)
+    selected_reasoning = str(selected.get("reasoning_strength") or "")
+    alternative_reasoning = str(alternative.get("reasoning_strength") or "")
+    selected_quality = str(selected.get("quality_tier") or "")
+    alternative_quality = str(alternative.get("quality_tier") or "")
+    selected_benchmark = int(selected.get("benchmark_request_score") or 0)
+    alternative_benchmark = int(alternative.get("benchmark_request_score") or 0)
+    complexity_profile = str(request_insights.get("complexity_profile") or "")
+    signal_groups = [str(item) for item in (request_insights.get("signal_groups") or []) if item]
+
+    if alternative_cost > 0 and selected_cost > 0 and alternative_cost <= (selected_cost * 0.6):
+        if alternative_benchmark < selected_benchmark:
+            reasons.append(
+                "Cheaper, but benchmark fit was weaker for "
+                + (", ".join(signal_groups) if signal_groups else "the current request")
+                + "."
+            )
+        elif alternative_reasoning and alternative_reasoning != selected_reasoning:
+            reasons.append("Cheaper, but reasoning depth was weaker for this request.")
+        else:
+            reasons.append("Cheaper, but the overall route fit still ranked lower.")
+
+    strength_rank = {"low": 1, "mid": 2, "high": 3, "variable": 2}
+    if strength_rank.get(alternative_reasoning, 0) < strength_rank.get(selected_reasoning, 0):
+        reasons.append("Reasoning strength was lower than the selected lane.")
+
+    quality_rank = {
+        "free": 1,
+        "budget": 2,
+        "mid": 3,
+        "high": 4,
+        "premium": 5,
+        "variable": 3,
+    }
+    if quality_rank.get(alternative_quality, 0) < quality_rank.get(selected_quality, 0):
+        if routing_posture in {"quality", "balanced", "auto"} or complexity_profile in {
+            "medium",
+            "high",
+        }:
+            reasons.append("Quality tier was lower than the chosen lane.")
+
+    if alternative_benchmark < selected_benchmark and signal_groups:
+        reasons.append("Benchmark cluster matched fewer request signals than the selected lane.")
+
+    if (
+        str(alternative.get("freshness_status") or "") == "stale"
+        and str(selected.get("freshness_status") or "") != "stale"
+    ):
+        reasons.append("Benchmark and cost assumptions were staler.")
+
+    if int(alternative.get("runtime_penalty") or 0) > 0:
+        reasons.append("Runtime penalty or cooldown pressure was active.")
+
+    if (
+        routing_posture == "quality"
+        and str(selected.get("route_type") or "") == "direct"
+        and str(alternative.get("route_type") or "") == "aggregator"
+    ):
+        reasons.append("Quality posture kept the direct route ahead of an aggregator path.")
+
+    if not reasons and alternative.get("reason"):
+        reasons.append(str(alternative.get("reason") or ""))
+    return reasons
+
+
 def _build_route_summary(decision: RoutingDecision) -> dict[str, Any]:
     details = dict(decision.details or {})
     request_insights = dict(details.get("request_insights") or {})
@@ -697,6 +771,11 @@ def _build_route_summary(decision: RoutingDecision) -> dict[str, Any]:
         "benchmark_cluster": str(
             details.get("benchmark_cluster") or selected_row.get("benchmark_cluster") or ""
         ),
+        "quality_tier": str(details.get("quality_tier") or selected_row.get("quality_tier") or ""),
+        "reasoning_strength": str(
+            details.get("reasoning_strength") or selected_row.get("reasoning_strength") or ""
+        ),
+        "benchmark_request_score": int(selected_row.get("benchmark_request_score") or 0),
         "cost_tier": str(details.get("cost_tier") or selected_row.get("cost_tier") or ""),
         "estimated_request_cost_usd": float(selected_row.get("estimated_request_cost_usd") or 0.0),
         "freshness_status": str(
@@ -733,6 +812,8 @@ def _build_route_summary(decision: RoutingDecision) -> dict[str, Any]:
         why_selected.append(
             "Simple-query routing was suppressed because the request looked riskier."
         )
+    for note in request_insights.get("complexity_reasons") or []:
+        why_selected.append(str(note))
     if selected.get("benchmark_cluster") and request_insights.get("signal_groups"):
         why_selected.append(
             f"Benchmark fit favored {selected['benchmark_cluster']} for "
@@ -756,6 +837,7 @@ def _build_route_summary(decision: RoutingDecision) -> dict[str, Any]:
         )
 
     alternatives: list[dict[str, Any]] = []
+    why_cheaper_lanes_lost: list[str] = []
     selected_score = None
     if rankings:
         for row in rankings:
@@ -790,15 +872,29 @@ def _build_route_summary(decision: RoutingDecision) -> dict[str, Any]:
                 "route_type": str(row.get("route_type") or ""),
                 "lane_cluster": str(row.get("lane_cluster") or ""),
                 "benchmark_cluster": str(row.get("benchmark_cluster") or ""),
+                "quality_tier": str(row.get("quality_tier") or ""),
+                "reasoning_strength": str(row.get("reasoning_strength") or ""),
+                "benchmark_request_score": int(row.get("benchmark_request_score") or 0),
                 "cost_tier": str(row.get("cost_tier") or ""),
                 "estimated_request_cost_usd": float(row.get("estimated_request_cost_usd") or 0.0),
                 "freshness_status": str(row.get("freshness_status") or ""),
                 "review_age_days": int(row.get("review_age_days") or -1),
+                "runtime_penalty": int(row.get("runtime_penalty") or 0),
                 "reason": ", ".join(reason_bits)
                 if reason_bits
                 else "ranked below the selected route",
             }
         )
+        alternatives[-1]["why_not_selected"] = _alternative_loss_reasons(
+            selected=selected,
+            alternative=alternatives[-1],
+            request_insights=request_insights,
+            routing_posture=str(details.get("routing_posture") or ""),
+        )
+        if float(alternatives[-1].get("estimated_request_cost_usd") or 0.0) > 0 and float(
+            alternatives[-1].get("estimated_request_cost_usd") or 0.0
+        ) <= max(0.0, float(selected.get("estimated_request_cost_usd") or 0.0) * 0.6):
+            why_cheaper_lanes_lost.extend(alternatives[-1]["why_not_selected"])
         if len(alternatives) >= 3:
             break
 
@@ -887,9 +983,11 @@ def _build_route_summary(decision: RoutingDecision) -> dict[str, Any]:
         "complexity_score": int(request_insights.get("complexity_score") or 0),
         "signal_groups": list(request_insights.get("signal_groups") or []),
         "matched_signals": list(request_insights.get("matched_signals") or []),
+        "complexity_reasons": list(request_insights.get("complexity_reasons") or []),
         "matched_keywords": list(heuristic_match.get("matched_keywords") or []),
         "selected": selected,
         "why_selected": why_selected,
+        "why_cheaper_lanes_lost": list(dict.fromkeys(why_cheaper_lanes_lost)),
         "alternatives": alternatives,
         "next_actions": next_actions,
     }
