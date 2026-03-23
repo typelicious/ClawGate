@@ -1544,7 +1544,7 @@ class Router:
             return None
 
         for rule in cfg.get("rules", []):
-            matched, match_details = self._match_heuristic(rule, ctx)
+            matched, match_details = self._evaluate_heuristic_match(rule, ctx)
             if matched:
                 logger.debug("Heuristic rule matched: %s → %s", rule["name"], rule["route_to"])
                 return RoutingDecision(
@@ -1558,7 +1558,12 @@ class Router:
 
         return None
 
-    def _match_heuristic(
+    def _match_heuristic(self, match: dict[str, Any], ctx: _RoutingContext) -> bool:
+        """Backwards-compatible bool-only heuristic matcher used by tests and policy composition."""
+        matched, _ = self._evaluate_heuristic_match({"name": "", "match": match}, ctx)
+        return matched
+
+    def _evaluate_heuristic_match(
         self, rule: dict[str, Any], ctx: _RoutingContext
     ) -> tuple[bool, dict[str, Any]]:
         """Evaluate a heuristic match block."""
