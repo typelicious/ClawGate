@@ -209,13 +209,13 @@ class TestProviderHealthProbes:
                     "compatibility": "aggregator",
                     "probe_confidence": "medium",
                     "auth_mode": "bearer",
-                    "probe_strategy": "models",
-                    "models_path": "/models",
+                    "probe_strategy": "chat",
+                    "models_path": "",
                     "chat_path": "/chat/completions",
                     "image_generation_path": "/images/generations",
                     "image_edit_path": "/images/edits",
                     "requires_api_key": True,
-                    "supports_models_probe": True,
+                    "supports_models_probe": False,
                     "notes": ["aggregator route uses compatibility assumptions"],
                 },
             },
@@ -227,6 +227,110 @@ class TestProviderHealthProbes:
         assert readiness["status"] == "ready-compat"
         assert readiness["compatibility"] == "aggregator"
         assert readiness["probe_confidence"] == "medium"
+
+    @pytest.mark.asyncio
+    async def test_chat_probe_marks_aggregator_route_verified(self):
+        backend = ProviderBackend(
+            "kilocode",
+            {
+                "backend": "openai-compat",
+                "base_url": "https://api.kilo.example/v1",
+                "api_key": "secret",
+                "model": "glm-5-free",
+                "transport": {
+                    "profile": "kilo-openai-compat",
+                    "compatibility": "aggregator",
+                    "probe_confidence": "medium",
+                    "auth_mode": "bearer",
+                    "probe_strategy": "chat",
+                    "models_path": "",
+                    "chat_path": "/chat/completions",
+                    "image_generation_path": "/images/generations",
+                    "image_edit_path": "/images/edits",
+                    "requires_api_key": True,
+                    "supports_models_probe": False,
+                    "notes": ["aggregator route uses compatibility assumptions"],
+                },
+            },
+        )
+        captured: dict = {}
+
+        class _FakeResp:
+            status_code = 200
+            text = ""
+
+        async def _fake_post(url, json=None, headers=None, timeout=None, **_kw):
+            captured["url"] = url
+            captured["json"] = json or {}
+            captured["headers"] = headers or {}
+            captured["timeout"] = timeout
+            return _FakeResp()
+
+        backend._client.post = _fake_post  # type: ignore[attr-defined]
+
+        ok = await backend.probe_health(timeout_seconds=2.5)
+        readiness = backend.request_readiness()
+
+        assert ok is True
+        assert captured["url"] == "https://api.kilo.example/v1/chat/completions"
+        assert captured["json"]["messages"][0]["content"] == "ping"
+        assert readiness["status"] == "ready-verified"
+        assert readiness["verified_via"] == "chat"
+
+    @pytest.mark.asyncio
+    async def test_models_or_chat_probe_falls_back_to_chat_for_endpoint_mismatch(self):
+        backend = ProviderBackend(
+            "openrouter-fallback",
+            {
+                "backend": "openai-compat",
+                "base_url": "https://openrouter.ai/api/v1",
+                "api_key": "secret",
+                "model": "openrouter/auto",
+                "transport": {
+                    "profile": "openrouter-openai-compat",
+                    "compatibility": "aggregator",
+                    "probe_confidence": "high",
+                    "auth_mode": "bearer",
+                    "probe_strategy": "models_or_chat",
+                    "models_path": "/models",
+                    "chat_path": "/chat/completions",
+                    "image_generation_path": "/images/generations",
+                    "image_edit_path": "/images/edits",
+                    "requires_api_key": True,
+                    "supports_models_probe": True,
+                    "notes": ["marketplace route"],
+                },
+            },
+        )
+        captured: dict = {"calls": []}
+
+        class _ModelsResp:
+            status_code = 404
+            text = "unsupported path"
+
+        class _ChatResp:
+            status_code = 200
+            text = ""
+
+        async def _fake_get(url, headers=None, timeout=None, **_kw):
+            captured["calls"].append(("get", url))
+            return _ModelsResp()
+
+        async def _fake_post(url, json=None, headers=None, timeout=None, **_kw):
+            captured["calls"].append(("post", url))
+            return _ChatResp()
+
+        backend._client.get = _fake_get  # type: ignore[attr-defined]
+        backend._client.post = _fake_post  # type: ignore[attr-defined]
+
+        ok = await backend.probe_health(timeout_seconds=1.5)
+
+        assert ok is True
+        assert captured["calls"] == [
+            ("get", "https://openrouter.ai/api/v1/models"),
+            ("post", "https://openrouter.ai/api/v1/chat/completions"),
+        ]
+        assert backend.request_readiness()["verified_via"] == "chat"
 
     @pytest.mark.asyncio
     async def test_assistant_none_content_converted_to_empty_string(self):

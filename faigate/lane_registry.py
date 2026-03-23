@@ -396,12 +396,13 @@ _PROVIDER_TRANSPORT_BINDINGS: dict[str, dict[str, Any]] = {
         "compatibility": "aggregator",
         "probe_confidence": "high",
         "auth_mode": "bearer",
-        "probe_strategy": "models",
+        "probe_strategy": "models_or_chat",
         "models_path": "/models",
         "chat_path": "/chat/completions",
         "notes": [
             "requires HTTP-Referer and X-Title headers for best marketplace attribution",
             "route remains OpenAI-compatible but upstream model selection is marketplace-managed",
+            "request-readiness can fall back from /models to a shallow chat probe when needed",
         ],
     },
     "kilocode": {
@@ -409,11 +410,13 @@ _PROVIDER_TRANSPORT_BINDINGS: dict[str, dict[str, Any]] = {
         "compatibility": "aggregator",
         "probe_confidence": "medium",
         "auth_mode": "bearer",
-        "probe_strategy": "models",
-        "models_path": "/models",
+        "probe_strategy": "chat",
+        "models_path": "",
         "chat_path": "/chat/completions",
+        "supports_models_probe": False,
         "notes": [
-            "aggregator route uses OpenAI-compatible chat paths with medium evidence",
+            "aggregator route is validated through a shallow chat probe "
+            "instead of relying on /models",
             "free-tier model availability and path behavior should be revalidated regularly",
         ],
     },
@@ -422,11 +425,13 @@ _PROVIDER_TRANSPORT_BINDINGS: dict[str, dict[str, Any]] = {
         "compatibility": "aggregator",
         "probe_confidence": "medium",
         "auth_mode": "bearer",
-        "probe_strategy": "models",
-        "models_path": "/models",
+        "probe_strategy": "chat",
+        "models_path": "",
         "chat_path": "/chat/completions",
+        "supports_models_probe": False,
         "notes": [
-            "aggregator route uses OpenAI-compatible chat paths with mixed evidence",
+            "aggregator route is validated through a shallow chat probe "
+            "instead of relying on /models",
             "free-tier route volatility is high; auth and model availability can shift quickly",
         ],
     },

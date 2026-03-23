@@ -7,14 +7,17 @@ config_file="$(faigate_config_file)"
 env_file="$(faigate_env_file)"
 python_bin="$(faigate_python_bin)"
 mode="text"
+live_probe="0"
+timeout_seconds="2.0"
 
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/faigate-provider-probe [--json|--text]
+  ./scripts/faigate-provider-probe [--json|--text] [--live] [--timeout SECONDS]
 
 Probe configured provider sources against the current config, env file, and
-local /health payload when available.
+local /health payload when available. Use --live to run shallow transport-aware
+request probes directly against the configured providers.
 EOF
 }
 
@@ -27,6 +30,18 @@ while [[ $# -gt 0 ]]; do
     --text)
       mode="text"
       shift
+      ;;
+    --live)
+      live_probe="1"
+      shift
+      ;;
+    --timeout)
+      timeout_seconds="${2:-}"
+      if [[ -z "$timeout_seconds" ]]; then
+        usage >&2
+        exit 2
+      fi
+      shift 2
       ;;
     --help|-h)
       usage
@@ -48,6 +63,8 @@ FAIGATE_PROVIDER_PROBE_CONFIG="$config_file" \
 FAIGATE_PROVIDER_PROBE_ENV="$env_file" \
 FAIGATE_PROVIDER_PROBE_MODE="$mode" \
 FAIGATE_PROVIDER_PROBE_HEALTH="$health_payload" \
+FAIGATE_PROVIDER_PROBE_LIVE="$live_probe" \
+FAIGATE_PROVIDER_PROBE_TIMEOUT="$timeout_seconds" \
 "$python_bin" - <<'PY'
 import json
 import os
@@ -60,6 +77,8 @@ report = build_provider_probe_report(
     config_path=os.environ["FAIGATE_PROVIDER_PROBE_CONFIG"],
     env_file=os.environ["FAIGATE_PROVIDER_PROBE_ENV"],
     health_payload=health_payload,
+    live_probe=os.environ.get("FAIGATE_PROVIDER_PROBE_LIVE") == "1",
+    timeout_seconds=float(os.environ.get("FAIGATE_PROVIDER_PROBE_TIMEOUT") or "2.0"),
 )
 
 if os.environ["FAIGATE_PROVIDER_PROBE_MODE"] == "json":

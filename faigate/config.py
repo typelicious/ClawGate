@@ -97,7 +97,7 @@ _SUPPORTED_PROVIDER_TRANSPORT_KEYS = {
     "notes",
 }
 _SUPPORTED_PROVIDER_TRANSPORT_AUTH_MODES = {"bearer", "query", "none"}
-_SUPPORTED_PROVIDER_TRANSPORT_PROBE_STRATEGIES = {"models", "none"}
+_SUPPORTED_PROVIDER_TRANSPORT_PROBE_STRATEGIES = {"models", "chat", "models_or_chat", "none"}
 _SUPPORTED_PROVIDER_TRANSPORT_COMPATIBILITY = {"native", "aggregator", "compat-layer"}
 _SUPPORTED_PROVIDER_TRANSPORT_CONFIDENCE = {"high", "medium", "low"}
 
@@ -548,6 +548,7 @@ def _normalize_provider_transport(name: str, cfg: dict[str, Any]) -> dict[str, A
     normalized["auth_mode"] = auth_mode
 
     probe_strategy = str(transport.get("probe_strategy", "models") or "models").strip().lower()
+    probe_strategy = probe_strategy.replace("-", "_")
     if probe_strategy not in _SUPPORTED_PROVIDER_TRANSPORT_PROBE_STRATEGIES:
         supported = ", ".join(sorted(_SUPPORTED_PROVIDER_TRANSPORT_PROBE_STRATEGIES))
         raise ConfigError(
