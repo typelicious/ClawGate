@@ -149,6 +149,7 @@ if health_raw:
         profile = str(request_readiness.get("profile") or "")
         compatibility = str(request_readiness.get("compatibility") or "")
         confidence = str(request_readiness.get("probe_confidence") or "")
+        verified_via = str(request_readiness.get("verified_via") or "")
         profile_bits = []
         if profile:
             profile_bits.append(profile)
@@ -156,6 +157,8 @@ if health_raw:
             profile_bits.append(compatibility)
         if confidence:
             profile_bits.append(f"confidence={confidence}")
+        if verified_via:
+            profile_bits.append(f"verified={verified_via}")
         profile_suffix = f" [{' | '.join(profile_bits)}]" if profile_bits else ""
         if request_readiness.get("ready"):
             ready += 1

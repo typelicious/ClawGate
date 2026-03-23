@@ -1286,8 +1286,9 @@ def test_faigate_dashboard_overview_summarizes_live_stats(tmp_path: Path):
                             "tier": "default",
                             "request_readiness": {
                                 "ready": True,
-                                "status": "ready",
-                                "reason": _READY_REASON,
+                                "status": "ready-verified",
+                                "reason": "route passed a live models probe recently",
+                                "verified_via": "models",
                             },
                         },
                         "gemini-flash": {
@@ -1431,8 +1432,9 @@ def test_faigate_dashboard_overview_summarizes_live_stats(tmp_path: Path):
                             },
                             "request_readiness": {
                                 "ready": True,
-                                "status": "ready",
-                                "reason": _READY_REASON,
+                                "status": "ready-verified",
+                                "reason": "route passed a live models probe recently",
+                                "verified_via": "models",
                             },
                             "transport": {
                                 "profile": "openai-compatible",
@@ -1517,8 +1519,9 @@ def test_faigate_dashboard_provider_detail_shows_canonical_lane(tmp_path: Path):
                             "tier": "default",
                             "request_readiness": {
                                 "ready": True,
-                                "status": "ready",
-                                "reason": _READY_REASON,
+                                "status": "ready-verified",
+                                "reason": "route passed a live models probe recently",
+                                "verified_via": "models",
                             },
                         },
                     },
@@ -1584,8 +1587,9 @@ def test_faigate_dashboard_provider_detail_shows_canonical_lane(tmp_path: Path):
                             },
                             "request_readiness": {
                                 "ready": True,
-                                "status": "ready",
-                                "reason": _READY_REASON,
+                                "status": "ready-verified",
+                                "reason": "route passed a live models probe recently",
+                                "verified_via": "models",
                             },
                             "route_runtime_state": {
                                 "penalty": 6,
@@ -1617,7 +1621,8 @@ def test_faigate_dashboard_provider_detail_shows_canonical_lane(tmp_path: Path):
     assert "Canonical lane    deepseek/chat" in result.stdout
     assert "Route type        direct" in result.stdout
     assert "Lane cluster      balanced-workhorse" in result.stdout
-    assert "Request-ready     ready" in result.stdout
+    assert "Request-ready     ready-verified" in result.stdout
+    assert "Verified via      models" in result.stdout
     assert "Transport profile openai-compatible" in result.stdout
     assert "Compatibility     native" in result.stdout
     assert "Chat path         /chat/completions" in result.stdout

@@ -76,7 +76,7 @@ def _health_issue_category(last_error: str) -> str:
 
 def _readiness_category(status: str) -> str:
     normalized = str(status or "").strip().lower()
-    if normalized in {"ready"}:
+    if normalized in {"ready", "ready-verified"}:
         return "ready"
     if normalized in {"ready-compat"}:
         return "compat"
@@ -844,6 +844,8 @@ def _render_provider_detail(report: dict[str, Any], provider_name: str) -> str:
     ]
     if request_readiness.get("reason"):
         lines.append(f"Readiness detail  {request_readiness.get('reason')}")
+    if request_readiness.get("verified_via"):
+        lines.append(f"Verified via      {request_readiness.get('verified_via')}")
     if transport:
         lines.extend(
             [
