@@ -324,9 +324,16 @@ def _hook_mode_override_header(context: RequestHookContext) -> RequestHookResult
         return None
 
     _KNOWN_MODE_ALIASES = {
-        "auto", "eco", "premium", "free",
+        "auto",
+        "eco",
+        "premium",
+        "free",
         # common aliases that _normalize_routing_posture already handles
-        "quality", "save", "cheap", "balanced", "standard",
+        "quality",
+        "save",
+        "cheap",
+        "balanced",
+        "standard",
     }
     if raw not in _KNOWN_MODE_ALIASES:
         return None

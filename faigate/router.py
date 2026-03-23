@@ -2066,8 +2066,11 @@ class Router:
             ri = dict(getattr(ctx, "request_insights", {}) or {})
             hook_hints = dict(getattr(ctx, "hook_hints", {}) or {})
             if ri.get("short_complex") or hook_hints.get("prefer_providers"):
-                return False, {"rule_name": rule_name, "fallthrough": True,
-                               "bypassed_for": "short_complex_or_prefer_providers"}
+                return False, {
+                    "rule_name": rule_name,
+                    "fallthrough": True,
+                    "bypassed_for": "short_complex_or_prefer_providers",
+                }
             return True, {"rule_name": rule_name, "fallthrough": True}
 
         matched_any = False
