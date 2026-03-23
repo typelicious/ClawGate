@@ -1171,7 +1171,10 @@ providers:
         encoding="utf-8",
     )
     env_file = tmp_path / ".env"
-    env_file.write_text("ANTHROPIC_API_KEY=sk-ant\n", encoding="utf-8")
+    env_file.write_text(
+        "ANTHROPIC_API_KEY=sk-ant\nOPENROUTER_API_KEY=sk-openrouter\n",
+        encoding="utf-8",
+    )
 
     report = build_provider_probe_report(
         config_path=config_path,
@@ -1303,7 +1306,10 @@ providers:
         encoding="utf-8",
     )
     env_file = tmp_path / ".env"
-    env_file.write_text("ANTHROPIC_API_KEY=sk-ant\n", encoding="utf-8")
+    env_file.write_text(
+        "ANTHROPIC_API_KEY=sk-ant\nOPENROUTER_API_KEY=sk-openrouter\n",
+        encoding="utf-8",
+    )
 
     plan = build_route_add_setup_plan(
         config_path=config_path,
@@ -1314,6 +1320,51 @@ providers:
     assert plan["actionable_additions"]
     assert plan["actionable_additions"][0]["provider_name"] == "openrouter-anthropic-opus"
     assert plan["actionable_additions"][0]["setup_provider_name"] == "openrouter-fallback"
+    assert [item["setup_provider_name"] for item in plan["auto_apply_additions"]] == [
+        "openrouter-fallback"
+    ]
+    assert plan["manual_additions"]
     rendered = render_route_add_setup_plan_text(plan)
     assert "Guided route additions" in rendered
+    assert "Ready to add now" in rendered
     assert "openrouter-fallback" in rendered
+
+
+def test_build_route_add_setup_plan_separates_ready_and_manual_additions(tmp_path: Path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        """
+providers:
+  anthropic-claude:
+    backend: anthropic-compat
+    api_key: "${ANTHROPIC_API_KEY}"
+    base_url: "https://api.anthropic.com/v1"
+    model: "claude-opus-4-6"
+  deepseek-reasoner:
+    backend: openai-compat
+    api_key: "${DEEPSEEK_API_KEY}"
+    base_url: "https://api.deepseek.com/v1"
+    model: "deepseek-reasoner"
+""".strip(),
+        encoding="utf-8",
+    )
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "ANTHROPIC_API_KEY=sk-ant\nOPENROUTER_API_KEY=sk-openrouter\n",
+        encoding="utf-8",
+    )
+
+    plan = build_route_add_setup_plan(
+        config_path=config_path,
+        env_file=env_file,
+        source_providers=["anthropic-claude", "deepseek-reasoner"],
+    )
+
+    assert [item["setup_provider_name"] for item in plan["auto_apply_additions"]] == [
+        "openrouter-fallback"
+    ]
+    assert "deepseek-chat" in [item["setup_provider_name"] for item in plan["manual_additions"]]
+    rendered = render_route_add_setup_plan_text(plan)
+    assert "Ready to add now" in rendered
+    assert "Need input first" in rendered
+    assert "needs DEEPSEEK_API_KEY" in rendered

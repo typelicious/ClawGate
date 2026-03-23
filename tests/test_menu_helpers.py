@@ -2199,7 +2199,10 @@ providers:
 """.strip(),
         encoding="utf-8",
     )
-    env_file.write_text("ANTHROPIC_API_KEY=sk-ant\n", encoding="utf-8")
+    env_file.write_text(
+        "ANTHROPIC_API_KEY=sk-ant\nOPENROUTER_API_KEY=sk-openrouter\n",
+        encoding="utf-8",
+    )
 
     fake_bin = _write_fake_curl(
         tmp_path,
@@ -2526,7 +2529,10 @@ providers:
 
 def test_faigate_provider_setup_recommended_text_lists_guided_route_additions(tmp_path: Path):
     env_file = tmp_path / ".env"
-    env_file.write_text("ANTHROPIC_API_KEY=sk-ant\n", encoding="utf-8")
+    env_file.write_text(
+        "ANTHROPIC_API_KEY=sk-ant\nOPENROUTER_API_KEY=sk-openrouter\n",
+        encoding="utf-8",
+    )
     config_file = tmp_path / "config.yaml"
     config_file.write_text(
         """
@@ -2561,7 +2567,10 @@ providers:
 
 def test_faigate_provider_setup_recommended_json_lists_actionable_additions(tmp_path: Path):
     env_file = tmp_path / ".env"
-    env_file.write_text("ANTHROPIC_API_KEY=sk-ant\n", encoding="utf-8")
+    env_file.write_text(
+        "ANTHROPIC_API_KEY=sk-ant\nOPENROUTER_API_KEY=sk-openrouter\n",
+        encoding="utf-8",
+    )
     config_file = tmp_path / "config.yaml"
     config_file.write_text(
         """
@@ -2593,6 +2602,49 @@ providers:
     assert payload["actionable_additions"]
     assert payload["actionable_additions"][0]["setup_provider_name"] == "openrouter-fallback"
     assert payload["actionable_additions"][0]["provider_name"] == "openrouter-anthropic-opus"
+    assert payload["auto_apply_additions"]
+    assert payload["manual_additions"]
+
+
+def test_faigate_provider_setup_recommended_write_auto_adds_ready_routes(tmp_path: Path):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "ANTHROPIC_API_KEY=sk-ant\nOPENROUTER_API_KEY=sk-openrouter\n",
+        encoding="utf-8",
+    )
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        """
+providers:
+  anthropic-claude:
+    backend: anthropic-compat
+    api_key: "${ANTHROPIC_API_KEY}"
+    base_url: "https://api.anthropic.com/v1"
+    model: "claude-opus-4-6"
+fallback_chain: []
+""".strip(),
+        encoding="utf-8",
+    )
+
+    env = os.environ.copy()
+    env["FAIGATE_ENV_FILE"] = str(env_file)
+    env["FAIGATE_CONFIG_FILE"] = str(config_file)
+    env["FAIGATE_PYTHON"] = sys.executable
+    env["PYTHONPATH"] = str(REPO_ROOT)
+
+    result = subprocess.run(
+        ["bash", "scripts/faigate-provider-setup", "--recommended", "--write"],
+        cwd=REPO_ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    written = yaml.safe_load(config_file.read_text(encoding="utf-8"))
+    assert "openrouter-fallback" in (written.get("providers") or {})
+    assert "Guided route additions completed." in result.stdout
+    assert "Provider setup summary" in result.stdout
 
 
 def test_faigate_client_scenarios_write_plus_routes_hands_off_to_guided_setup(tmp_path: Path):

@@ -76,6 +76,65 @@ run_and_pause_with_receipt() {
   return 0
 }
 
+guided_route_additions_counts() {
+  bash "${script_dir}/faigate-provider-setup" --recommended --json | "$python_bin" - <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.stdin.read() or "{}")
+print(
+    len(payload.get("actionable_additions") or []),
+    len(payload.get("auto_apply_additions") or []),
+    len(payload.get("manual_additions") or []),
+)
+PY
+}
+
+offer_guided_route_additions_now() {
+  local context_label="$1"
+  local counts total_count auto_count manual_count
+  counts="$(guided_route_additions_counts)"
+  read -r total_count auto_count manual_count <<EOF
+$counts
+EOF
+
+  if [ "${total_count:-0}" -le 0 ]; then
+    return 0
+  fi
+
+  echo ""
+  faigate_ui_tip "${context_label} surfaced ${total_count} recommended route addition(s)."
+  if [ "${auto_count:-0}" -gt 0 ]; then
+    faigate_ui_info "${auto_count} route addition(s) are ready for one-pass apply right now."
+  fi
+  if [ "${manual_count:-0}" -gt 0 ]; then
+    faigate_ui_info "${manual_count} route addition(s) still need env values if you want to add them now."
+  fi
+  printf "  Open Guided Route Additions now? [y/N]: "
+  read -r guided_choice
+  if [[ "${guided_choice:-N}" =~ ^[Yy]$ ]]; then
+    bash "${script_dir}/faigate-provider-setup" --recommended --interactive
+  fi
+}
+
+run_provider_setup_with_handoff() {
+  local command_rc=0
+  echo ""
+  bash "${script_dir}/faigate-provider-setup" || command_rc=$?
+  echo ""
+  if [ "$command_rc" -ne 0 ]; then
+    faigate_ui_warn "Command exited with status ${command_rc}."
+  else
+    offer_guided_route_additions_now "Provider Setup"
+  fi
+  show_next_steps "Provider sources updated." \
+    "Use API Keys next when one or more selected providers still need credentials." \
+    "Run Full Config Wizard after provider setup to refresh routing defaults around the new sources." \
+    "Run Validate once config and env both look close."
+  faigate_ui_pause
+  return 0
+}
+
 menu_snapshot() {
   FAIGATE_MENU_CONFIG="$config_file" FAIGATE_MENU_ENV="$env_file" "$python_bin" - <<'PY'
 from pathlib import Path
@@ -425,12 +484,21 @@ run_config_wizard() {
   if [ "${apply_mode:-1}" = "2" ]; then
     backup_suffix=".before-wizard-$(date +%Y%m%d%H%M%S)"
     cmd_args+=(--write "$config_file" --write-backup --backup-suffix "$backup_suffix")
-    run_and_pause_with_receipt "Wizard wrote the config." 3 \
+    local command_rc=0
+    echo ""
+    env FAIGATE_PYTHON="$python_bin" FAIGATE_ENV_FILE="$env_file" \
+      bash "${script_dir}/faigate-config-wizard" "${cmd_args[@]}" || command_rc=$?
+    echo ""
+    if [ "$command_rc" -ne 0 ]; then
+      faigate_ui_warn "Command exited with status ${command_rc}."
+    else
+      offer_guided_route_additions_now "Full Config Wizard"
+    fi
+    show_next_steps "Wizard wrote the config." \
       "Restart + Verify to load the new config." \
       "Run Validate if you changed providers or routing defaults." \
-      "Open Clients when you want the first consumer wired in." \
-      env FAIGATE_PYTHON="$python_bin" FAIGATE_ENV_FILE="$env_file" \
-      bash "${script_dir}/faigate-config-wizard" "${cmd_args[@]}"
+      "Open Clients when you want the first consumer wired in."
+    faigate_ui_pause
     printf "  Restart fusionAIze Gate to apply changes? [y/N]: "
     read -r restart_choice
     if [[ "${restart_choice:-N}" =~ ^[Yy]$ ]]; then
@@ -511,12 +579,21 @@ run_client_wizard() {
   if [ "${apply_mode:-1}" = "2" ]; then
     backup_suffix=".client-${client}-$(date +%Y%m%d%H%M%S)"
     cmd_args+=(--write "$config_file" --write-backup --backup-suffix "$backup_suffix")
-    run_and_pause_with_receipt "Client-scoped config update completed." 3 \
+    local command_rc=0
+    echo ""
+    env FAIGATE_PYTHON="$python_bin" FAIGATE_ENV_FILE="$env_file" \
+      bash "${script_dir}/faigate-config-wizard" "${cmd_args[@]}" || command_rc=$?
+    echo ""
+    if [ "$command_rc" -ne 0 ]; then
+      faigate_ui_warn "Command exited with status ${command_rc}."
+    else
+      offer_guided_route_additions_now "Client Wizard"
+    fi
+    show_next_steps "Client-scoped config update completed." \
       "Restart + Verify to activate the new client default." \
       "Use Client Matrix to confirm the profile and match intent." \
-      "Use the client drilldown to grab the exact setup hints again." \
-      env FAIGATE_PYTHON="$python_bin" FAIGATE_ENV_FILE="$env_file" \
-      bash "${script_dir}/faigate-config-wizard" "${cmd_args[@]}"
+      "Use the client drilldown to grab the exact setup hints again."
+    faigate_ui_pause
   else
     cmd_args+=(--dry-run-summary)
     run_and_pause_with_receipt "Client-scoped dry-run completed." 3 \
@@ -575,11 +652,7 @@ quick_setup_menu() {
     printf "  ▸ Choice: "
     read -r choice
     case "$choice" in
-      1) run_and_pause_with_receipt "Provider sources updated." 3 \
-        "Use API Keys next when one or more selected providers still need credentials." \
-        "Run Full Config Wizard after provider setup to refresh routing defaults around the new sources." \
-        "Run Validate once config and env both look close." \
-        bash "${script_dir}/faigate-provider-setup" ;;
+      1) run_provider_setup_with_handoff ;;
       2) run_and_pause_with_receipt "API keys updated." 3 \
         "Run Full Config Wizard when providers are still missing from config.yaml." \
         "Run Validate next to confirm provider env coverage." \

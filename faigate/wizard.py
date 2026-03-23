@@ -1883,6 +1883,8 @@ def build_route_add_setup_plan(
         configured_names=configured_names,
     )
     actionable: list[dict[str, Any]] = []
+    auto_apply: list[dict[str, Any]] = []
+    manual: list[dict[str, Any]] = []
     seen_setup = set(configured_names)
     for item in route_additions:
         setup_provider = str(item.get("setup_provider_name") or "")
@@ -1893,33 +1895,41 @@ def build_route_add_setup_plan(
         factory = _PROVIDER_FACTORIES[setup_provider]
         env_var = str(factory.get("env") or "")
         base_url_env = str(factory.get("base_url_env") or "")
-        actionable.append(
-            {
-                **item,
-                "setup_provider_name": setup_provider,
-                "env_var": env_var,
-                "base_url_env": base_url_env,
-                "key_present": bool(env_values.get(env_var)),
-                "base_url_present": bool(base_url_env and env_values.get(base_url_env)),
-            }
-        )
+        enriched = {
+            **item,
+            "setup_provider_name": setup_provider,
+            "env_var": env_var,
+            "base_url_env": base_url_env,
+            "key_present": bool(env_values.get(env_var)),
+            "base_url_present": bool(base_url_env and env_values.get(base_url_env)),
+        }
+        actionable.append(enriched)
+        if enriched["key_present"]:
+            auto_apply.append(enriched)
+        else:
+            manual.append(enriched)
         seen_setup.add(setup_provider)
     return {
         "source_providers": candidates,
         "route_additions": route_additions,
         "actionable_additions": actionable,
+        "auto_apply_additions": auto_apply,
+        "manual_additions": manual,
     }
 
 
 def render_route_add_setup_plan_text(plan: dict[str, Any]) -> str:
     lines = ["Guided route additions", ""]
     actionable = list(plan.get("actionable_additions") or [])
+    auto_apply = list(plan.get("auto_apply_additions") or [])
+    manual = list(plan.get("manual_additions") or [])
     if not actionable:
         lines.append("- none right now")
         lines.append("  why: the current provider inventory already covers")
         lines.append("       the known setup-capable route additions.")
         return "\n".join(lines) + "\n"
-    for item in actionable:
+
+    def _render_item(item: dict[str, Any]) -> None:
         status_bits = []
         if item.get("key_present"):
             status_bits.append("key ready")
@@ -1938,6 +1948,26 @@ def render_route_add_setup_plan_text(plan: dict[str, Any]) -> str:
         )
         if item.get("reason"):
             lines.append("  " + f"why: {item['reason']}")
+
+    if auto_apply:
+        lines.append("Ready to add now")
+        for item in auto_apply:
+            _render_item(item)
+        lines.append("")
+
+    if manual:
+        lines.append("Need input first")
+        for item in manual:
+            _render_item(item)
+        lines.append("")
+
+    if auto_apply:
+        lines.append(f"Tip: {len(auto_apply)} route addition(s) can be applied")
+        lines.append("     in one pass with the current env.")
+    if manual:
+        lines.append(
+            f"Tip: {len(manual)} route addition(s) still need input before they can be written."
+        )
     lines.append("")
     lines.append("Tip: Use Guided Route Additions in Provider Setup")
     lines.append("     to add these sources without re-selecting them manually.")
