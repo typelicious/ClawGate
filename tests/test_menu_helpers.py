@@ -1614,6 +1614,10 @@ def test_faigate_dashboard_overview_summarizes_live_stats(tmp_path: Path):
                                 "compatibility": "native",
                                 "probe_confidence": "high",
                             },
+                            "route_runtime_state": {
+                                "window_state": "clear",
+                                "recovered_recently": True,
+                            },
                         },
                         {
                             "name": "openrouter-fallback",
@@ -1636,6 +1640,9 @@ def test_faigate_dashboard_overview_summarizes_live_stats(tmp_path: Path):
                                 "profile": "openrouter-openai-compat",
                                 "compatibility": "aggregator",
                                 "probe_confidence": "high",
+                            },
+                            "route_runtime_state": {
+                                "window_state": "cooldown",
                             },
                         },
                     ]
@@ -1666,6 +1673,10 @@ def test_faigate_dashboard_overview_summarizes_live_stats(tmp_path: Path):
     assert "Request-ready       2/3 ready" in result.stdout
     assert "Compat routes       1 compatibility-backed" in result.stdout
     assert "Fallback traffic    28 requests" in result.stdout
+    assert "Lane families" in result.stdout
+    assert "Top family         deepseek" in result.stdout
+    assert "Cooldown routes    1" in result.stdout
+    assert "Recovery watch     1" in result.stdout
     assert "Top alert" in result.stdout
 
 
