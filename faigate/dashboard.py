@@ -131,6 +131,25 @@ def _inventory_provider_map(inventory_payload: dict[str, Any] | None) -> dict[st
     return provider_map
 
 
+def _routing_path_summary(routing_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    totals: dict[str, dict[str, Any]] = {}
+    for row in routing_rows:
+        selection_path = str(row.get("selection_path") or "").strip()
+        if not selection_path:
+            continue
+        bucket = totals.setdefault(
+            selection_path,
+            {"selection_path": selection_path, "requests": 0, "cost_usd": 0.0},
+        )
+        bucket["requests"] += _safe_int(row.get("requests"))
+        bucket["cost_usd"] += _safe_float(row.get("cost_usd"))
+    return sorted(
+        totals.values(),
+        key=lambda row: (row["requests"], row["cost_usd"]),
+        reverse=True,
+    )
+
+
 def _enrich_provider_rows_with_lane(
     rows: list[dict[str, Any]],
     provider_map: dict[str, dict[str, Any]],
@@ -149,6 +168,8 @@ def _enrich_provider_rows_with_lane(
                 "lane_name": str(lane.get("name") or ""),
                 "route_type": str(lane.get("route_type") or ""),
                 "lane_cluster": str(lane.get("cluster") or ""),
+                "transport": dict(provider_inventory.get("transport") or {}),
+                "request_readiness": dict(provider_inventory.get("request_readiness") or {}),
                 "route_runtime_state": dict(provider_inventory.get("route_runtime_state") or {}),
             }
         )
@@ -218,6 +239,7 @@ def build_dashboard_report(
         stats.get("providers") or [], inventory_provider_map
     )
     routing = stats.get("routing") or []
+    routing_paths = _routing_path_summary(routing)
     client_totals = stats.get("client_totals") or []
     client_highlights = stats.get("client_highlights") or _client_highlights(client_totals)
     daily = stats.get("daily") or []
@@ -294,6 +316,9 @@ def build_dashboard_report(
         health_summary = health_payload.get("summary") or {}
         unhealthy_count = _safe_int(health_summary.get("providers_unhealthy"))
         total_health_providers = _safe_int(health_summary.get("providers_total"))
+        readiness_summary = (health_payload or {}).get("request_readiness") or {}
+        providers_request_ready = _safe_int(readiness_summary.get("providers_ready"))
+        providers_request_not_ready = _safe_int(readiness_summary.get("providers_not_ready"))
         if unhealthy_count:
             preview = ", ".join(item["provider"] for item in unhealthy_providers[:3])
             suffix = "" if unhealthy_count <= 3 else f" +{unhealthy_count - 3} more"
@@ -303,6 +328,18 @@ def build_dashboard_report(
                     "headline": "One or more live providers are unhealthy",
                     "detail": f"{preview}{suffix} currently look degraded out of {total_health_providers} health-checked providers.",
                     "suggestion": "Run Provider Probe next, then review provider-specific errors before routing more traffic there.",
+                }
+            )
+        if providers_request_not_ready:
+            alerts.append(
+                {
+                    "level": "warning",
+                    "headline": "Some provider routes are not request-ready",
+                    "detail": (
+                        f"{providers_request_ready}/{total_health_providers} provider routes look request-ready "
+                        f"while {providers_request_not_ready} still need attention."
+                    ),
+                    "suggestion": "Run Provider Probe or Doctor next to isolate missing keys, auth failures, endpoint mismatches, or quota pressure before live routing.",
                 }
             )
 
@@ -346,6 +383,13 @@ def build_dashboard_report(
     elif fallback_requests:
         hints.append(
             f"Fallback routing has handled {fallback_requests} requests so far ({_format_pct(fallback_pct)} of total traffic)."
+        )
+
+    if routing_paths:
+        top_path = routing_paths[0]
+        hints.append(
+            "Actual attempt path most often seen so far: "
+            + f"{top_path['selection_path']} ({top_path['requests']} requests)."
         )
 
     if last_request and (time.time() - float(last_request)) > 12 * 3600:
@@ -453,6 +497,7 @@ def build_dashboard_report(
         "providers": providers,
         "clients": client_totals,
         "routing": routing,
+        "routing_paths": routing_paths,
         "daily": daily,
         "hourly": hourly,
         "operator_actions": operator_actions,
@@ -482,6 +527,14 @@ def build_dashboard_report(
                 ),
                 "providers_total": _safe_int(
                     ((health_payload or {}).get("summary") or {}).get("providers_total")
+                ),
+                "providers_request_ready": _safe_int(
+                    ((health_payload or {}).get("request_readiness") or {}).get("providers_ready")
+                ),
+                "providers_request_not_ready": _safe_int(
+                    ((health_payload or {}).get("request_readiness") or {}).get(
+                        "providers_not_ready"
+                    )
                 ),
                 "unhealthy": unhealthy_providers,
             },
@@ -526,6 +579,11 @@ def _render_overview(report: dict[str, Any]) -> str:
         f"  Live providers      {cards['health']['providers_healthy']}/{cards['health']['providers_total']} healthy"
         if report["source"]["live_health"]
         else "  Live providers      unavailable (runtime health not reachable)",
+        (
+            f"  Request-ready       {cards['health']['providers_request_ready']}/{cards['health']['providers_total']} ready"
+            if report["source"]["live_health"]
+            else "  Request-ready       unavailable (runtime health not reachable)"
+        ),
         f"  Fallback traffic    {cards['drivers']['fallback_requests']} requests ({_format_pct(_safe_float(cards['drivers']['fallback_pct']))})",
         f"  24h activity        {cards['drivers']['requests_24h']} requests / {_format_usd(_safe_float(cards['drivers']['cost_24h']))} / {_format_tokens(_safe_int(cards['drivers']['tokens_24h']))}",
         "",
@@ -578,6 +636,12 @@ def _render_providers(report: dict[str, Any]) -> str:
                 )
                 if row.get("canonical_model")
                 else "  lane: n/a",
+                "  request-ready: "
+                + (
+                    f"{(row.get('request_readiness') or {}).get('status')} | {(row.get('request_readiness') or {}).get('reason')}"
+                    if row.get("request_readiness")
+                    else "n/a"
+                ),
                 f"  requests: {_safe_int(row.get('requests'))} | failures: {_safe_int(row.get('failures'))} | success: {_format_pct(100.0 - (_safe_int(row.get('failures')) * 100.0 / max(1, _safe_int(row.get('requests')))))}",
                 f"  cost: {_format_usd(_safe_float(row.get('cost_usd')))} | latency: {_format_latency_ms(_safe_float(row.get('avg_latency_ms')))} | tokens: {_format_tokens(_safe_int(row.get('total_tokens')))}",
             ]
@@ -705,6 +769,15 @@ def _render_provider_detail(report: dict[str, Any], provider_name: str) -> str:
     requests = _safe_int(row.get("requests"))
     failures = _safe_int(row.get("failures"))
     success_pct = 100.0 - (failures * 100.0 / max(1, requests))
+    request_readiness = row.get("request_readiness") or {}
+    transport = row.get("transport") or {}
+    provider_routing_paths = _routing_path_summary(
+        [
+            item
+            for item in report.get("routing") or []
+            if str(item.get("provider") or "").strip().lower() == target
+        ]
+    )
     lines = [
         "fusionAIze Gate Dashboard",
         "",
@@ -722,7 +795,17 @@ def _render_provider_detail(report: dict[str, Any], provider_name: str) -> str:
         f"Canonical lane    {row.get('canonical_model') or 'n/a'}",
         f"Route type        {row.get('route_type') or 'n/a'}",
         f"Lane cluster      {row.get('lane_cluster') or 'n/a'}",
+        f"Request-ready     {request_readiness.get('status') or 'n/a'}",
     ]
+    if request_readiness.get("reason"):
+        lines.append(f"Readiness detail  {request_readiness.get('reason')}")
+    if transport:
+        lines.extend(
+            [
+                f"Probe strategy    {transport.get('probe_strategy') or 'n/a'}",
+                f"Chat path         {transport.get('chat_path') or 'n/a'}",
+            ]
+        )
     runtime_state = row.get("route_runtime_state") or {}
     if runtime_state:
         lines.extend(
@@ -733,6 +816,12 @@ def _render_provider_detail(report: dict[str, Any], provider_name: str) -> str:
         )
     if provider in unhealthy:
         lines.append(f"Live issue        {unhealthy[provider]['detail']}")
+    if provider_routing_paths:
+        lines.extend(["", "Observed attempt paths"])
+        for item in provider_routing_paths[:3]:
+            lines.append(
+                f"- {item.get('selection_path')}: {_safe_int(item.get('requests'))} requests / {_format_usd(_safe_float(item.get('cost_usd')))}"
+            )
     lines.extend(
         [
             "",
