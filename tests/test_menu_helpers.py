@@ -845,6 +845,8 @@ fallback_chain: [deepseek-chat]
 
     assert "Recommended clients now" in result.stdout
     assert "Best next step: opencode" in result.stdout
+    assert "Priority next:" in result.stdout
+    assert "path: open opencode details" in result.stdout
     assert "- openclaw" in result.stdout
     assert "- n8n" in result.stdout
     assert "- cli" in result.stdout
@@ -1343,7 +1345,9 @@ client_profiles:
     )
 
     assert "fusionAIze Gate Quick Setup" in result.stdout
-    assert "Start with Provider Setup" in result.stdout
+    assert "No provider sources are configured yet." in result.stdout
+    assert "Priority next" in result.stdout
+    assert "Provider Setup" in result.stdout
 
 
 def test_faigate_menu_quick_setup_validate_shows_next_steps(tmp_path: Path):
@@ -1397,6 +1401,7 @@ client_profiles:
     )
 
     assert "Validation completed." in result.stdout
+    assert "Recommended next:" in result.stdout
     assert "Fix any missing env or endpoint warnings before restart work." in result.stdout
 
 
@@ -1458,8 +1463,11 @@ client_profiles:
     )
 
     assert "fusionAIze Gate Quick Setup" in result.stdout
+    assert "Priority next" in result.stdout
+    assert "Recommended path" in result.stdout
     assert "Route gaps" in result.stdout
-    assert "Provider Setup -> Guided Route Additions next" in result.stdout
+    assert "Provider Setup (Recommended)" in result.stdout
+    assert "Provider Setup -> Guided Route Additions" in result.stdout
 
 
 def test_faigate_server_settings_updates_config_and_creates_backup(tmp_path: Path):
@@ -2627,6 +2635,9 @@ client_profiles:
     )
 
     assert "Client scenario applied." in result.stdout
+    assert (
+        "Recommended next: open Provider Setup -> Guided Route Additions before restart work"
+    ) in result.stdout
     assert "new opencode profile default" in result.stdout
     assert "drill into opencode Details" in result.stdout
 
@@ -2911,6 +2922,7 @@ fallback_chain: []
     written = yaml.safe_load(config_file.read_text(encoding="utf-8"))
     assert "openrouter-fallback" in (written.get("providers") or {})
     assert "Guided route additions completed." in result.stdout
+    assert "Recommended next: Validate" in result.stdout
     assert "Provider setup summary" in result.stdout
 
 
@@ -3011,7 +3023,7 @@ client_profiles:
     )
 
     assert "Provider Setup" in result.stdout
-    assert "Add known providers, custom endpoints, or local workers" in result.stdout
+    assert "Add providers, local workers, or route mirrors" in result.stdout
 
 
 def test_faigate_routing_settings_updates_default_and_profile_modes(tmp_path: Path):
