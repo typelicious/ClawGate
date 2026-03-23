@@ -122,10 +122,36 @@ print(json.dumps(plan))
 PY
 }
 
+recommended_route_additions_payload_json() {
+  local plan_file="$1"
+  local selection_mode="${2:-auto}"
+  PLAN_FILE="$plan_file" SELECTION_MODE="$selection_mode" "$python_bin" - <<'PY'
+import json
+import os
+from pathlib import Path
+
+plan = json.loads(Path(os.environ["PLAN_FILE"]).read_text(encoding="utf-8"))
+if os.environ["SELECTION_MODE"] == "manual":
+    additions = plan.get("manual_additions") or []
+else:
+    additions = plan.get("auto_apply_additions") or []
+
+payload = {
+    "known_providers": [
+        {"provider": str(item.get("setup_provider_name") or "")}
+        for item in additions
+        if str(item.get("setup_provider_name") or "")
+    ]
+}
+print(json.dumps(payload))
+PY
+}
+
 guided_route_additions_apply() {
   local requested_mode="$1"
   local apply_mode="$requested_mode"
-  local payload_file
+  local payload_file plan_file
+  local ready_count manual_count
   local -a provider_list=()
 
   if [[ "$requested_mode" == "interactive" ]]; then
@@ -134,28 +160,20 @@ guided_route_additions_apply() {
     echo ""
   fi
 
-  while IFS='|' read -r setup_provider route_provider strategy; do
-    [ -n "$setup_provider" ] && provider_list+=("$setup_provider")
-  done < <(
-    recommended_route_additions_json | "$python_bin" - <<'PY'
+  plan_file="$(mktemp)"
+  recommended_route_additions_json >"$plan_file"
+  read -r ready_count manual_count < <(
+    PLAN_FILE="$plan_file" "$python_bin" - <<'PY'
 import json
-import sys
+import os
+from pathlib import Path
 
-plan = json.loads(sys.stdin.read() or "{}")
-for item in plan.get("actionable_additions") or []:
-    print(
-        "|".join(
-            [
-                str(item.get("setup_provider_name") or ""),
-                str(item.get("provider_name") or ""),
-                str(item.get("strategy") or ""),
-            ]
-        )
-    )
+plan = json.loads(Path(os.environ["PLAN_FILE"]).read_text(encoding="utf-8"))
+print(len(plan.get("auto_apply_additions") or []), len(plan.get("manual_additions") or []))
 PY
   )
 
-  if [ "${#provider_list[@]}" -eq 0 ]; then
+  if [ "${ready_count:-0}" -eq 0 ] && [ "${manual_count:-0}" -eq 0 ]; then
     if [[ "$requested_mode" == "interactive" ]]; then
       echo ""
       show_next_steps "No guided route additions are needed right now." \
@@ -165,34 +183,73 @@ PY
     else
       show_recommended_route_additions
     fi
+    rm -f "$plan_file"
     return 0
   fi
-
-  payload_file="$(mktemp)"
-  collect_known_provider_payload "$payload_file" "${provider_list[@]}" || {
-    rm -f "$payload_file"
-    return 0
-  }
 
   if [[ "$requested_mode" == "interactive" ]]; then
     echo ""
     printf "  %bApply mode%b\n" "$FAIGATE_UI_BOLD"
-    printf "    1)  Dry-run only    Preview guided route additions, no writes\n"
-    printf "    2)  Write setup     Add the guided route additions to config.yaml and faigate.env\n"
+    printf "    1)  Dry-run only    Preview the ready route additions, no writes\n"
+    printf "    2)  Write setup     Add the ready route additions to config.yaml and faigate.env\n"
     printf "    c)  Cancel\n"
     printf "    q)  Quit\n"
     printf "  ▸ [1]: "
     read -r apply_mode
     case "${apply_mode:-1}" in
-      q|Q) rm -f "$payload_file"; exit 0 ;;
-      c|C) rm -f "$payload_file"; return 0 ;;
+      q|Q) rm -f "$plan_file"; exit 0 ;;
+      c|C) rm -f "$plan_file"; return 0 ;;
     esac
     apply_mode="$([ "${apply_mode:-1}" = "2" ] && printf write || printf dry)"
   fi
 
-  echo ""
-  apply_setup_payload "$payload_file" "$apply_mode"
-  rm -f "$payload_file"
+  if [ "${ready_count:-0}" -gt 0 ]; then
+    payload_file="$(mktemp)"
+    recommended_route_additions_payload_json "$plan_file" auto >"$payload_file"
+    echo ""
+    apply_setup_payload "$payload_file" "$apply_mode"
+    rm -f "$payload_file"
+  else
+    echo ""
+    faigate_ui_info "No route additions are ready for one-pass apply yet."
+  fi
+
+  if [[ "$requested_mode" == "interactive" ]] && [ "${manual_count:-0}" -gt 0 ]; then
+    echo ""
+    printf "  Review the remaining %s route addition(s) that still need env values now? [y/N]: " "$manual_count"
+    read -r review_remaining
+    if [[ "${review_remaining:-N}" =~ ^[Yy]$ ]]; then
+      payload_file="$(mktemp)"
+      manual_list="$(
+        recommended_route_additions_payload_json "$plan_file" manual | "$python_bin" - <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.stdin.read() or "{}")
+for item in payload.get("known_providers") or []:
+    if item.get("provider"):
+        print(item["provider"])
+PY
+      )"
+      if [ -n "$manual_list" ]; then
+        provider_list=()
+        while IFS= read -r provider_name; do
+          [ -n "$provider_name" ] && provider_list+=("$provider_name")
+        done <<EOF
+$manual_list
+EOF
+        collect_known_provider_payload "$payload_file" "${provider_list[@]}" || {
+          rm -f "$payload_file" "$plan_file"
+          return 0
+        }
+        echo ""
+        apply_setup_payload "$payload_file" "$apply_mode"
+      fi
+      rm -f "$payload_file"
+    fi
+  fi
+
+  rm -f "$plan_file"
   echo ""
   show_next_steps "Guided route additions completed." \
     "Run Validate next to confirm the new route sources are ready enough for live traffic." \
