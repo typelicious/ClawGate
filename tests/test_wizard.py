@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 from faigate.wizard import (
@@ -945,6 +946,62 @@ providers:
     assert "verified via: chat" in rendered
     assert "probe payload: kilo-chat-minimal" in rendered
     assert "next: route can carry live traffic" in rendered
+
+
+def test_build_provider_probe_report_live_probe_surfaces_verified_route(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        """
+providers:
+  kilocode:
+    backend: openai-compat
+    api_key: "${KILOCODE_API_KEY}"
+    base_url: "https://api.kilo.example/v1"
+    model: "z-ai/glm-5:free"
+    tier: fallback
+""".strip(),
+        encoding="utf-8",
+    )
+    env_file = tmp_path / ".env"
+    env_file.write_text("KILOCODE_API_KEY=sk-demo\n", encoding="utf-8")
+
+    async def _fake_probe(*_args, **_kwargs):
+        return {
+            "kilocode": {
+                "healthy": True,
+                "avg_latency_ms": 41.0,
+                "last_error": "",
+                "request_readiness": {
+                    "ready": True,
+                    "status": "ready-verified",
+                    "reason": "route passed a live chat probe recently",
+                    "profile": "kilo-openai-compat",
+                    "compatibility": "aggregator",
+                    "probe_confidence": "high",
+                    "probe_strategy": "chat",
+                    "verified_via": "chat",
+                },
+            }
+        }
+
+    monkeypatch.setattr("faigate.wizard._probe_providers_live", _fake_probe)
+
+    report = build_provider_probe_report(
+        config_path=config_path,
+        env_file=env_file,
+        live_probe=True,
+    )
+
+    row = report["providers"][0]
+    assert report["summary"]["live_probe"] is True
+    assert row["status"] == "ready-verified"
+    assert row["probe_strategy"] == "chat"
+    assert row["verified_via"] == "chat"
+    rendered = render_provider_probe_text(report)
+    assert "Live probe: enabled" in rendered
+    assert "verified via: chat" in rendered
 
 
 def test_list_client_scenarios_exposes_opencode_quality_path(tmp_path: Path):

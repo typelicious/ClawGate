@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
+import re
 import shutil
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +19,7 @@ from .lane_registry import (
     get_provider_transport_binding,
 )
 from .provider_catalog import get_provider_catalog
+from .providers import ProviderBackend
 
 ProviderFactory = dict[str, Any]
 
@@ -466,6 +470,51 @@ def _extract_env_reference(value: str) -> str:
     if stripped.startswith("${") and stripped.endswith("}"):
         return stripped[2:-1].split(":-", 1)[0].split(":", 1)[0]
     return ""
+
+
+_ENV_REF_RE = re.compile(r"\$\{([^}]+)}")
+
+
+def _expand_env_with_values(value: Any, env_values: dict[str, str]) -> Any:
+    if isinstance(value, str):
+        def _replace(match: re.Match[str]) -> str:
+            token = match.group(1)
+            if ":-" in token:
+                name, default = token.split(":-", 1)
+                return env_values.get(name, default)
+            return env_values.get(token, match.group(0))
+
+        return _ENV_REF_RE.sub(_replace, value)
+    if isinstance(value, dict):
+        return {key: _expand_env_with_values(val, env_values) for key, val in value.items()}
+    if isinstance(value, list):
+        return [_expand_env_with_values(item, env_values) for item in value]
+    return value
+
+
+async def _probe_providers_live(
+    configured: dict[str, dict[str, Any]],
+    *,
+    env_values: dict[str, str],
+    timeout_seconds: float,
+) -> dict[str, dict[str, Any]]:
+    results: dict[str, dict[str, Any]] = {}
+    for name, provider in configured.items():
+        runtime_cfg = _expand_env_with_values(deepcopy(provider), env_values)
+        if not isinstance(runtime_cfg, dict):
+            continue
+        backend = ProviderBackend(name, runtime_cfg)
+        try:
+            ok = await backend.probe_health(timeout_seconds=timeout_seconds)
+            results[name] = {
+                "healthy": ok,
+                "avg_latency_ms": backend.health.avg_latency_ms,
+                "last_error": backend.health.last_error,
+                "request_readiness": backend.request_readiness(),
+            }
+        finally:
+            await backend.close()
+    return results
 
 
 def _load_existing_provider_models(config_path: str | Path | None = None) -> dict[str, str]:
@@ -1035,10 +1084,23 @@ def build_provider_probe_report(
     config_path: str | Path | None = None,
     env_file: str | Path | None = None,
     health_payload: dict[str, Any] | None = None,
+    live_probe: bool = False,
+    timeout_seconds: float = 2.0,
 ) -> dict[str, Any]:
     configured = _load_existing_provider_configs(config_path)
     env_values = _load_env_values(env_file)
     provider_health = ((health_payload or {}).get("providers")) or {}
+    if live_probe and configured:
+        provider_health = {
+            **provider_health,
+            **asyncio.run(
+                _probe_providers_live(
+                    configured,
+                    env_values=env_values,
+                    timeout_seconds=timeout_seconds,
+                )
+            ),
+        }
     rows: list[dict[str, Any]] = []
     ready_count = 0
 
@@ -1139,6 +1201,7 @@ def build_provider_probe_report(
             "configured": len(rows),
             "ready": ready_count,
             "health_live": health_payload is not None,
+            "live_probe": live_probe,
         },
     }
 
@@ -1153,6 +1216,8 @@ def render_provider_probe_text(report: dict[str, Any]) -> str:
         "Live health: "
         + ("available" if summary.get("health_live") else "not available; config/env only")
     )
+    if summary.get("live_probe"):
+        lines.append("Live probe: enabled (using transport-specific shallow request probes)")
     lines.append("")
     for row in report.get("providers", []):
         lines.append(f"- {row['provider']}  ({row['status']})")
