@@ -11,6 +11,7 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+_READY_REASON = "route looks request-ready from config and recent runtime state"
 
 EXECUTABLE_HELPERS = [
     "scripts/faigate-auto-update",
@@ -360,6 +361,72 @@ providers:
     )
 
     assert "config appears to contain wizard suggestions" in result.stdout
+
+
+def test_faigate_doctor_reports_request_readiness_when_health_is_live(tmp_path: Path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        """
+providers:
+  deepseek-chat:
+    backend: openai-compat
+    api_key: "${DEEPSEEK_API_KEY}"
+    base_url: "https://api.deepseek.com/v1"
+    model: "deepseek-chat"
+""".strip(),
+        encoding="utf-8",
+    )
+    env_file = tmp_path / ".env"
+    env_file.write_text("DEEPSEEK_API_KEY=test-key\n", encoding="utf-8")
+    fake_bin = _write_fake_curl(
+        tmp_path,
+        {
+            "/health": json.dumps(
+                {
+                    "summary": {
+                        "providers_total": 1,
+                        "providers_healthy": 1,
+                        "providers_unhealthy": 0,
+                    },
+                    "request_readiness": {
+                        "providers_total": 1,
+                        "providers_ready": 1,
+                        "providers_not_ready": 0,
+                    },
+                    "providers": {
+                        "deepseek-chat": {
+                            "healthy": True,
+                            "request_readiness": {
+                                "ready": True,
+                                "status": "ready",
+                                "reason": _READY_REASON,
+                            },
+                        }
+                    },
+                }
+            ),
+            "/v1/models": json.dumps({"data": []}),
+        },
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    env["FAIGATE_CONFIG_FILE"] = str(config_file)
+    env["FAIGATE_ENV_FILE"] = str(env_file)
+    env["FAIGATE_PYTHON"] = sys.executable
+    env["PYTHONPATH"] = str(REPO_ROOT)
+
+    result = subprocess.run(
+        ["bash", "scripts/faigate-doctor"],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert "request-ready: deepseek-chat -> ready" in result.stdout
+    assert "request readiness summary: 1/1 provider routes look request-ready" in result.stdout
 
 
 def test_faigate_service_lib_detects_homebrew_runtime_paths(tmp_path: Path):
@@ -1200,13 +1267,39 @@ def test_faigate_dashboard_overview_summarizes_live_stats(tmp_path: Path):
                         "providers_healthy": 2,
                         "providers_unhealthy": 1,
                     },
+                    "request_readiness": {
+                        "providers_total": 3,
+                        "providers_ready": 2,
+                        "providers_not_ready": 1,
+                    },
                     "providers": {
-                        "deepseek-chat": {"healthy": True, "tier": "default"},
-                        "gemini-flash": {"healthy": True, "tier": "cheap"},
+                        "deepseek-chat": {
+                            "healthy": True,
+                            "tier": "default",
+                            "request_readiness": {
+                                "ready": True,
+                                "status": "ready",
+                                "reason": _READY_REASON,
+                            },
+                        },
+                        "gemini-flash": {
+                            "healthy": True,
+                            "tier": "cheap",
+                            "request_readiness": {
+                                "ready": True,
+                                "status": "ready",
+                                "reason": _READY_REASON,
+                            },
+                        },
                         "openrouter-fallback": {
                             "healthy": False,
                             "tier": "fallback",
                             "last_error": "rate limit",
+                            "request_readiness": {
+                                "ready": False,
+                                "status": "rate-limited",
+                                "reason": "rate-limit pressure is active on this route",
+                            },
                         },
                     },
                 }
@@ -1248,6 +1341,7 @@ def test_faigate_dashboard_overview_summarizes_live_stats(tmp_path: Path):
                             "provider": "openrouter-fallback",
                             "requests": 28,
                             "cost_usd": 1.6,
+                            "selection_path": "same-lane-route",
                         },
                         {
                             "layer": "heuristic",
@@ -1255,6 +1349,7 @@ def test_faigate_dashboard_overview_summarizes_live_stats(tmp_path: Path):
                             "provider": "deepseek-chat",
                             "requests": 92,
                             "cost_usd": 1.4,
+                            "selection_path": "primary-selected",
                         },
                     ],
                     "client_totals": [
@@ -1324,6 +1419,11 @@ def test_faigate_dashboard_overview_summarizes_live_stats(tmp_path: Path):
                                 "route_type": "direct",
                                 "cluster": "balanced-workhorse",
                             },
+                            "request_readiness": {
+                                "ready": True,
+                                "status": "ready",
+                                "reason": _READY_REASON,
+                            },
                         },
                         {
                             "name": "openrouter-fallback",
@@ -1333,6 +1433,11 @@ def test_faigate_dashboard_overview_summarizes_live_stats(tmp_path: Path):
                                 "canonical_model": "aggregator/openrouter-auto",
                                 "route_type": "aggregator",
                                 "cluster": "aggregator-fallback",
+                            },
+                            "request_readiness": {
+                                "ready": False,
+                                "status": "rate-limited",
+                                "reason": "rate-limit pressure is active on this route",
                             },
                         },
                     ]
@@ -1360,6 +1465,7 @@ def test_faigate_dashboard_overview_summarizes_live_stats(tmp_path: Path):
     assert "Source: live-api" in result.stdout
     assert "Top provider        deepseek-chat" in result.stdout
     assert "Top client          opencode" in result.stdout
+    assert "Request-ready       2/3 ready" in result.stdout
     assert "Fallback traffic    28 requests" in result.stdout
     assert "Top alert" in result.stdout
     assert "Decision support" in result.stdout
@@ -1377,8 +1483,21 @@ def test_faigate_dashboard_provider_detail_shows_canonical_lane(tmp_path: Path):
                         "providers_healthy": 1,
                         "providers_unhealthy": 0,
                     },
+                    "request_readiness": {
+                        "providers_total": 1,
+                        "providers_ready": 1,
+                        "providers_not_ready": 0,
+                    },
                     "providers": {
-                        "deepseek-chat": {"healthy": True, "tier": "default"},
+                        "deepseek-chat": {
+                            "healthy": True,
+                            "tier": "default",
+                            "request_readiness": {
+                                "ready": True,
+                                "status": "ready",
+                                "reason": _READY_REASON,
+                            },
+                        },
                     },
                 }
             ),
@@ -1404,7 +1523,16 @@ def test_faigate_dashboard_provider_detail_shows_canonical_lane(tmp_path: Path):
                             "avg_latency_ms": 420.0,
                         }
                     ],
-                    "routing": [],
+                    "routing": [
+                        {
+                            "layer": "fallback",
+                            "rule_name": "fallback",
+                            "provider": "deepseek-chat",
+                            "requests": 3,
+                            "cost_usd": 0.12,
+                            "selection_path": "same-lane-route",
+                        }
+                    ],
                     "client_totals": [],
                     "client_highlights": {},
                     "operator_actions": [],
@@ -1423,6 +1551,15 @@ def test_faigate_dashboard_provider_detail_shows_canonical_lane(tmp_path: Path):
                                 "canonical_model": "deepseek/chat",
                                 "route_type": "direct",
                                 "cluster": "balanced-workhorse",
+                            },
+                            "transport": {
+                                "probe_strategy": "models",
+                                "chat_path": "/chat/completions",
+                            },
+                            "request_readiness": {
+                                "ready": True,
+                                "status": "ready",
+                                "reason": _READY_REASON,
                             },
                             "route_runtime_state": {
                                 "penalty": 6,
@@ -1454,8 +1591,12 @@ def test_faigate_dashboard_provider_detail_shows_canonical_lane(tmp_path: Path):
     assert "Canonical lane    deepseek/chat" in result.stdout
     assert "Route type        direct" in result.stdout
     assert "Lane cluster      balanced-workhorse" in result.stdout
+    assert "Request-ready     ready" in result.stdout
+    assert "Chat path         /chat/completions" in result.stdout
     assert "Runtime penalty   6" in result.stdout
     assert "Last issue type   rate-limited" in result.stdout
+    assert "Observed attempt paths" in result.stdout
+    assert "same-lane-route: 3 requests" in result.stdout
 
 
 def test_faigate_provider_probe_summarizes_config_env_and_health(tmp_path: Path):

@@ -23,6 +23,7 @@ status=0
 
 export FAIGATE_ENV_FILE="$env_file"
 export FAIGATE_CONFIG_FILE="$config_file"
+health_payload=""
 
 ok() {
   printf '[ok] %s\n' "$1"
@@ -60,20 +61,30 @@ else
   warn "db directory does not exist yet: $db_dir"
 fi
 
-if [ -f "$env_file" ] && grep -Eq '^(DEEPSEEK_API_KEY|GEMINI_API_KEY|OPENROUTER_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|OPENCODE_API_KEY)=[^[:space:]#]+' "$env_file"; then
+if [ -f "$env_file" ] && grep -Eq '^(DEEPSEEK_API_KEY|GEMINI_API_KEY|OPENROUTER_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|OPENCODE_API_KEY|BLACKBOX_API_KEY|KILOCODE_API_KEY)=[^[:space:]#]+' "$env_file"; then
   ok "at least one provider API key is configured"
 else
   warn "no provider API key detected in $env_file"
 fi
 
-"$python_bin" - <<'PY'
+if command -v curl >/dev/null 2>&1; then
+  if payload="$(curl -fsS -m 2 "$(faigate_health_url)" 2>/dev/null)"; then
+    health_payload="$payload"
+  fi
+fi
+
+export FAIGATE_HEALTH_PAYLOAD="$health_payload"
+
+if ! "$python_bin" - <<'PY'
 import os
+import sys
+import json
 from pathlib import Path
 
 import yaml
 from faigate.onboarding import collect_provider_env_requirements
 from faigate.provider_catalog import build_provider_catalog_report
-from faigate.config import load_config
+from faigate.config import ConfigError, load_config
 
 config_path = Path(os.environ.get("FAIGATE_CONFIG_FILE", ""))
 raw_config = {}
@@ -96,7 +107,12 @@ for name in requirements["present"]:
 for name in requirements["missing"]:
     print(f"[warn] provider env missing: {name}")
 
-config = load_config(os.environ.get("FAIGATE_CONFIG_FILE"))
+try:
+    config = load_config(os.environ.get("FAIGATE_CONFIG_FILE"))
+except ConfigError as exc:
+    print(f"[fail] config invalid: {exc}")
+    sys.exit(1)
+
 catalog = build_provider_catalog_report(config)
 if catalog["alert_count"] == 0:
     print("[ok] provider catalog shows no model-drift or freshness alerts")
@@ -116,7 +132,31 @@ for item in catalog.get("items", []):
         continue
     label = "disclosed link" if discovery.get("disclosure_required") else "official link"
     print(f"[ok] provider discovery: {item['provider']} -> {label} -> {resolved}")
+
+health_raw = os.environ.get("FAIGATE_HEALTH_PAYLOAD", "").strip()
+if health_raw:
+    health_payload = json.loads(health_raw)
+    providers = (health_payload.get("providers") or {})
+    ready = 0
+    total = 0
+    for provider_name, payload in sorted(providers.items()):
+        total += 1
+        request_readiness = payload.get("request_readiness") or {}
+        if not request_readiness:
+            continue
+        status = str(request_readiness.get("status") or "unknown")
+        reason = str(request_readiness.get("reason") or "no request-readiness detail")
+        if request_readiness.get("ready"):
+            ready += 1
+            print(f"[ok] request-ready: {provider_name} -> {status} ({reason})")
+        else:
+            print(f"[warn] request-ready: {provider_name} -> {status} ({reason})")
+    if total:
+        print(f"[ok] request readiness summary: {ready}/{total} provider routes look request-ready")
 PY
+then
+  status=1
+fi
 
 if command -v curl >/dev/null 2>&1; then
   if curl -fsS -m 2 "$(faigate_health_url)" >/dev/null 2>&1; then

@@ -1121,7 +1121,10 @@ def render_provider_probe_text(report: dict[str, Any]) -> str:
             lines.append("  " + f"latency: {row['avg_latency_ms']:.1f} ms")
         lines.append("  " + f"why: {row['reason']}")
     lines.append("")
-    lines.append("Tip: Ready means config, env, and the current /health payload all line up.")
+    lines.append(
+        "Tip: Ready means config, env, and the current /health "
+        "request-readiness payload all line up."
+    )
     lines.append(
         "Tip: Missing-key or model-unavailable states should be fixed before client rollout."
     )
