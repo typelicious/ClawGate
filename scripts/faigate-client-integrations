@@ -189,6 +189,12 @@ else:
         print("Recommended clients now")
         if best_next:
             print(f"  Best next step: {best_next}")
+            print("  Priority next:")
+            print(f"    path: open {best_next} details")
+            print(
+                "    why : this is the strongest ready-to-wire client based on the current "
+                "provider inventory and profile setup."
+            )
             if os.environ.get("FAIGATE_INTEGRATION_INTERACTIVE") == "1":
                 print("  Use the drilldown selector below for one client at a time.")
             else:

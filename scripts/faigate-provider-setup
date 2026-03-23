@@ -252,6 +252,7 @@ EOF
   rm -f "$plan_file"
   echo ""
   show_next_steps "Guided route additions completed." \
+    "Recommended next: Validate so the new mirrors and env coverage get checked against the live request-ready view." \
     "Run Validate next to confirm the new route sources are ready enough for live traffic." \
     "Open Full Config Wizard or Client Scenarios if you want routing defaults refreshed around the added routes." \
     "Provider Probe will show whether the newly added mirrors are now request-ready."
@@ -491,6 +492,7 @@ known_provider_flow() {
   rm -f "$payload_file"
   echo ""
   show_next_steps "Provider source setup completed." \
+    "Recommended next: Full Config Wizard when you added new sources, or Guided Route Additions if the new lanes still want mirrors." \
     "Run Validate next to catch missing keys or config drift." \
     "Run Full Config Wizard when you want purpose- and client-aware routing suggestions." \
     "Provider Probe is the natural next UX slice once it lands."

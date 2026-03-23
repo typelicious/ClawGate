@@ -76,6 +76,45 @@ run_and_pause_with_receipt() {
   return 0
 }
 
+priority_next_step_line() {
+  local action_output line label reason
+  action_output="$(recommended_quick_setup_action)"
+  while IFS= read -r line; do
+    case "$line" in
+      label=*) label="${line#label=}" ;;
+      reason=*) reason="${line#reason=}" ;;
+    esac
+  done <<EOF
+$action_output
+EOF
+  printf '%s\n' "Recommended next: ${label:-Validate}. ${reason:-}"
+}
+
+run_and_pause_with_priority_receipt() {
+  local title="$1"
+  shift
+  local step_count="$1"
+  shift
+  local -a steps=()
+  local index priority_step
+  for ((index = 0; index < step_count; index++)); do
+    steps+=("$1")
+    shift
+  done
+
+  local command_rc=0
+  echo ""
+  "$@" || command_rc=$?
+  echo ""
+  if [ "$command_rc" -ne 0 ]; then
+    faigate_ui_warn "Command exited with status ${command_rc}."
+  fi
+  priority_step="$(priority_next_step_line)"
+  show_next_steps "$title" "$priority_step" "${steps[@]}"
+  faigate_ui_pause
+  return 0
+}
+
 guided_route_additions_counts() {
   bash "${script_dir}/faigate-provider-setup" --recommended --json | "$python_bin" - <<'PY'
 import json
@@ -932,33 +971,33 @@ quick_setup_menu() {
     read -r choice
     case "$choice" in
       1) run_provider_setup_with_handoff ;;
-      2) run_and_pause_with_receipt "API keys updated." 3 \
+      2) run_and_pause_with_priority_receipt "API keys updated." 3 \
         "Run Full Config Wizard when providers are still missing from config.yaml." \
         "Run Validate next to confirm provider env coverage." \
         "Restart + Verify only after config and env are both where you want them." \
         bash "${script_dir}/faigate-api-keys" ;;
-      3) run_and_pause_with_receipt "Provider probe completed." 3 \
+      3) run_and_pause_with_priority_receipt "Provider probe completed." 3 \
         "Fix missing-key, model-unavailable, or quota states before routing real client traffic." \
         "Use Full Config Wizard next when the provider set is right but the client defaults still are not." \
         "Client Scenarios are the next layer once the providers themselves look ready." \
         bash "${script_dir}/faigate-provider-probe" ;;
       4) run_config_wizard ;;
-      5) run_and_pause_with_receipt "Validation completed." 3 \
+      5) run_and_pause_with_priority_receipt "Validation completed." 3 \
         "Fix any missing env or endpoint warnings before restart work." \
         "Restart + Verify once the doctor output is clean enough." \
         "Open Client Quickstarts when the gateway looks healthy." \
         bash "${script_dir}/faigate-doctor" ;;
-      6) run_and_pause_with_receipt "Gateway restart completed." 3 \
+      6) run_and_pause_with_priority_receipt "Gateway restart completed." 3 \
         "Run Health Check if you want the live runtime summary again." \
         "Open Status when you need service-manager and listener details." \
         "Open Client Quickstarts to connect the first real client." \
         bash "${script_dir}/faigate-restart" ;;
-      7) run_and_pause_with_receipt "Client scenarios loaded." 3 \
+      7) run_and_pause_with_priority_receipt "Client scenarios loaded." 3 \
         "Pick one scenario when you want opencode, n8n, or CLI traffic to get a deliberate default mode." \
         "Restart + Verify after writing a scenario so the live runtime picks it up." \
         "Return to Client Quickstarts when you want copyable connection details for one client." \
         bash "${script_dir}/faigate-client-scenarios" ;;
-      8) run_and_pause_with_receipt "Client quickstarts loaded." 3 \
+      8) run_and_pause_with_priority_receipt "Client quickstarts loaded." 3 \
         "Open one client drilldown when you want copyable details for exactly one tool." \
         "Use a client-scoped wizard when one client needs a tuned routing default." \
         "Return to Quick Setup when you want the shortest path again." \

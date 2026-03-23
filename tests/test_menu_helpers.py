@@ -845,6 +845,8 @@ fallback_chain: [deepseek-chat]
 
     assert "Recommended clients now" in result.stdout
     assert "Best next step: opencode" in result.stdout
+    assert "Priority next:" in result.stdout
+    assert "path: open opencode details" in result.stdout
     assert "- openclaw" in result.stdout
     assert "- n8n" in result.stdout
     assert "- cli" in result.stdout
@@ -1399,6 +1401,7 @@ client_profiles:
     )
 
     assert "Validation completed." in result.stdout
+    assert "Recommended next:" in result.stdout
     assert "Fix any missing env or endpoint warnings before restart work." in result.stdout
 
 
@@ -2919,6 +2922,7 @@ fallback_chain: []
     written = yaml.safe_load(config_file.read_text(encoding="utf-8"))
     assert "openrouter-fallback" in (written.get("providers") or {})
     assert "Guided route additions completed." in result.stdout
+    assert "Recommended next: Validate" in result.stdout
     assert "Provider setup summary" in result.stdout
 
 
