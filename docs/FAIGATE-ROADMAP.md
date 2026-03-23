@@ -37,7 +37,303 @@ The detailed design lives in [Adaptive model orchestration](./ADAPTIVE-ORCHESTRA
 
 The next block should stay disciplined: build on the workstation baseline, keep packaging practical, and avoid turning fusionAIze Gate into a sprawling platform.
 
-## `v1.8.0` to `v1.11.x`: adaptive model orchestration
+## Shipped: `v1.8.0` – `v1.9.1`
+
+The adaptive model orchestration foundation is fully in place:
+
+- **v1.8.0** ✅ lane registry, provider lane metadata, route-aware catalog surfaces
+- **v1.9.0** ✅ lane-aware router scoring, "why this lane?" traces, short-complex escalation
+- **v1.9.1** ✅ routing bug fixes, signal group expansion (10 groups), mode-override hook, load_dotenv fix
+
+What shipped in v1.9.1 specifically:
+
+- `load_dotenv()` now correctly resolves `faigate.env` from the config directory (fixed 0/10 providers unresolved-key state under Homebrew launchd)
+- `short_complex` prompts (< 80 tokens, ≥ 2 signal groups) bypass `short-message` and `general-default` heuristic rules and reach profile scoring correctly
+- `prefer-provider-header` hook correctly bypasses `general-default` fallthrough
+- New `mode-override-header` hook: `X-faigate-Mode` header sets routing posture per-request
+- `_routing_posture()` checks `hook_hints.routing_mode` before `profile_hints`
+- 5 new `opencode` signal groups: `devops`, `testing`, `security`, `database`, extended `architecture`
+- Plural keyword matching fixed: `unit tests`, `integration tests` now detected correctly
+
+Non-negotiable guardrails that remain in effect across all future releases:
+
+- never hide a downgrade from operators
+- prefer same-lane route substitution before weaker-model degradation
+- keep old configs compatible while new metadata is introduced
+- treat benchmarks and cost heuristics as curated operational inputs, not as magic constants
+
+---
+
+## `v1.9.2`: quick-win observability and pre-failure rate limiting
+
+Primary goals:
+
+- surface routing context to clients without requiring them to read `/api/route`
+- reduce 429 cascades proactively instead of reacting after errors occur
+
+### `x-faigate-trace-id` response header
+
+Every response adds `x-faigate-trace-id: <sqlite-row-id-or-uuid>` so clients (opencode, openclaw, n8n) can correlate their own logs with Gate traces at `/api/traces`. One-line addition to the response pipeline in `main.py`. Costs nothing operationally.
+
+### Live RPM/TPM headroom scoring
+
+Currently Gate reacts to rate-limit errors after they happen (via the typed cooldown windows). This adds a pre-failure layer:
+
+- new `rpm_limit` and `tpm_limit` optional fields in provider config
+- rolling request counter per provider per minute in `adaptation.py` state (in-memory, no persistence required)
+- when a provider exceeds 80% of its configured limit, apply a soft scoring penalty in the provider scoring layer
+- penalty scales linearly from 80% to 100% headroom; at 100% the provider is temporarily excluded (same as a live rate-limit error but proactive)
+- no change to the cooldown model — this is a pre-failure complement, not a replacement
+
+This is a direct answer to LiteLLM's `usage-based-routing` strategy and eliminates the majority of observable 429 cascades in high-throughput operator deployments.
+
+---
+
+## `v1.10.x`: provider intelligence layer
+
+The canonical lane registry is already the strongest differentiator vs LiteLLM and OpenRouter. This release line deepens it into a managed data product — richer, fresher, and directly queryable by the scoring engine.
+
+### Granular capability tag matrix
+
+Current state: `reasoning_strength: high`, `context_strength: mid`, `tool_strength: medium` as string labels.
+
+Target: a full capability matrix per lane that the scoring engine can use directly:
+
+| Tag | Values | Scoring use |
+|-----|--------|-------------|
+| `reasoning_strength` | `high / mid / low` | reasoning lane selection |
+| `context_strength` | `high / mid / low` | long-context routing |
+| `tool_strength` | `strong / medium / weak` | tool-use heuristic |
+| `latency_tier` | `fast / standard / slow` | TTFT-sensitive routing |
+| `coding_strength` | `high / mid / low` | code signal group weighting |
+| `instruction_following` | `high / mid / low` | structured output routing |
+| `vision` | `true / false` | multimodal routing guard |
+| `multilingual` | `true / false` | locale-aware routing (future) |
+
+Each tag feeds directly into scoring formulas rather than being a post-hoc label. A `latency_tier: fast` lane gets a scoring bonus when `stream: true` and expected output is short. A `coding_strength: high` lane gets a bonus when `devops` or `testing` signal groups fire.
+
+### Richer benchmark cluster metadata
+
+Current state: `benchmark_cluster: balanced-coding` — a single string label.
+
+Target: structured object per lane:
+
+```yaml
+benchmark:
+  cluster: balanced-coding
+  coding_rank: 3          # ordinal rank within cluster (1 = best)
+  reasoning_rank: 2
+  cost_efficiency_rank: 1
+  last_reviewed: 2026-03-24
+  freshness_days: 1
+  sources:
+    - LiveCodeBench-2025-Q1
+    - Aider-Polyglot-2025-03
+    - MATH-500
+```
+
+Rank `1` beats rank `3` in the same cluster when other factors are equal. Today operators have to hold this in their heads; with structured ranks the scoring engine can quantify it. The `sources` array makes the basis for quality assumptions explicit and auditable.
+
+### Context window cache intelligence
+
+Current state: `cache.mode: implicit/explicit/none` and `cache_read_discount: 0.1` as flat fields. No TTL, no minimum prefix threshold per provider.
+
+Target: full cache spec per provider:
+
+```yaml
+cache:
+  mode: implicit              # implicit / explicit / none
+  min_prefix_tokens: 1024     # minimum stable prefix for cache to activate
+  ttl_seconds: 300            # provider cache lifetime (Anthropic: 5 min, OpenAI: ~1 h)
+  max_cached_tokens: 32000    # max tokens in prefix that stay cached at this provider
+  cache_read_discount: 0.1    # cost of cached input tokens vs fresh input tokens
+  cache_write_surcharge: 1.25 # explicit mode only: write cost multiplier (Anthropic: +25%)
+```
+
+Routing decisions this enables:
+
+- if `stable_prefix_tokens >= cache.min_prefix_tokens` → prefer providers where `ttl_seconds` exceeds the expected session duration
+- if `total_tokens > cache.max_cached_tokens` → warn operator: cache will not activate at this provider for this request size
+- `cache_write_surcharge` makes explicit cache-insert cost calculable in the scoring layer (today it is invisible)
+- session-aware routing: routes with recent cache hits on the same stable prefix get a cost-adjusted scoring bonus
+
+This is where faigate genuinely beats both LiteLLM and OpenRouter. LiteLLM models gateway-level response caching (full response deduplication). OpenRouter exposes prompt caching implicitly but does not surface TTL or minimum prefix thresholds. faigate models provider-side prompt caching semantics explicitly — which is more accurate for how Anthropic and OpenAI actually implement it.
+
+### Fresher provider pricing and auto-update cadence
+
+Current state: `last_reviewed` and `freshness_status` are manually maintained. No automated pricing drift detection.
+
+Target:
+
+- `faigate-auto-update` fetches a `provider-catalog.json` from a configured endpoint (fusionAIze-hosted or self-hosted)
+- diffs incoming pricing against local `lane_registry.py` values
+- emits an operator event when pricing drift exceeds 20% on any lane
+- new `pricing.stale_since_days` field in provider config; scoring engine applies an uncertainty penalty when pricing is stale
+- pricing update can be applied via `faigate-update` or operator approval flow, not silently
+
+### TTFT and throughput as routing signals
+
+Current state: `latency_ms` is recorded per request in metrics. No per-provider TTFT profile exists; no latency-sensitive routing path.
+
+Target:
+
+- rolling TTFT (time-to-first-token) measured per provider in the response pipeline
+- `p50_ttft_ms` and `p95_ttft_ms` per provider stored in `adaptation.py` state
+- new request insight: `latency_sensitive: true` when `stream: true` and expected output token count is short (< 500 tokens)
+- `latency_sensitive` prompts prefer providers where `p50_ttft_ms` is low and `latency_tier: fast`
+- TTFT profiles decay over time (30-minute rolling window) so a provider that was fast this morning but slow now loses its advantage
+
+### Named routing strategy aliases (operator legibility)
+
+LiteLLM lets operators set `routing_strategy: latency-based-routing` and understand what they're getting. faigate's scoring is richer but less legible to operators who are evaluating it or comparing it against alternatives.
+
+Add an optional `routing_strategy` config field that maps to scoring weight presets:
+
+| Strategy alias | Effect on scoring weights |
+|----------------|--------------------------|
+| `latency-first` | `p50_ttft_ms` weight ×3, cost weight ×0.5 |
+| `cost-first` | cost weight ×3, quality tier weight ×0.5 |
+| `quality-first` | benchmark rank weight ×3, cost weight ×0.5 |
+| `balanced` | default weights (current behavior) |
+
+The multi-dimensional engine does not change — only the weight distribution shifts. Operators can audit what they're getting; the engine stays the same under the hood.
+
+---
+
+## `v1.11.x`: virtual key layer and gateway-level response caching
+
+### Virtual key layer (Tier B)
+
+This is the single largest remaining gap between faigate and LiteLLM for any deployment with more than one operator or client that needs cost accountability. It is also the natural anchor feature for Tier B commercial positioning.
+
+Per-key fields:
+- `max_budget` and `budget_duration` (daily / weekly / monthly)
+- `rpm_limit` and `tpm_limit`
+- `allowed_models` (restrict a key to specific canonical lanes or routing modes)
+- `hard_limit: true/false` — hard blocks the request vs soft logs-only
+- key lifecycle: create, rotate, expire, disable
+
+Implementation:
+- SQLite-backed key registry (no Postgres required)
+- budget enforcement at the routing decision point, before any provider call
+- `x-faigate-api-key` request header (or standard `Authorization: Bearer` with a virtual key prefix)
+- spend ledger per key per day in the existing `metrics.py` schema
+- `/api/keys` endpoint for key management (operator-only, behind operator secret)
+
+This feature is Tier B from day one. It will not be backslid to Tier A. This boundary should be announced in the roadmap before the feature ships.
+
+### Gateway-level response caching (exact match)
+
+Distinct from provider-side prompt caching. This eliminates provider calls entirely for repeated identical prompts.
+
+- canonical request hash: `sha256(model + messages + temperature + tool_choice + response_format)` — normalised before hashing so field order does not matter
+- in-memory LRU cache with configurable `max_entries` and `ttl_seconds`
+- cache hit returns the stored response directly, sets `x-faigate-cache: hit` response header
+- cache miss records the response and stores it if eligible (streaming responses are not cached at this stage)
+- cost savings from cache hits are recorded in metrics and visible in the dashboard
+- Redis backend as an optional future extension for shared-state multi-process deployments
+
+### Webhook / callback observability output
+
+Add configurable `success_callbacks` and `failure_callbacks` in config (list of URLs). On each completed request, POST a structured JSON event (same fields as the metrics schema) to each configured URL. This unlocks Langfuse, Helicone, Datadog, and custom sinks with zero deep-integration work. The data model already captures everything needed.
+
+### Reference guardrail hook implementations
+
+The hook seam in `hooks.py` supports fail-closed behavior via `HookExecutionError`. Ship two reference guardrail implementations to make the seam credible for enterprise evaluation:
+
+1. `keyword-blocklist` hook: configurable list of blocked terms; fails closed with 400 if matched
+2. `max-prompt-tokens` hook: rejects requests exceeding a configurable token count before any provider call
+
+Full Presidio (PII detection) and Lakera (prompt injection) integrations are natural Tier B additions that follow the same hook seam.
+
+---
+
+## `v2.x`: multi-instance, team budgets, semantic caching
+
+### Team and org budget hierarchy
+
+Extends virtual keys to a `user → team → org` hierarchy with cascading spend limits. Cascading means: a user's spend counts against their own budget and their team's budget simultaneously. A team that hits its limit blocks all member keys regardless of individual balances.
+
+Requires a small relational model in SQLite (three tables: `orgs`, `teams`, `keys`). An optional Postgres backend becomes worth offering at this stage for deployments that need shared state across multiple gateway instances or that have audit requirements.
+
+### Multi-instance shared state via Grid
+
+faigate's local-first, SQLite-only design means each gateway instance has independent state. For teams running faigate on multiple machines or in a cluster there is no shared spend state, no distributed rate-limit tracking, and no cross-instance cache coherence.
+
+The answer is not to add Redis and Postgres to Gate. The answer is **Grid** — the multi-instance coordination layer in the fusionAIze stack. Gate should stay single-instance-friendly and expose a stable API contract that Grid consumes. Grid manages the coordination; Gate manages the routing.
+
+This is a cleaner product boundary than LiteLLM's approach of coupling the proxy runtime with shared infrastructure dependencies.
+
+### Semantic caching
+
+Embedding-based similarity lookup: incoming prompt is embedded, compared to cached prompts by cosine similarity above a configurable threshold. Higher cache hit rate for semantically equivalent prompts than exact hash matching.
+
+Requires a vector store backend (in-memory for development, Qdrant or Redis Vector for production). High operational cost; only worth building after exact caching is solid and usage patterns demonstrate that the operator's workload has sufficient prompt homogeneity for semantic caching to materially improve hit rates.
+
+### OTEL-compatible trace context
+
+Full `traceparent` header forwarding and span emission for OpenTelemetry-compatible backends. Native Langfuse SDK integration beyond the webhook/callback layer. This is the observability completion milestone — the data model is already complete from v1.9.x; this release adds the integration glue.
+
+---
+
+## Competitive positioning: where faigate leads
+
+This section documents the specific capabilities where faigate is ahead of LiteLLM, OpenRouter, and ClawRouter — and where the product should double down rather than copy competitors' approaches.
+
+### vs LiteLLM
+
+| Capability | faigate | LiteLLM |
+|---|---|---|
+| Routing model | Multi-dimensional score (quality × cost × benchmark × pressure × locality) | Single-axis `routing_strategy` |
+| Failure model | Typed cooldowns: `auth-invalid`, `quota-exhausted`, `rate-limited` with different TTLs | Generic time-based cooldown |
+| Client-profile routing | Separate routing behavior per client (`opencode`, `openclaw`, `n8n`, `cli`) | No equivalent |
+| Pre-routing hook pipeline | Full hook pipeline with fail-closed `HookExecutionError` | Post-call callbacks only |
+| Canonical lane abstraction | Routes to a capability lane (e.g. `anthropic/sonnet`), then selects transport | Routes to a deployment pool by string name |
+| Provider-side cache semantics | TTL, min-prefix, max-cached-tokens, write surcharge modelled per provider | Gateway-level response cache only |
+| Provider catalog freshness | `last_reviewed`, `freshness_status`, per-lane review age | Not tracked |
+| Local-first, zero external deps | SQLite only, no Redis or Postgres required | Redis + Postgres for full feature set |
+| Licensing | Apache 2.0 gateway core permanently | BSL 1.1 for the proxy; Apache 2.0 for SDK only |
+
+The canonical lane abstraction is the primary structural advantage. LiteLLM cannot replicate it without a near-full rewrite of its routing layer.
+
+### vs OpenRouter
+
+OpenRouter is a hosted aggregator, not a local gateway. The comparison is about philosophy and capability, not deployment model.
+
+| Capability | faigate | OpenRouter |
+|---|---|---|
+| Data residency | Local-first; requests go directly to providers from operator's machine | All requests transit OpenRouter infrastructure |
+| Custom client profiles | Full per-client routing behavior | Not available |
+| Operator-owned config | Full YAML config; operator controls every routing decision | Model selection only; routing is OpenRouter's black box |
+| Cache semantics | Explicit per-provider cache spec (TTL, min-prefix, discount) | Implicit; not surfaced to operators |
+| Provider fallback control | Explicit degrade-to chains, same-lane substitution first | Available but not configurable per-scenario |
+| Cost calculation | Cache-aware, per-provider, calculable before the call | Post-call only |
+| Hybrid local+cloud | Local workers as first-class providers | Cloud-only |
+| No vendor lock-in | Operators own their credentials and route directly | All traffic through OpenRouter; single vendor dependency |
+
+faigate's answer to OpenRouter is: **you keep your keys, your traffic goes direct, and you get the same model-selection intelligence with explicit control over every routing decision**.
+
+### vs ClawRouter
+
+ClawRouter is architecturally closer to faigate than LiteLLM — it focuses on agent-native routing and transport bindings rather than fleet management. Key comparisons:
+
+| Capability | faigate | ClawRouter |
+|---|---|---|
+| Agent-native clients | `openclaw` client profile, `x-openclaw-source` multi-agent header | Core focus |
+| Transport bindings | `direct`, `aggregator`, `wallet-router` route types in lane registry | Primary differentiator |
+| Local worker contract | Full health-probe and local worker provider type | Limited |
+| Signal-group complexity scoring | 10 signal groups, short_complex escalation, per-client profiles | Not present |
+| Provider catalog | Lane registry with benchmark clusters, freshness, degrade-to chains | Minimal |
+| Request hooks | Full pipeline with routing hint injection | Not present |
+| Routing transparency | Full trace with why-not-selected, lane reasoning, selection path | Limited |
+
+ClawRouter's transport binding model (`direct`, `wallet-router`, `aggregator`) is well-designed and faigate should adopt its vocabulary in `lane_registry.py` — this is already partly done (`route_type: direct / aggregator / wallet-router`). The area where faigate leads is the full provider-intelligence layer: ClawRouter does not model benchmark clusters, cache semantics, or per-client signal scoring.
+
+What faigate can learn from ClawRouter: deeper agent-native transport contracts, richer `x-openclaw-*` header semantics for multi-agent delegation flows.
+
+---
+
+## `v1.8.0` to `v1.11.x`: adaptive model orchestration (original sequence for reference)
 
 Primary goals:
 
@@ -48,11 +344,13 @@ Primary goals:
 
 Release sequence:
 
-1. `v1.8.0`: lane registry, provider lane metadata, and route-aware catalog surfaces
-2. `v1.9.0`: lane-aware router scoring and "why this lane?" traces
-3. `v1.10.0`: live lane adaptation using quota, latency, failure, and fallback pressure
-4. `v1.10.x`: benchmark freshness, cluster-level degradation rules, and stronger budget hints
-5. `v1.11.x`: operator controls, budget rails, and controlled adaptive-routing automation
+1. `v1.8.0` ✅ lane registry, provider lane metadata, and route-aware catalog surfaces
+2. `v1.9.0` ✅ lane-aware router scoring and "why this lane?" traces
+3. `v1.9.1` ✅ routing bug fixes, signal group expansion, mode-override hook
+4. `v1.9.2`: pre-failure RPM/TPM headroom, trace-id header
+5. `v1.10.x`: provider intelligence layer (capability tags, benchmark ranks, cache TTL, TTFT, pricing freshness)
+6. `v1.11.x`: virtual key layer, gateway-level response caching, webhook observability, guardrail hooks
+7. `v2.x`: team/org budget hierarchy, multi-instance Grid coordination, semantic caching, OTEL
 
 Non-negotiable guardrails:
 
@@ -91,61 +389,61 @@ Post-`1.5.0` UX items already worth bookmarking:
 - richer action receipts and broader `what to do next` guidance
 - more compact client cards before the long quickstart text
 
-## Licensing direction to bookmark after `v1.5.0`
+## Licensing strategy
 
-The likely direction for the wider fusionAIze stack is hybrid:
+The fusionAIze stack uses a three-tier open-core model. The tier boundaries are defined here before the features exist so there are no retroactive surprises for the community.
 
-- open what accelerates adoption, integration, and ecosystem fit
-- protect what becomes the real differentiation and operating moat
+**Non-negotiable rule**: a feature that ships as Tier A will never be moved to Tier B or Tier C. Only newly-built features can be Tier B or Tier C from day one.
 
-Proposed tiering:
+This is the lesson from LiteLLM's BSL transition: moving the proxy from Apache 2.0 to BSL 1.1 after the community had adopted it created lasting distrust and reputational damage. faigate will not repeat that mistake.
 
-### Tier A — Open (`Apache-2.0`)
+### Tier A — Apache 2.0 (permanent)
 
-Best fit for:
+The full local gateway runtime, as it exists and as it will continue to evolve through routine improvements:
 
-- SDKs
-- schemas
-- reference adapters
-- integration libraries
-- local helper tooling
-- generic client/provider compatibility layers
+- baseline gateway core: routing engine, heuristic rules, hook pipeline, fallback chains
+- all provider adapters: direct, aggregator, wallet-router
+- all built-in request hooks: locality, prefer-provider, profile-override, mode-override
+- client profile system and opencode / openclaw / n8n / cli profiles
+- config schema and YAML format
+- SQLite metrics store and trace recording
+- operator dashboard (read-only)
+- `/api/route`, `/api/stats`, `/api/traces`, `/api/providers` endpoints
+- all helper scripts: `faigate-menu`, `faigate-doctor`, `faigate-status`, `faigate-update`, etc.
+- Homebrew formula and packaging
+- everything shipped through v1.9.x and all future routine routing improvements
 
-For fusionAIze Gate specifically, the likely open surface is:
+### Tier B — Source-available (open-core)
 
-- baseline local gateway core
-- config schemas
-- local/dev install flow
-- generic provider adapters
-- generic client adapters
-- API specifications
-- sample configs and reference templates
+Features built for operators who run faigate at team or production scale. Defined as Tier B before they are built:
 
-### Tier B — Open-core / source-available
+- virtual key layer (`max_budget`, `budget_duration`, `rpm_limit`, `allowed_models`, key lifecycle)
+- per-key budget enforcement and spend ledger
+- webhook / callback observability output to external sinks (Langfuse, Helicone, Datadog)
+- advanced guardrail hook implementations (PII detection via Presidio, prompt injection via Lakera)
+- named routing strategy weight presets as a commercial operator convenience
+- gateway-level response caching with Redis backend
+- team and org budget hierarchy
 
-Best fit for:
+### Tier C — Proprietary / commercial (fusionAIze OS)
 
-- advanced routing logic
-- premium policy packs
-- advanced observability packs
-- orchestration helpers
-- managed-operations modules
-- enterprise connectors
+Control-plane features that belong with the broader fusionAIze stack, not with the local gateway runtime:
 
-### Tier C — Proprietary / commercial
+- managed control plane (fusionAIze Grid / OS)
+- SSO / SAML / OIDC authentication for the operator UI
+- RBAC and audit logs for team and org management
+- multi-instance shared state and distributed rate-limit coordination (Grid)
+- enterprise SLAs and priority support
 
-Best fit for:
+### Product stack and tier mapping
 
-- managed control-plane features
-- billing / metering / org policy layers
-- enterprise governance integrations
-- higher-value orchestration IP that belongs with the broader fusionAIze stack
-
-Working conclusion for Gate:
-
-- Gate still looks like a strong open-core product
-- keep the baseline gateway broadly adoptable
-- reserve the differentiated premium logic for later, once the `1.5.x` UX and product boundaries are settled cleanly
+| Product | Role | Tier |
+|---|---|---|
+| **Gate** | Local-first routing runtime | A core + selective B |
+| **Lens** | Observability and spend analytics consuming Gate `/api/stats`, `/api/traces`, webhook events | B–C |
+| **Grid** | Multi-instance coordination: distributed rate limits, shared virtual key registry, cross-instance cache | C |
+| **OS** | SSO, RBAC, audit logs, team management — LiteLLM Enterprise's territory | C |
+| **Fabric** | Content policy and guardrail enforcement via Gate's hook seam | B–C |
 
 ## `v1.3.0`: guided setup and catalog-assisted updates
 
