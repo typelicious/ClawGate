@@ -209,13 +209,16 @@ class TestProviderHealthProbes:
                     "compatibility": "aggregator",
                     "probe_confidence": "medium",
                     "auth_mode": "bearer",
-                    "probe_strategy": "models",
-                    "models_path": "/models",
+                    "probe_strategy": "chat",
+                    "probe_payload_kind": "kilo-chat-minimal",
+                    "probe_payload_text": "ping",
+                    "probe_payload_max_tokens": 1,
+                    "models_path": "",
                     "chat_path": "/chat/completions",
                     "image_generation_path": "/images/generations",
                     "image_edit_path": "/images/edits",
                     "requires_api_key": True,
-                    "supports_models_probe": True,
+                    "supports_models_probe": False,
                     "notes": ["aggregator route uses compatibility assumptions"],
                 },
             },
@@ -227,6 +230,62 @@ class TestProviderHealthProbes:
         assert readiness["status"] == "ready-compat"
         assert readiness["compatibility"] == "aggregator"
         assert readiness["probe_confidence"] == "medium"
+        assert "kilo-chat-minimal" in readiness["probe_payload"]
+
+    @pytest.mark.asyncio
+    async def test_chat_probe_marks_provider_ready_verified(self):
+        backend = ProviderBackend(
+            "kilocode",
+            {
+                "backend": "openai-compat",
+                "base_url": "https://api.kilo.example/v1",
+                "api_key": "secret",
+                "model": "glm-5-free",
+                "transport": {
+                    "profile": "kilo-openai-compat",
+                    "compatibility": "aggregator",
+                    "probe_confidence": "medium",
+                    "auth_mode": "bearer",
+                    "probe_strategy": "chat",
+                    "probe_payload_kind": "kilo-chat-minimal",
+                    "probe_payload_text": "ping",
+                    "probe_payload_max_tokens": 1,
+                    "models_path": "",
+                    "chat_path": "/chat/completions",
+                    "image_generation_path": "/images/generations",
+                    "image_edit_path": "/images/edits",
+                    "requires_api_key": True,
+                    "supports_models_probe": False,
+                    "notes": ["aggregator route uses compatibility assumptions"],
+                },
+            },
+        )
+        captured: dict = {}
+
+        class _FakeResp:
+            status_code = 200
+            text = ""
+
+        async def _fake_post(url, json=None, headers=None, timeout=None, **_kw):
+            captured["url"] = url
+            captured["json"] = json or {}
+            captured["headers"] = headers or {}
+            captured["timeout"] = timeout
+            return _FakeResp()
+
+        backend._client.post = _fake_post  # type: ignore[attr-defined]
+
+        ok = await backend.probe_health(timeout_seconds=2.0)
+        readiness = backend.request_readiness()
+
+        assert ok is True
+        assert captured["url"] == "https://api.kilo.example/v1/chat/completions"
+        assert captured["json"]["messages"][0]["content"] == "ping"
+        assert captured["json"]["max_tokens"] == 1
+        assert readiness["status"] == "ready-verified"
+        assert readiness["verified_via"] == "chat"
+        assert "kilo-chat-minimal" in readiness["probe_payload"]
+        assert readiness["operator_hint"] == "route can carry live traffic"
 
     @pytest.mark.asyncio
     async def test_assistant_none_content_converted_to_empty_string(self):

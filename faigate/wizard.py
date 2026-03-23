@@ -1059,12 +1059,18 @@ def build_provider_probe_report(
         if missing_key:
             status = "missing-key"
             status_reason = f"needs {env_name}"
-        elif health_payload is None:
-            status = "configured"
-            status_reason = "health endpoint unavailable; config and env look present"
         elif request_readiness and not bool(request_readiness.get("ready")):
             status = str(request_readiness.get("status") or "unhealthy")
             status_reason = str(request_readiness.get("reason") or "route is not request-ready")
+        elif request_readiness and bool(request_readiness.get("ready")):
+            status = str(request_readiness.get("status") or "ready")
+            status_reason = str(
+                request_readiness.get("reason") or "route looks request-ready from runtime state"
+            )
+            ready_count += 1
+        elif health_payload is None:
+            status = "configured"
+            status_reason = "health endpoint unavailable; config and env look present"
         elif healthy:
             status = "ready"
             status_reason = "responding through /health"
@@ -1115,6 +1121,15 @@ def build_provider_probe_report(
                     or transport_defaults.get("probe_confidence")
                     or ""
                 ),
+                "probe_strategy": str(
+                    request_readiness.get("probe_strategy")
+                    or (provider.get("transport") or {}).get("probe_strategy")
+                    or transport_defaults.get("probe_strategy")
+                    or ""
+                ),
+                "probe_payload": str(request_readiness.get("probe_payload") or ""),
+                "verified_via": str(request_readiness.get("verified_via") or ""),
+                "operator_hint": str(request_readiness.get("operator_hint") or ""),
             }
         )
 
@@ -1154,10 +1169,21 @@ def render_provider_probe_text(report: dict[str, Any]) -> str:
                     if row.get("transport_confidence")
                     else ""
                 )
+                + (
+                    f" | strategy: {row.get('probe_strategy')}"
+                    if row.get("probe_strategy")
+                    else ""
+                )
             )
+        if row.get("verified_via"):
+            lines.append("  " + f"verified via: {row['verified_via']}")
+        if row.get("probe_payload"):
+            lines.append("  " + f"probe payload: {row['probe_payload']}")
         if row.get("avg_latency_ms"):
             lines.append("  " + f"latency: {row['avg_latency_ms']:.1f} ms")
         lines.append("  " + f"why: {row['reason']}")
+        if row.get("operator_hint"):
+            lines.append("  " + f"next: {row['operator_hint']}")
     lines.append("")
     lines.append(
         "Tip: Ready means config, env, and the current /health "

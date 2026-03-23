@@ -257,6 +257,12 @@ metrics:
     assert cfg.providers["cloud-default"]["transport"]["auth_mode"] == "bearer"
     assert cfg.providers["cloud-default"]["transport"]["profile"] == "openai-compatible"
     assert cfg.providers["cloud-default"]["transport"]["compatibility"] == "native"
+    assert (
+        cfg.providers["cloud-default"]["transport"]["probe_payload_kind"]
+        == "openai-chat-minimal"
+    )
+    assert cfg.providers["cloud-default"]["transport"]["probe_payload_text"] == "ping"
+    assert cfg.providers["cloud-default"]["transport"]["probe_payload_max_tokens"] == 1
     assert cfg.providers["cloud-default"]["transport"]["models_path"] == "/models"
     assert cfg.providers["cloud-default"]["transport"]["chat_path"] == "/responses/chat"
 

@@ -149,6 +149,9 @@ if health_raw:
         profile = str(request_readiness.get("profile") or "")
         compatibility = str(request_readiness.get("compatibility") or "")
         confidence = str(request_readiness.get("probe_confidence") or "")
+        verified_via = str(request_readiness.get("verified_via") or "")
+        probe_payload = str(request_readiness.get("probe_payload") or "")
+        operator_hint = str(request_readiness.get("operator_hint") or "")
         profile_bits = []
         if profile:
             profile_bits.append(profile)
@@ -156,12 +159,18 @@ if health_raw:
             profile_bits.append(compatibility)
         if confidence:
             profile_bits.append(f"confidence={confidence}")
+        if verified_via:
+            profile_bits.append(f"verified={verified_via}")
         profile_suffix = f" [{' | '.join(profile_bits)}]" if profile_bits else ""
         if request_readiness.get("ready"):
             ready += 1
             print(f"[ok] request-ready: {provider_name} -> {status}{profile_suffix} ({reason})")
         else:
             print(f"[warn] request-ready: {provider_name} -> {status}{profile_suffix} ({reason})")
+        if probe_payload:
+            print(f"[ok] request-ready payload: {provider_name} -> {probe_payload}")
+        if operator_hint:
+            print(f"[ok] request-ready next step: {provider_name} -> {operator_hint}")
     if total:
         print(f"[ok] request readiness summary: {ready}/{total} provider routes look request-ready")
 PY
