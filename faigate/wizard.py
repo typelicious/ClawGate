@@ -1173,15 +1173,14 @@ def build_provider_probe_report(
             runtime_recovered_recently=runtime_recovered_recently,
         )
         action_counts[action_group] += 1
+        family = str(
+            (provider.get("lane") or {}).get("family") or lane_binding.get("family") or ""
+        )
         operator_hint = str(request_readiness.get("operator_hint") or "")
         next_action = operator_hint or _default_probe_action_hint(
             action_group=action_group,
             provider_name=name,
-            family=str(
-                (provider.get("lane") or {}).get("family")
-                or lane_binding.get("family")
-                or ""
-            ),
+            family=family,
         )
         rows.append(
             {
@@ -1195,9 +1194,7 @@ def build_provider_probe_report(
                 "env": env_name,
                 "healthy": healthy,
                 "avg_latency_ms": float(health.get("avg_latency_ms", 0.0) or 0.0),
-                "lane_family": str(
-                    (provider.get("lane") or {}).get("family") or lane_binding.get("family") or ""
-                ),
+                "lane_family": family,
                 "transport_profile": str(
                     request_readiness.get("profile")
                     or (provider.get("transport") or {}).get("profile")
@@ -1230,6 +1227,24 @@ def build_provider_probe_report(
             }
         )
 
+    family_summaries = _build_probe_family_summaries(rows)
+    for row in rows:
+        family = str(row.get("lane_family") or "unclassified")
+        family_summary = dict(family_summaries.get(family) or {})
+        preferred_route = _pick_family_preferred_route(
+            row=row,
+            rows=rows,
+            family_summary=family_summary,
+        )
+        row["family_summary"] = family_summary
+        row["preferred_route"] = preferred_route
+        row["next_action"] = _combine_probe_next_action(
+            current_hint=str(row.get("next_action") or ""),
+            action_group=str(row.get("action_group") or "inspect"),
+            family=family,
+            preferred_route=preferred_route,
+        )
+
     return {
         "providers": rows,
         "summary": {
@@ -1238,6 +1253,7 @@ def build_provider_probe_report(
             "health_live": health_payload is not None,
             "live_probe": live_probe,
             "actions": action_counts,
+            "families": list(family_summaries.values()),
         },
     }
 
@@ -1263,6 +1279,15 @@ def render_provider_probe_text(report: dict[str, Any]) -> str:
         f"inspect={actions.get('inspect', 0)}",
     ]
     lines.append("Action summary: " + " | ".join(action_bits))
+    families = summary.get("families") or []
+    if families:
+        family_bits = []
+        for family in families[:3]:
+            family_bits.append(
+                f"{family.get('family')}: route={family.get('route', 0)}"
+                f"/watch={family.get('watch', 0)}/hold={family.get('hold', 0)}"
+            )
+        lines.append("Family actions: " + " | ".join(family_bits))
     lines.append("")
     for row in report.get("providers", []):
         lines.append(f"- {row['provider']}  ({row['status']})")
@@ -1296,6 +1321,8 @@ def render_provider_probe_text(report: dict[str, Any]) -> str:
         if row.get("avg_latency_ms"):
             lines.append("  " + f"latency: {row['avg_latency_ms']:.1f} ms")
         lines.append("  " + f"why: {row['reason']}")
+        if row.get("preferred_route"):
+            lines.append("  " + f"prefer: {row['preferred_route']}")
         if row.get("next_action"):
             lines.append("  " + f"next: {row['next_action']}")
     lines.append("")
@@ -1361,7 +1388,104 @@ def _default_probe_action_hint(*, action_group: str, provider_name: str, family:
         return f"route can carry live traffic for the {family_label} lane"
     return f"inspect runtime hints for {provider_name} before making it a primary lane"
 
+def _build_probe_family_summaries(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    summaries: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        family = str(row.get("lane_family") or "unclassified")
+        bucket = summaries.setdefault(
+            family,
+            {
+                "family": family,
+                "providers": 0,
+                "fix-now": 0,
+                "hold": 0,
+                "watch": 0,
+                "route": 0,
+                "inspect": 0,
+            },
+        )
+        bucket["providers"] += 1
+        action = str(row.get("action_group") or "inspect")
+        bucket[action] = bucket.get(action, 0) + 1
+    return dict(
+        sorted(
+            summaries.items(),
+            key=lambda item: (
+                item[1].get("route", 0),
+                -item[1].get("hold", 0),
+                item[1].get("providers", 0),
+                item[0],
+            ),
+            reverse=True,
+        )
+    )
 
+
+def _pick_family_preferred_route(
+    *,
+    row: dict[str, Any],
+    rows: list[dict[str, Any]],
+    family_summary: dict[str, Any],
+) -> str:
+    action_group = str(row.get("action_group") or "inspect")
+    if action_group == "route":
+        return ""
+    family = str(row.get("lane_family") or "unclassified")
+    candidates = [
+        candidate
+        for candidate in rows
+        if candidate.get("provider") != row.get("provider")
+        and str(candidate.get("lane_family") or "unclassified") == family
+    ]
+    for preferred_action in ("route", "watch"):
+        action_candidates = [
+            candidate
+            for candidate in candidates
+            if str(candidate.get("action_group") or "inspect") == preferred_action
+        ]
+        if action_candidates:
+            action_candidates.sort(
+                key=lambda candidate: (
+                    float(candidate.get("avg_latency_ms") or 0.0),
+                    str(candidate.get("provider") or ""),
+                )
+            )
+            return str(action_candidates[0].get("provider") or "")
+    if family_summary.get("route", 0) or family_summary.get("watch", 0):
+        return ""
+    global_routes = [
+        candidate
+        for candidate in rows
+        if candidate.get("provider") != row.get("provider")
+        and str(candidate.get("action_group") or "inspect") == "route"
+    ]
+    if not global_routes:
+        return ""
+    global_routes.sort(
+        key=lambda candidate: (
+            float(candidate.get("avg_latency_ms") or 0.0),
+            str(candidate.get("provider") or ""),
+        )
+    )
+    return str(global_routes[0].get("provider") or "")
+
+
+def _combine_probe_next_action(
+    *,
+    current_hint: str,
+    action_group: str,
+    family: str,
+    preferred_route: str,
+) -> str:
+    if not preferred_route:
+        return current_hint
+    if action_group == "hold":
+        return f"{current_hint}; prefer {preferred_route} for {family} traffic meanwhile"
+    if action_group == "watch":
+        return f"{current_hint}; favor {preferred_route} for steady {family} traffic"
+    if action_group in {"fix-now", "inspect"}:
+        return f"{current_hint}; route {family} traffic through {preferred_route} until fixed"
+    return current_hint
 def _scenario_provider_selection(*, purpose: str, client: str) -> list[str]:
     preferred = _preferred_provider_set(list(_PROVIDER_FACTORIES), purpose=purpose, client=client)
     return [
