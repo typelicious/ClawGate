@@ -168,6 +168,65 @@ def _request_readiness_breakdown(rows: list[dict[str, Any]]) -> dict[str, int]:
     return counts
 
 
+def _lane_family_summary(
+    provider_rows: list[dict[str, Any]],
+    provider_map: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    metric_rows_by_provider = {
+        str(row.get("provider") or ""): row for row in provider_rows if str(row.get("provider") or "")
+    }
+    source_rows: list[dict[str, Any]] = []
+    if provider_map:
+        for provider_name, inventory_row in provider_map.items():
+            metrics_row = dict(metric_rows_by_provider.get(provider_name) or {})
+            source_rows.append(
+                {
+                    "provider": provider_name,
+                    "requests": _safe_int(metrics_row.get("requests")),
+                    "cost_usd": _safe_float(metrics_row.get("cost_usd")),
+                    "lane": dict((inventory_row or {}).get("lane") or {}),
+                    "request_readiness": dict((inventory_row or {}).get("request_readiness") or {}),
+                    "route_runtime_state": dict((inventory_row or {}).get("route_runtime_state") or {}),
+                }
+            )
+    else:
+        source_rows = list(provider_rows)
+
+    families: dict[str, dict[str, Any]] = {}
+    for row in source_rows:
+        lane = dict(row.get("lane") or {})
+        family = str(lane.get("family") or "unclassified")
+        readiness = dict(row.get("request_readiness") or {})
+        runtime_state = dict(row.get("route_runtime_state") or {})
+        bucket = families.setdefault(
+            family,
+            {
+                "family": family,
+                "providers": 0,
+                "requests": 0,
+                "cost_usd": 0.0,
+                "ready": 0,
+                "compat": 0,
+                "degraded": 0,
+                "cooldown": 0,
+                "recovered": 0,
+            },
+        )
+        bucket["providers"] += 1
+        bucket["requests"] += _safe_int(row.get("requests"))
+        bucket["cost_usd"] += _safe_float(row.get("cost_usd"))
+        bucket[_readiness_category(str(readiness.get("status") or "degraded"))] += 1
+        if str(runtime_state.get("window_state") or "") == "cooldown":
+            bucket["cooldown"] += 1
+        if bool(runtime_state.get("recovered_recently")):
+            bucket["recovered"] += 1
+    return sorted(
+        families.values(),
+        key=lambda row: (row["requests"], row["providers"], row["cost_usd"]),
+        reverse=True,
+    )
+
+
 def _enrich_provider_rows_with_lane(
     rows: list[dict[str, Any]],
     provider_map: dict[str, dict[str, Any]],
@@ -256,6 +315,7 @@ def build_dashboard_report(
     providers = _enrich_provider_rows_with_lane(
         stats.get("providers") or [], inventory_provider_map
     )
+    lane_families = _lane_family_summary(providers, inventory_provider_map)
     readiness_breakdown = _request_readiness_breakdown(
         list(inventory_provider_map.values()) if inventory_provider_map else providers
     )
@@ -509,6 +569,25 @@ def build_dashboard_report(
         "Provider-specific quota reset windows are not available yet; today the dashboard can only infer quota or rate-limit pressure from live errors."
     )
 
+    if lane_families:
+        top_family = lane_families[0]
+        hints.append(
+            "Top lane family right now: "
+            + f"{top_family['family']} ({top_family['providers']} routes, "
+            + f"{top_family['requests']} requests)."
+        )
+        family_cooldowns = sum(_safe_int(item.get("cooldown")) for item in lane_families)
+        family_recoveries = sum(_safe_int(item.get("recovered")) for item in lane_families)
+        if family_cooldowns:
+            decision_support.append(
+                f"{family_cooldowns} route(s) are currently in cooldown across all lane families. "
+                "Keep primary traffic on healthier siblings until those windows close."
+            )
+        if family_recoveries:
+            hints.append(
+                f"{family_recoveries} route(s) are currently under recovery watch across the live lane families."
+            )
+
     return {
         "source": {
             "mode": source_mode,
@@ -520,6 +599,7 @@ def build_dashboard_report(
         "totals": totals,
         "health": health_payload or {},
         "providers": providers,
+        "lane_families": lane_families,
         "clients": client_totals,
         "routing": routing,
         "routing_paths": routing_paths,
@@ -563,6 +643,10 @@ def build_dashboard_report(
                 ),
                 "providers_request_ready_compat": readiness_breakdown.get("compat", 0),
                 "unhealthy": unhealthy_providers,
+            },
+            "lane_families": {
+                "cooldown_routes": sum(_safe_int(item.get("cooldown")) for item in lane_families),
+                "recovered_routes": sum(_safe_int(item.get("recovered")) for item in lane_families),
             },
             "drivers": {
                 "top_provider": top_provider,
@@ -626,6 +710,18 @@ def _render_overview(report: dict[str, Any]) -> str:
         if top_client
         else "  Top client          no traffic yet",
     ]
+    lane_families = report.get("lane_families") or []
+    if lane_families:
+        top_family = lane_families[0]
+        lines.extend(
+            [
+                "",
+                "Lane families",
+                f"  Top family         {top_family.get('family')} ({_safe_int(top_family.get('providers'))} routes / {_safe_int(top_family.get('requests'))} req)",
+                f"  Cooldown routes    {_safe_int(report['cards']['lane_families']['cooldown_routes'])}",
+                f"  Recovery watch     {_safe_int(report['cards']['lane_families']['recovered_routes'])}",
+            ]
+        )
     if report["alerts"]:
         alert = report["alerts"][0]
         lines.extend(
