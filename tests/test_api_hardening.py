@@ -502,6 +502,7 @@ metrics:
     assert body["decision"]["provider"] == "deepseek-reasoner"
     assert body["route_summary"]["complexity_profile"] in {"medium", "high"}
     assert "architecture" in body["route_summary"]["matched_keywords"]
+    assert body["route_summary"]["complexity_reasons"]
     assert body["route_summary"]["selected"]["canonical_model"] == "deepseek/reasoner"
     assert body["route_summary"]["selected"]["benchmark_cluster"] == "reasoning-coding"
     assert body["route_summary"]["selected"]["cost_tier"] == "standard"
@@ -518,6 +519,12 @@ metrics:
     )
     assert body["route_summary"]["alternatives"][0]["provider"] == "gemini-flash-lite"
     assert body["route_summary"]["alternatives"][0]["estimated_request_cost_usd"] > 0
+    assert body["route_summary"]["alternatives"][0]["why_not_selected"]
+    assert any(
+        "Cheaper" in item or "Reasoning strength" in item or "Benchmark cluster" in item
+        for item in body["route_summary"]["alternatives"][0]["why_not_selected"]
+    )
+    assert body["route_summary"]["why_cheaper_lanes_lost"]
     assert body["route_summary"]["next_actions"]
     assert any(
         item["kind"] == "cost-review" and item["path"] == "Client Scenarios or Client Wizard"
