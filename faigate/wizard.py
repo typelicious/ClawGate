@@ -1088,6 +1088,7 @@ def build_provider_probe_report(
     timeout_seconds: float = 2.0,
 ) -> dict[str, Any]:
     configured = _load_existing_provider_configs(config_path)
+    configured_names = set(configured)
     env_values = _load_env_values(env_file)
     provider_health = ((health_payload or {}).get("providers")) or {}
     if live_probe and configured:
@@ -1184,6 +1185,15 @@ def build_provider_probe_report(
             ),
         )
         lane = dict(provider.get("lane") or lane_binding or {})
+        canonical_model = str(lane.get("canonical_model") or "")
+        known_routes = get_canonical_model_routes(canonical_model) if canonical_model else []
+        unconfigured_mirrors = [
+            str(route.get("provider_name") or "")
+            for route in known_routes
+            if str(route.get("provider_name") or "")
+            and str(route.get("provider_name") or "") != name
+            and str(route.get("provider_name") or "") not in configured_names
+        ]
         rows.append(
             {
                 "provider": name,
@@ -1196,12 +1206,11 @@ def build_provider_probe_report(
                 "env": env_name,
                 "healthy": healthy,
                 "avg_latency_ms": float(health.get("avg_latency_ms", 0.0) or 0.0),
-                "canonical_model": str(lane.get("canonical_model") or ""),
-                "lane_family": str(
-                    lane.get("family") or ""
-                ),
+                "canonical_model": canonical_model,
+                "lane_family": str(lane.get("family") or ""),
                 "lane_cluster": str(lane.get("cluster") or ""),
                 "degrade_to": [str(item) for item in (lane.get("degrade_to") or []) if str(item)],
+                "known_mirror_gaps": unconfigured_mirrors,
                 "transport_profile": str(
                     request_readiness.get("profile")
                     or (provider.get("transport") or {}).get("profile")
@@ -1268,6 +1277,7 @@ def build_provider_probe_report(
             "live_probe": live_probe,
             "actions": action_counts,
             "families": list(family_summaries.values()),
+            "mirror_gaps": sum(1 for row in rows if row.get("known_mirror_gaps")),
             "recommendations": recommendation_counts,
         },
     }
@@ -1303,6 +1313,11 @@ def render_provider_probe_text(report: dict[str, Any]) -> str:
                 f"/watch={family.get('watch', 0)}/hold={family.get('hold', 0)}"
             )
         lines.append("Family actions: " + " | ".join(family_bits))
+        mirror_gap_count = summary.get("mirror_gaps", 0)
+        lines.append(
+            "Mirror gaps: "
+            f"{mirror_gap_count} routes with known mirrors not configured"
+        )
     recommendations = summary.get("recommendations") or {}
     lines.append(
         "Fallback guidance: "
@@ -1358,6 +1373,12 @@ def render_provider_probe_text(report: dict[str, Any]) -> str:
                 + "prefer: "
                 + f"{row['recommended_route']} "
                 + f"({row.get('recommended_strategy') or 'fallback'})"
+            )
+        if row.get("known_mirror_gaps"):
+            lines.append(
+                "  "
+                + "known mirrors not configured: "
+                + ", ".join(row["known_mirror_gaps"][:3])
             )
         if row.get("next_action"):
             lines.append("  " + f"next: {row['next_action']}")

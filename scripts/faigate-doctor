@@ -85,6 +85,7 @@ import yaml
 from faigate.onboarding import collect_provider_env_requirements
 from faigate.provider_catalog import build_provider_catalog_report
 from faigate.config import ConfigError, load_config
+from faigate.lane_registry import get_canonical_model_routes
 
 config_path = Path(os.environ.get("FAIGATE_CONFIG_FILE", ""))
 raw_config = {}
@@ -112,6 +113,7 @@ try:
 except ConfigError as exc:
     print(f"[fail] config invalid: {exc}")
     sys.exit(1)
+configured_provider_names = set(config.providers.keys())
 
 catalog = build_provider_catalog_report(config)
 if catalog["alert_count"] == 0:
@@ -153,9 +155,23 @@ if health_raw:
         "none": 0,
     }
     rows = []
+    mirror_gap_routes = 0
 
-    def classify_action(*, status: str, ready: bool, cooldown_active: bool, window_state: str, recovered_recently: bool) -> str:
-        if status in {"missing-key", "unresolved-key", "auth-invalid", "endpoint-mismatch", "model-unavailable"}:
+    def classify_action(
+        *,
+        status: str,
+        ready: bool,
+        cooldown_active: bool,
+        window_state: str,
+        recovered_recently: bool,
+    ) -> str:
+        if status in {
+            "missing-key",
+            "unresolved-key",
+            "auth-invalid",
+            "endpoint-mismatch",
+            "model-unavailable",
+        }:
             return "fix-now"
         if cooldown_active or window_state == "cooldown" or status in {"quota-exhausted", "rate-limited"}:
             return "hold"
@@ -200,6 +216,16 @@ if health_raw:
         )
         action_counts[action_group] += 1
         canonical_model = str(lane.get("canonical_model") or "")
+        known_routes = get_canonical_model_routes(canonical_model) if canonical_model else []
+        known_mirror_gaps = [
+            str(route.get("provider_name") or "")
+            for route in known_routes
+            if str(route.get("provider_name") or "")
+            and str(route.get("provider_name") or "") != provider_name
+            and str(route.get("provider_name") or "") not in configured_provider_names
+        ]
+        if known_mirror_gaps:
+            mirror_gap_routes += 1
         lane_cluster = str(lane.get("cluster") or "")
         degrade_to = [str(item) for item in (lane.get("degrade_to") or []) if str(item)]
         rows.append(
@@ -209,6 +235,7 @@ if health_raw:
                 "canonical_model": canonical_model,
                 "lane_cluster": lane_cluster,
                 "degrade_to": degrade_to,
+                "known_mirror_gaps": known_mirror_gaps,
                 "action": action_group,
                 "ready": bool(request_readiness.get("ready")),
                 "status": status,
@@ -304,6 +331,11 @@ if health_raw:
                 f"{row['runtime_last_recovered_issue'] or 'n/a'} | watch "
                 f"{row['runtime_recovery_remaining']}s"
             )
+        if row["known_mirror_gaps"]:
+            print(
+                f"[ok] request-ready mirror gap: {row['provider']} -> "
+                + ", ".join(row["known_mirror_gaps"][:3])
+            )
         preferred_route, strategy = pick_recommendation(row)
         recommendation_counts[strategy] = recommendation_counts.get(strategy, 0) + 1
         if preferred_route:
@@ -324,6 +356,9 @@ if health_raw:
             f"same-lane={recommendation_counts['same-lane-route']} | "
             f"cluster={recommendation_counts['cluster-degrade']} | "
             f"family={recommendation_counts['family-route']}"
+        )
+        print(
+            f"[ok] request-ready mirror gaps: {mirror_gap_routes} routes have known mirrors not configured"
         )
 PY
 then
