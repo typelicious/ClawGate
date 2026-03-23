@@ -1778,6 +1778,11 @@ def test_faigate_dashboard_provider_detail_shows_canonical_lane(tmp_path: Path):
                                 "route_type": "direct",
                                 "cluster": "balanced-workhorse",
                                 "benchmark_cluster": "balanced-coding",
+                                "freshness_status": "fresh",
+                                "review_age_days": 1,
+                                "freshness_hint": (
+                                    "benchmark and cost assumptions were reviewed recently"
+                                ),
                             },
                             "capabilities": {"cost_tier": "standard"},
                             "transport": {
@@ -1830,6 +1835,11 @@ def test_faigate_dashboard_provider_detail_shows_canonical_lane(tmp_path: Path):
     assert (
         "Routing fit       balanced-coding with a standard cost posture over direct routing"
         in result.stdout
+    )
+    assert "Freshness         fresh" in result.stdout
+    assert "Review age        1d" in result.stdout
+    assert (
+        "Freshness hint    benchmark and cost assumptions were reviewed recently" in result.stdout
     )
     assert "Request-ready     ready-verified" in result.stdout
     assert "Verified via      models" in result.stdout
@@ -2010,6 +2020,7 @@ providers:
     assert "Provider probe" in result.stdout
     assert "Configured: 2 | Ready now: 1" in result.stdout
     assert "Action summary: fix-now=1 | hold=0 | watch=0 | route=1 | inspect=0" in result.stdout
+    assert "Freshness: fresh=" in result.stdout
     assert "- deepseek-chat  (ready)" in result.stdout
     assert "- anthropic-claude  (missing-key)" in result.stdout
 
