@@ -707,8 +707,7 @@ def get_route_add_recommendations(
                     "route_type": str(binding.get("route_type") or ""),
                     "route_group": "family-lane",
                     "reason": (
-                        f"adds another {family} family lane "
-                        "for recovery and routing flexibility"
+                        f"adds another {family} family lane for recovery and routing flexibility"
                     ),
                 }
             )

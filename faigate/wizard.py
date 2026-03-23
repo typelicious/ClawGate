@@ -478,6 +478,7 @@ _ENV_REF_RE = re.compile(r"\$\{([^}]+)}")
 
 def _expand_env_with_values(value: Any, env_values: dict[str, str]) -> Any:
     if isinstance(value, str):
+
         def _replace(match: re.Match[str]) -> str:
             token = match.group(1)
             if ":-" in token:
@@ -1180,9 +1181,7 @@ def build_provider_probe_report(
             action_group=action_group,
             provider_name=name,
             family=str(
-                (provider.get("lane") or {}).get("family")
-                or lane_binding.get("family")
-                or ""
+                (provider.get("lane") or {}).get("family") or lane_binding.get("family") or ""
             ),
         )
         lane = dict(provider.get("lane") or lane_binding or {})
@@ -1340,10 +1339,7 @@ def render_provider_probe_text(report: dict[str, Any]) -> str:
             )
         lines.append("Family actions: " + " | ".join(family_bits))
         mirror_gap_count = summary.get("mirror_gaps", 0)
-        lines.append(
-            "Mirror gaps: "
-            f"{mirror_gap_count} routes with known mirrors not configured"
-        )
+        lines.append(f"Mirror gaps: {mirror_gap_count} routes with known mirrors not configured")
     recommendations = summary.get("recommendations") or {}
     lines.append(
         "Fallback guidance: "
@@ -1391,11 +1387,7 @@ def render_provider_probe_text(report: dict[str, Any]) -> str:
                     if row.get("transport_confidence")
                     else ""
                 )
-                + (
-                    f" | strategy: {row.get('probe_strategy')}"
-                    if row.get("probe_strategy")
-                    else ""
-                )
+                + (f" | strategy: {row.get('probe_strategy')}" if row.get("probe_strategy") else "")
             )
         if row.get("verified_via"):
             lines.append("  " + f"verified via: {row['verified_via']}")
@@ -1413,9 +1405,7 @@ def render_provider_probe_text(report: dict[str, Any]) -> str:
             )
         if row.get("known_mirror_gaps"):
             lines.append(
-                "  "
-                + "known mirrors not configured: "
-                + ", ".join(row["known_mirror_gaps"][:3])
+                "  " + "known mirrors not configured: " + ", ".join(row["known_mirror_gaps"][:3])
             )
         if row.get("recommended_add_provider"):
             lines.append(
@@ -1484,8 +1474,7 @@ def _default_probe_action_hint(*, action_group: str, provider_name: str, family:
     family_label = family or "this route"
     if action_group == "fix-now":
         return (
-            "fix credentials, model mapping, or endpoint settings "
-            f"before routing {provider_name}"
+            f"fix credentials, model mapping, or endpoint settings before routing {provider_name}"
         )
     if action_group == "hold":
         return f"hold {provider_name} out of primary traffic until the cooldown pressure clears"
@@ -1953,6 +1942,8 @@ def render_route_add_setup_plan_text(plan: dict[str, Any]) -> str:
     lines.append("Tip: Use Guided Route Additions in Provider Setup")
     lines.append("     to add these sources without re-selecting them manually.")
     return "\n".join(lines) + "\n"
+
+
 def list_client_scenarios(
     *,
     env_file: str | Path | None = None,
@@ -2159,9 +2150,7 @@ def render_client_scenario_summary(payload: dict[str, Any]) -> str:
                 + f"{setup_provider} for {item.get('provider_name')} "
                 + f"({item.get('strategy')})"
             )
-        lines.append(
-            "- next path : Provider Setup -> Guided Route Additions"
-        )
+        lines.append("- next path : Provider Setup -> Guided Route Additions")
     if route_additions:
         if "Operator follow-up" not in lines:
             lines.extend(["", "Operator follow-up"])
@@ -2169,11 +2158,7 @@ def render_client_scenario_summary(payload: dict[str, Any]) -> str:
             route_line = (
                 "- route target: "
                 + f"{item.get('provider_name')} ({item.get('strategy')})"
-                + (
-                    f" for {item.get('source_provider')}"
-                    if item.get("source_provider")
-                    else ""
-                )
+                + (f" for {item.get('source_provider')}" if item.get("source_provider") else "")
             )
             if route_line not in lines:
                 lines.append(route_line)

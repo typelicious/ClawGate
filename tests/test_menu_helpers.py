@@ -444,8 +444,7 @@ providers:
     assert "request readiness summary: 1/1 provider routes look request-ready" in result.stdout
     assert "request-ready action: deepseek-chat -> route [unclassified]" in result.stdout
     assert (
-        "request-ready actions: fix-now=0 | hold=0 | watch=0 | route=1 | inspect=0"
-        in result.stdout
+        "request-ready actions: fix-now=0 | hold=0 | watch=0 | route=1 | inspect=0" in result.stdout
     )
     assert "[openai-compatible | native | confidence=high]" in result.stdout
     assert "request-ready payload: deepseek-chat -> openai-chat-minimal" in result.stdout
@@ -530,8 +529,7 @@ def test_faigate_doctor_reports_runtime_cooldown_windows(tmp_path: Path):
         "| cooldown active | cooldown 120s left" in result.stdout
     )
     assert (
-        "request-ready actions: fix-now=0 | hold=1 | watch=0 | route=0 | inspect=0"
-        in result.stdout
+        "request-ready actions: fix-now=0 | hold=1 | watch=0 | route=0 | inspect=0" in result.stdout
     )
 
 
@@ -616,8 +614,7 @@ def test_faigate_doctor_reports_recent_route_recovery(tmp_path: Path):
         in result.stdout
     )
     assert (
-        "request-ready actions: fix-now=0 | hold=0 | watch=1 | route=0 | inspect=0"
-        in result.stdout
+        "request-ready actions: fix-now=0 | hold=0 | watch=1 | route=0 | inspect=0" in result.stdout
     )
 
 
@@ -2108,10 +2105,7 @@ def test_faigate_doctor_prefers_same_lane_route_before_cluster_degrade(tmp_path:
         "request-ready preferred route: anthropic-claude -> "
         "openrouter-anthropic-opus (same-lane-route)"
     ) in result.stdout
-    assert (
-        "request-ready fallback guidance: same-lane=1 | cluster=0 | family=0"
-        in result.stdout
-    )
+    assert "request-ready fallback guidance: same-lane=1 | cluster=0 | family=0" in result.stdout
 
 
 def test_faigate_doctor_prefers_family_route_when_route_is_on_hold(tmp_path: Path):
@@ -2260,18 +2254,14 @@ providers:
     )
 
     assert (
-        "request-ready mirror gap: anthropic-claude -> openrouter-anthropic-opus"
-        in result.stdout
+        "request-ready mirror gap: anthropic-claude -> openrouter-anthropic-opus" in result.stdout
     )
     assert (
         "request-ready add route: anthropic-claude -> openrouter-anthropic-opus (same-lane-add)"
         in result.stdout
     )
     assert "request-ready add guidance: same-lane=1 | cluster=0 | family=0" in result.stdout
-    assert (
-        "request-ready mirror gaps: 1 routes have known mirrors not configured"
-        in result.stdout
-    )
+    assert "request-ready mirror gaps: 1 routes have known mirrors not configured" in result.stdout
 
 
 def test_faigate_client_scenarios_help_lists_usage():
