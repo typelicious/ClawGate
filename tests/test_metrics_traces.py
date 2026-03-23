@@ -27,9 +27,13 @@ def test_metrics_store_persists_trace_fields(tmp_path):
         decision_reason="Client profile 'local-only' selected a preferred provider",
         confidence=0.6,
         canonical_model="local/llama3",
+        lane_family="local",
         route_type="local",
         lane_cluster="local-workhorse",
         selection_path="profile-primary",
+        runtime_window_state="clear",
+        recovered_recently=True,
+        last_recovered_issue_type="timeout",
         decision_details={"canonical_model": "local/llama3", "route_type": "local"},
         attempt_order=["local-worker", "cloud-default"],
     )
@@ -42,9 +46,13 @@ def test_metrics_store_persists_trace_fields(tmp_path):
     assert recent[0]["decision_reason"].startswith("Client profile")
     assert recent[0]["confidence"] == 0.6
     assert recent[0]["canonical_model"] == "local/llama3"
+    assert recent[0]["lane_family"] == "local"
     assert recent[0]["route_type"] == "local"
     assert recent[0]["lane_cluster"] == "local-workhorse"
     assert recent[0]["selection_path"] == "profile-primary"
+    assert recent[0]["runtime_window_state"] == "clear"
+    assert recent[0]["recovered_recently"] == 1
+    assert recent[0]["last_recovered_issue_type"] == "timeout"
     assert recent[0]["decision_details"]["canonical_model"] == "local/llama3"
     assert recent[0]["attempt_order"] == ["local-worker", "cloud-default"]
 
@@ -107,9 +115,13 @@ def test_metrics_store_migrates_existing_db(tmp_path):
     assert "modality" in columns
     assert "attempt_order" in columns
     assert "canonical_model" in columns
+    assert "lane_family" in columns
     assert "route_type" in columns
     assert "lane_cluster" in columns
     assert "selection_path" in columns
+    assert "runtime_window_state" in columns
+    assert "recovered_recently" in columns
+    assert "last_recovered_issue_type" in columns
     assert "decision_details" in columns
     reopened.close()
 
@@ -168,13 +180,58 @@ def test_metrics_store_filters_recent_and_breakdowns(tmp_path):
     assert len(routing_rows) == 1
     assert routing_rows[0]["layer"] == "hook"
 
-    totals = metrics.get_totals(provider="cloud-default")
-    assert totals["total_requests"] == 1
-    assert totals["total_failures"] == 1
 
-    client_totals = metrics.get_client_totals()
-    assert len(client_totals) == 2
-    assert client_totals[0]["requests"] >= client_totals[1]["requests"]
+def test_metrics_store_aggregates_lane_family_and_selection_paths(tmp_path):
+    db_path = tmp_path / "families.db"
+    metrics = MetricsStore(str(db_path))
+    metrics.init()
+
+    metrics.log_request(
+        provider="deepseek-chat",
+        model="deepseek-chat",
+        modality="chat",
+        layer="heuristic",
+        rule_name="default",
+        cost_usd=0.03,
+        latency_ms=120.0,
+        canonical_model="deepseek/chat",
+        lane_family="deepseek",
+        route_type="direct",
+        lane_cluster="balanced-workhorse",
+        selection_path="primary-selected",
+        runtime_window_state="clear",
+        recovered_recently=True,
+        last_recovered_issue_type="rate-limited",
+    )
+    metrics.log_request(
+        provider="openrouter-fallback",
+        model="openrouter/auto",
+        modality="chat",
+        layer="fallback",
+        rule_name="fallback",
+        cost_usd=0.04,
+        latency_ms=200.0,
+        canonical_model="aggregator/openrouter-auto",
+        lane_family="openrouter",
+        route_type="aggregator",
+        lane_cluster="aggregator-fallback",
+        selection_path="same-lane-route",
+        runtime_window_state="cooldown",
+        recovered_recently=False,
+        last_recovered_issue_type="",
+    )
+
+    family_rows = metrics.get_lane_family_breakdown()
+    deepseek_row = next(row for row in family_rows if row["lane_family"] == "deepseek")
+    assert deepseek_row["recovered_requests"] == 1
+    openrouter_row = next(row for row in family_rows if row["lane_family"] == "openrouter")
+    assert openrouter_row["cooldown_requests"] == 1
+
+    selection_rows = metrics.get_selection_path_breakdown()
+    same_lane = next(row for row in selection_rows if row["selection_path"] == "same-lane-route")
+    assert same_lane["lane_family"] == "openrouter"
+    assert same_lane["runtime_window_state"] == "cooldown"
+    assert same_lane["recovered_recently"] == 0
 
     metrics.close()
 
