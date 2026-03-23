@@ -227,6 +227,26 @@ def _lane_family_summary(
     )
 
 
+def _lane_family_summary_from_stats(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not rows:
+        return []
+    normalized: list[dict[str, Any]] = []
+    for row in rows:
+        normalized.append(
+            {
+                "family": str(row.get("lane_family") or "unclassified"),
+                "providers": _safe_int(row.get("providers")),
+                "requests": _safe_int(row.get("requests")),
+                "cost_usd": _safe_float(row.get("cost_usd")),
+                "cooldown": _safe_int(row.get("cooldown_requests")),
+                "degraded": _safe_int(row.get("degraded_requests")),
+                "recovered": _safe_int(row.get("recovered_requests")),
+                "selection_paths": str(row.get("selection_paths") or ""),
+            }
+        )
+    return normalized
+
+
 def _enrich_provider_rows_with_lane(
     rows: list[dict[str, Any]],
     provider_map: dict[str, dict[str, Any]],
@@ -315,12 +335,15 @@ def build_dashboard_report(
     providers = _enrich_provider_rows_with_lane(
         stats.get("providers") or [], inventory_provider_map
     )
-    lane_families = _lane_family_summary(providers, inventory_provider_map)
+    lane_families = _lane_family_summary_from_stats(stats.get("lane_families") or [])
+    if not lane_families:
+        lane_families = _lane_family_summary(providers, inventory_provider_map)
     readiness_breakdown = _request_readiness_breakdown(
         list(inventory_provider_map.values()) if inventory_provider_map else providers
     )
     routing = stats.get("routing") or []
     routing_paths = _routing_path_summary(routing)
+    selection_paths = stats.get("selection_paths") or []
     client_totals = stats.get("client_totals") or []
     client_highlights = stats.get("client_highlights") or _client_highlights(client_totals)
     daily = stats.get("daily") or []
@@ -603,6 +626,7 @@ def build_dashboard_report(
         "clients": client_totals,
         "routing": routing,
         "routing_paths": routing_paths,
+        "selection_paths": selection_paths,
         "daily": daily,
         "hourly": hourly,
         "operator_actions": operator_actions,

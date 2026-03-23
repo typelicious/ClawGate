@@ -97,11 +97,48 @@ class _MetricsStub:
     def get_provider_summary(self, **_kwargs):
         return []
 
+    def get_lane_family_breakdown(self, **_kwargs):
+        return [
+            {
+                "lane_family": "deepseek",
+                "requests": 12,
+                "providers": 1,
+                "cost_usd": 0.12,
+                "cooldown_requests": 0,
+                "degraded_requests": 0,
+                "recovered_requests": 2,
+                "selection_paths": "primary-selected",
+            },
+            {
+                "lane_family": "openrouter",
+                "requests": 5,
+                "providers": 1,
+                "cost_usd": 0.08,
+                "cooldown_requests": 3,
+                "degraded_requests": 0,
+                "recovered_requests": 0,
+                "selection_paths": "same-lane-route",
+            },
+        ]
+
     def get_modality_breakdown(self, **_kwargs):
         return []
 
     def get_routing_breakdown(self, **_kwargs):
         return []
+
+    def get_selection_path_breakdown(self, **_kwargs):
+        return [
+            {
+                "selection_path": "primary-selected",
+                "lane_family": "deepseek",
+                "runtime_window_state": "clear",
+                "recovered_recently": 1,
+                "requests": 12,
+                "cost_usd": 0.12,
+                "avg_latency_ms": 620.0,
+            }
+        ]
 
     def get_client_breakdown(self, **_kwargs):
         return []
@@ -227,6 +264,10 @@ def test_stats_includes_client_highlights(api_client):
     assert body["client_highlights"]["top_cost"]["client_tag"] == "batch-jobs"
     assert body["client_highlights"]["highest_failure_rate"]["client_tag"] == "batch-jobs"
     assert body["client_highlights"]["slowest_client"]["client_tag"] == "batch-jobs"
+    assert body["lane_families"][0]["lane_family"] == "deepseek"
+    assert body["lane_families"][1]["cooldown_requests"] == 3
+    assert body["selection_paths"][0]["selection_path"] == "primary-selected"
+    assert body["selection_paths"][0]["recovered_recently"] == 1
 
 
 def test_provider_discovery_endpoint_supports_filters(api_client, monkeypatch, tmp_path):

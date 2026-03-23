@@ -575,11 +575,16 @@ def _attempt_relation_details(selected_provider: str, attempted_provider: str) -
 
 def _decision_metric_fields(decision: RoutingDecision) -> dict[str, Any]:
     details = dict(decision.details or {})
+    runtime_state = dict(details.get("route_runtime_state") or {})
     return {
         "canonical_model": str(details.get("canonical_model") or ""),
+        "lane_family": str(details.get("lane_family") or ""),
         "route_type": str(details.get("route_type") or ""),
         "lane_cluster": str(details.get("lane_cluster") or ""),
         "selection_path": str(details.get("selection_path") or ""),
+        "runtime_window_state": str(runtime_state.get("window_state") or ""),
+        "recovered_recently": bool(runtime_state.get("recovered_recently")),
+        "last_recovered_issue_type": str(runtime_state.get("last_recovered_issue_type") or ""),
         "decision_details": details,
     }
 
@@ -628,10 +633,20 @@ def _attempt_metric_fields(
         "canonical_model": str(
             actual_lane.get("canonical_model") or details.get("canonical_model") or ""
         ),
+        "lane_family": str(actual_lane.get("family") or details.get("lane_family") or ""),
         "route_type": str(actual_lane.get("route_type") or details.get("route_type") or ""),
         "lane_cluster": str(actual_lane.get("cluster") or details.get("lane_cluster") or ""),
         "selection_path": str(
             relation.get("selection_path") or details.get("selection_path") or ""
+        ),
+        "runtime_window_state": str(
+            (details.get("attempt_runtime_state") or {}).get("window_state") or ""
+        ),
+        "recovered_recently": bool(
+            (details.get("attempt_runtime_state") or {}).get("recovered_recently")
+        ),
+        "last_recovered_issue_type": str(
+            (details.get("attempt_runtime_state") or {}).get("last_recovered_issue_type") or ""
         ),
         "decision_details": details,
     }
@@ -1505,8 +1520,10 @@ async def stats(
     return {
         "totals": _metrics.get_totals(**filters),
         "providers": _metrics.get_provider_summary(**filters),
+        "lane_families": _metrics.get_lane_family_breakdown(**filters),
         "modalities": _metrics.get_modality_breakdown(**filters),
         "routing": _metrics.get_routing_breakdown(**filters),
+        "selection_paths": _metrics.get_selection_path_breakdown(**filters),
         "clients": _metrics.get_client_breakdown(**filters),
         "client_totals": client_totals,
         "client_highlights": _client_highlights(client_totals),

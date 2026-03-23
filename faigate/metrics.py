@@ -53,9 +53,13 @@ CREATE TABLE IF NOT EXISTS requests (
     decision_reason TEXT DEFAULT '',
     confidence      REAL DEFAULT 0,
     canonical_model TEXT DEFAULT '',
+    lane_family     TEXT DEFAULT '',
     route_type      TEXT DEFAULT '',
     lane_cluster    TEXT DEFAULT '',
     selection_path  TEXT DEFAULT '',
+    runtime_window_state TEXT DEFAULT '',
+    recovered_recently INTEGER DEFAULT 0,
+    last_recovered_issue_type TEXT DEFAULT '',
     decision_details TEXT DEFAULT '{}',
     attempt_order   TEXT DEFAULT '[]'
 );
@@ -89,9 +93,13 @@ _OPTIONAL_COLUMNS: dict[str, str] = {
     "decision_reason": "TEXT DEFAULT ''",
     "confidence": "REAL DEFAULT 0",
     "canonical_model": "TEXT DEFAULT ''",
+    "lane_family": "TEXT DEFAULT ''",
     "route_type": "TEXT DEFAULT ''",
     "lane_cluster": "TEXT DEFAULT ''",
     "selection_path": "TEXT DEFAULT ''",
+    "runtime_window_state": "TEXT DEFAULT ''",
+    "recovered_recently": "INTEGER DEFAULT 0",
+    "last_recovered_issue_type": "TEXT DEFAULT ''",
     "decision_details": "TEXT DEFAULT '{}'",
     "attempt_order": "TEXT DEFAULT '[]'",
 }
@@ -152,9 +160,13 @@ class MetricsStore:
         decision_reason: str = "",
         confidence: float = 0.0,
         canonical_model: str = "",
+        lane_family: str = "",
         route_type: str = "",
         lane_cluster: str = "",
         selection_path: str = "",
+        runtime_window_state: str = "",
+        recovered_recently: bool = False,
+        last_recovered_issue_type: str = "",
         decision_details: dict[str, Any] | None = None,
         attempt_order: list[str] | None = None,
     ) -> None:
@@ -167,9 +179,10 @@ class MetricsStore:
                    prompt_tok,compl_tok,cache_hit,cache_miss,
                    cost_usd,latency_ms,success,error,
                     requested_model,modality,client_profile,client_tag,
-                    decision_reason,confidence,canonical_model,route_type,lane_cluster,
-                    selection_path,decision_details,attempt_order)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    decision_reason,confidence,canonical_model,lane_family,route_type,lane_cluster,
+                    selection_path,runtime_window_state,recovered_recently,last_recovered_issue_type,
+                    decision_details,attempt_order)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     time.time(),
                     provider,
@@ -191,9 +204,13 @@ class MetricsStore:
                     decision_reason,
                     confidence,
                     canonical_model,
+                    lane_family,
                     route_type,
                     lane_cluster,
                     selection_path,
+                    runtime_window_state,
+                    1 if recovered_recently else 0,
+                    last_recovered_issue_type,
                     json.dumps(decision_details or {}, sort_keys=True),
                     json.dumps(attempt_order or []),
                 ),
@@ -259,6 +276,7 @@ class MetricsStore:
                 ROUND(SUM(cost_usd),6)                          AS cost_usd,
                 ROUND(AVG(latency_ms),1)                        AS avg_latency_ms,
                 MAX(canonical_model)                            AS canonical_model,
+                MAX(lane_family)                                AS lane_family,
                 MAX(route_type)                                 AS route_type,
                 MAX(lane_cluster)                               AS lane_cluster
             FROM requests{where_sql} GROUP BY provider ORDER BY requests DESC
@@ -275,14 +293,57 @@ class MetricsStore:
         return self._q(
             f"""
             SELECT layer, rule_name, provider,
-                canonical_model, route_type, lane_cluster, selection_path,
+                canonical_model, lane_family, route_type, lane_cluster, selection_path,
+                runtime_window_state, recovered_recently, last_recovered_issue_type,
                 COUNT(*)                  AS requests,
                 ROUND(SUM(cost_usd),6)    AS cost_usd,
                 ROUND(AVG(latency_ms),1)  AS avg_latency_ms
             FROM requests{where_sql}
             GROUP BY layer, rule_name, provider,
-                canonical_model, route_type, lane_cluster, selection_path
+                canonical_model, lane_family, route_type, lane_cluster, selection_path,
+                runtime_window_state, recovered_recently, last_recovered_issue_type
             ORDER BY requests DESC
+        """,
+            params,
+        )
+
+    def get_lane_family_breakdown(self, **filters: Any) -> list[dict]:
+        where_sql, params = self._build_where_clause(filters)
+        return self._q(
+            f"""
+            SELECT lane_family,
+                COUNT(*) AS requests,
+                COUNT(DISTINCT provider) AS providers,
+                ROUND(SUM(cost_usd),6) AS cost_usd,
+                SUM(
+                    CASE WHEN runtime_window_state='cooldown' THEN 1 ELSE 0 END
+                ) AS cooldown_requests,
+                SUM(
+                    CASE WHEN runtime_window_state='degraded' THEN 1 ELSE 0 END
+                ) AS degraded_requests,
+                SUM(CASE WHEN recovered_recently=1 THEN 1 ELSE 0 END) AS recovered_requests,
+                GROUP_CONCAT(DISTINCT selection_path) AS selection_paths
+            FROM requests{where_sql}
+            GROUP BY lane_family
+            ORDER BY requests DESC, providers DESC, cost_usd DESC
+        """,
+            params,
+        )
+
+    def get_selection_path_breakdown(self, **filters: Any) -> list[dict]:
+        where_sql, params = self._build_where_clause(filters)
+        return self._q(
+            f"""
+            SELECT selection_path,
+                lane_family,
+                runtime_window_state,
+                recovered_recently,
+                COUNT(*) AS requests,
+                ROUND(SUM(cost_usd),6) AS cost_usd,
+                ROUND(AVG(latency_ms),1) AS avg_latency_ms
+            FROM requests{where_sql}
+            GROUP BY selection_path, lane_family, runtime_window_state, recovered_recently
+            ORDER BY requests DESC, cost_usd DESC
         """,
             params,
         )
