@@ -4,6 +4,29 @@ All notable changes to fusionAIze Gate should be documented here.
 
 The format is intentionally lightweight and human-readable. Group entries by release and focus on user-visible behavior, operational changes, and compatibility notes.
 
+## v1.10.1 - 2026-03-25
+
+### Added
+
+- **`hooks/adapters/grok_api_adapter.py`** — OpenAI-compat adapter that bridges faigate's virtual `grok-xai` provider to Grok's web interface (no XAI API key required):
+  - Exposes `GET /v1/models` and `POST /v1/chat/completions` on port 8091
+  - Translates OpenAI messages array → single Grok prompt (system prompt + history + last user message)
+  - Maps model names: `grok-3` → `grok-3-auto`, `grok-3-fast`, `grok-4`, `grok-4-mini-*`
+  - Full streaming via SSE (uses Grok-Api's `stream_response` token list)
+  - Runs from fusionAIze/grok-api-hook fork for stability
+  - `GET /health` endpoint for liveness checking
+- **Virtual provider registration** — community hooks can now register providers programmatically without `config.yaml` entries:
+  - `register_virtual_provider(name, config)` in `hooks.py` — validates `base_url` + `model`, sets safe defaults
+  - `get_virtual_providers()` — returns all registered virtual providers
+  - `load_community_hooks()` now passes `register_virtual_provider` as optional second arg when hook's `register()` accepts it
+  - `main.py` startup merges virtual providers into `_providers` after config-defined providers (config wins on name collision)
+- **`grok-wrapper` updated** — now registers `grok-xai` as a virtual provider (tier: mid, cost: free, latency: slow) pointing to `http://127.0.0.1:8091/v1` with full lane + capabilities metadata
+
+### Changed
+
+- `hooks/grok-wrapper.py` now uses two-arg `register(register_fn, register_provider_fn)` signature
+- All references updated to use fusionAIze/grok-api-hook fork
+
 ## v1.10.0 - 2026-03-24
 
 ### Added

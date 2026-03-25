@@ -370,19 +370,51 @@ register_request_hook("mode-override-header", _hook_mode_override_header)
 # ── Community / plugin hook loader ──────────────────────────────────────────
 
 _COMMUNITY_HOOKS_LOADED: list[str] = []
+_VIRTUAL_PROVIDERS: dict[str, dict[str, Any]] = {}
+
+
+def register_virtual_provider(name: str, config: dict[str, Any]) -> None:
+    """Register a virtual provider from a community hook.
+
+    Virtual providers are programmatically registered OpenAI-compatible
+    endpoints that do not require a config.yaml entry.  They are merged
+    into the live provider registry during gateway startup.
+
+    Minimum required keys: ``base_url``, ``model``.
+    Optional but recommended: ``tier``, ``capabilities``, ``lane``,
+    ``pricing``, ``timeout``.
+    """
+    if not isinstance(config, dict):
+        _logger.error("register_virtual_provider(%r): config must be a dict", name)
+        return
+    if not config.get("base_url") or not config.get("model"):
+        _logger.error("register_virtual_provider(%r): requires at least base_url and model", name)
+        return
+    config.setdefault("backend", "openai-compat")
+    config.setdefault("api_key", "virtual-provider-no-key")
+    config.setdefault("tier", "mid")
+    _VIRTUAL_PROVIDERS[name] = config
+    _logger.info("Registered virtual provider: %s → %s", name, config.get("base_url"))
+
+
+def get_virtual_providers() -> dict[str, dict[str, Any]]:
+    """Return all virtual providers registered by community hooks."""
+    return dict(_VIRTUAL_PROVIDERS)
 
 
 def load_community_hooks(plugin_dir: str | None) -> list[str]:
     """Discover and register community hooks from a directory of Python files.
 
     Each ``.py`` file in *plugin_dir* must expose a top-level ``register``
-    callable with the signature::
+    callable.  Two signatures are supported::
 
-        def register(register_fn: Callable[[str, RequestHook], None]) -> None: ...
+        # Hook-only (v1.10.0)
+        def register(register_fn) -> None: ...
 
-    The function receives ``register_request_hook`` and should call it to
-    install its hook(s) under a unique name.  Files that do not expose
-    ``register`` are silently skipped.
+        # Hook + virtual provider (v1.10.1+)
+        def register(register_fn, register_provider_fn) -> None: ...
+
+    Files that do not expose ``register`` are silently skipped.
 
     Returns the list of successfully loaded filenames (e.g. ``["grok-wrapper.py"]``).
     """
@@ -410,7 +442,16 @@ def load_community_hooks(plugin_dir: str | None) -> list[str]:
                     "Community hook %s has no register() function — skipped", py_file.name
                 )
                 continue
-            module.register(register_request_hook)
+            # Support optional second arg for virtual provider registration
+            try:
+                sig = inspect.signature(module.register)
+                n_params = len(sig.parameters)
+            except (ValueError, TypeError):
+                n_params = 1
+            if n_params >= 2:
+                module.register(register_request_hook, register_virtual_provider)
+            else:
+                module.register(register_request_hook)
             loaded.append(py_file.name)
             _logger.info("Loaded community hook: %s", py_file.name)
         except Exception as exc:  # noqa: BLE001

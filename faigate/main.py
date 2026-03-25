@@ -33,6 +33,7 @@ from .hooks import (
     RequestHookContext,
     apply_request_hooks,
     get_community_hooks_loaded,
+    get_virtual_providers,
 )
 from .lane_registry import get_provider_lane_binding, get_route_add_recommendations
 from .metrics import MetricsStore, calc_cost
@@ -1644,6 +1645,22 @@ async def lifespan(app: FastAPI):
         _providers[name] = ProviderBackend(name, pcfg)
         logger.info("  ✓ %s → %s (%s)", name, pcfg["model"], pcfg.get("tier", "default"))
 
+    # Merge virtual providers registered by community hooks
+    for vp_name, vp_cfg in get_virtual_providers().items():
+        if vp_name in _providers:
+            logger.info("  skip virtual:%s — overridden by config-defined provider", vp_name)
+            continue
+        try:
+            _providers[vp_name] = ProviderBackend(vp_name, vp_cfg)
+            logger.info(
+                "  ✓ virtual:%s → %s (%s) [community hook]",
+                vp_name,
+                vp_cfg.get("model", "?"),
+                vp_cfg.get("tier", "mid"),
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to register virtual provider %s: %s", vp_name, exc)
+
     _router = Router(_config)
     _adaptive_state = AdaptiveRouteState()
     await _refresh_local_worker_probes(force=True)
@@ -1685,7 +1702,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="fusionAIze Gate",
-    version="1.10.0",
+    version="1.10.1",
     description="Local OpenAI-compatible routing gateway for OpenClaw and other clients.",
     lifespan=lifespan,
 )
