@@ -1,0 +1,36 @@
+name: Notify Homebrew Tap
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute SHA256
+        id: sha
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"
+          URL="https://github.com/fusionAIze/faigate/archive/refs/tags/v${VERSION}.tar.gz"
+          SHA=$(curl -sL "$URL" | sha256sum | awk '{print $1}')
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "sha256=${SHA}"      >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch to homebrew-tap
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.TAP_GITHUB_TOKEN }}
+          script: |
+            await github.rest.repos.createDispatchEvent({
+              owner: 'fusionAIze',
+              repo:  'homebrew-tap',
+              event_type: 'formula-update',
+              client_payload: {
+                formula: 'faigate',
+                version: '${{ steps.sha.outputs.version }}',
+                sha256:  '${{ steps.sha.outputs.sha256 }}',
+              },
+            });
+            console.log('Dispatched formula-update for faigate v${{ steps.sha.outputs.version }}');
