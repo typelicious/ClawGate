@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -18,6 +18,11 @@ from faigate.updates import (
     release_age_hours,
     select_release_payload,
 )
+
+try:
+    from datetime import UTC
+except ImportError:  # pragma: no cover - Python 3.10 compatibility
+    UTC = timezone.utc  # noqa: UP017
 
 
 class _FakeResponse:
