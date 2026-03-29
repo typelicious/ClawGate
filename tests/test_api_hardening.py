@@ -667,8 +667,7 @@ metrics:
                 {
                     "role": "user",
                     "content": (
-                        "Design a rollback-safe architecture plan for this refactor "
-                        "under load."
+                        "Design a rollback-safe architecture plan for this refactor under load."
                     ),
                 }
             ],
@@ -684,9 +683,7 @@ metrics:
         "Kilo frontier fit favored frontier-premium" in item
         for item in body["route_summary"]["why_selected"]
     )
-    assert any(
-        "premium Kilo Opus lane" in item for item in body["route_summary"]["why_selected"]
-    )
+    assert any("premium Kilo Opus lane" in item for item in body["route_summary"]["why_selected"])
     assert body["route_summary"]["alternatives"]
     assert any(
         "Kilo lane strategy fit was weaker" in item
