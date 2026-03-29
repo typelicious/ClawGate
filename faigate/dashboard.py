@@ -12,7 +12,11 @@ from typing import Any
 from .lane_registry import get_route_add_recommendations
 from .metrics import MetricsStore
 from .provider_catalog import build_provider_refresh_guidance
-from .provider_catalog_refresh import build_catalog_alerts, build_catalog_summary
+from .provider_catalog_refresh import (
+    build_catalog_alert_summary,
+    build_catalog_alerts,
+    build_catalog_summary,
+)
 from .provider_catalog_store import ProviderCatalogStore
 
 
@@ -183,6 +187,16 @@ def _provider_catalog_summary(db_path: str) -> dict[str, Any]:
             "items": [],
             "recent_events": [],
             "alerts": [],
+            "alert_summary": {
+                "status": "clear",
+                "total": 0,
+                "fix_now": 0,
+                "review_now": 0,
+                "inspect": 0,
+                "severity": {"critical": 0, "warning": 0, "notice": 0, "info": 0},
+                "top_headline": "",
+                "top_suggestion": "",
+            },
             "priority_next": {},
         }
 
@@ -191,6 +205,7 @@ def _provider_catalog_summary(db_path: str) -> dict[str, Any]:
     try:
         summary = build_catalog_summary(store)
         summary["alerts"] = build_catalog_alerts(summary)
+        summary["alert_summary"] = build_catalog_alert_summary(list(summary.get("alerts") or []))
         return summary
     finally:
         store.close()
@@ -497,6 +512,15 @@ def _render_provider_catalog_block(report: dict[str, Any], *, limit: int = 3) ->
         lines.append(
             f"- [{alert.get('severity')}] {alert.get('provider_id')}: {alert.get('headline')}"
         )
+    alert_summary = dict(summary.get("alert_summary") or {})
+    if alert_summary:
+        lines.append(
+            "- alert status: "
+            + f"{alert_summary.get('status') or 'clear'} | "
+            + f"fix-now={_safe_int(alert_summary.get('fix_now'))} | "
+            + f"review-now={_safe_int(alert_summary.get('review_now'))} | "
+            + f"inspect={_safe_int(alert_summary.get('inspect'))}"
+        )
     priority_next = dict(summary.get("priority_next") or {})
     if priority_next:
         lines.append(f"- next: {priority_next.get('path')} | {priority_next.get('why')}")
@@ -617,6 +641,7 @@ def build_dashboard_report(
     selection_paths = _selection_path_summary_from_stats(stats.get("selection_paths") or [])
     provider_catalog = _provider_catalog_summary(db_path)
     provider_catalog_alerts = list(provider_catalog.get("alerts") or [])
+    provider_catalog_alert_summary = dict(provider_catalog.get("alert_summary") or {})
     readiness_breakdown = _request_readiness_breakdown(
         list(inventory_provider_map.values()) if inventory_provider_map else providers
     )
@@ -943,6 +968,14 @@ def build_dashboard_report(
             f"Catalog alert: {top_catalog_alert.get('headline')} "
             f"Follow up via {top_catalog_alert.get('suggestion')}"
         )
+    if provider_catalog_alert_summary.get("status") == "intervention-needed":
+        hints.append(
+            "Provider source catalog needs intervention now before stale parser or URL assumptions hide routing drift."
+        )
+    elif provider_catalog_alert_summary.get("status") == "review-needed":
+        hints.append(
+            "Provider source catalog has review-needed drift; refresh pricing and model assumptions before leaning harder on those routes."
+        )
     if route_additions:
         top_addition = route_additions[0]
         decision_support.append(
@@ -980,6 +1013,7 @@ def build_dashboard_report(
         "refresh_guidance": refresh_guidance,
         "provider_catalog": provider_catalog,
         "provider_catalog_alerts": provider_catalog_alerts,
+        "provider_catalog_alert_summary": provider_catalog_alert_summary,
         "clients": client_totals,
         "routing": routing,
         "routing_paths": routing_paths,
@@ -1042,6 +1076,10 @@ def build_dashboard_report(
                 "due_sources": _safe_int(provider_catalog.get("due_sources")),
                 "recent_changes": _safe_int(provider_catalog.get("recent_changes")),
                 "alerts": len(provider_catalog_alerts),
+                "alert_status": provider_catalog_alert_summary.get("status") or "clear",
+                "fix_now": _safe_int(provider_catalog_alert_summary.get("fix_now")),
+                "review_now": _safe_int(provider_catalog_alert_summary.get("review_now")),
+                "inspect": _safe_int(provider_catalog_alert_summary.get("inspect")),
             },
             "drivers": {
                 "top_provider": top_provider,

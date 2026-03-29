@@ -45,6 +45,7 @@ from .provider_catalog import (
 )
 from .provider_catalog_refresh import (
     ProviderCatalogRefresher,
+    build_catalog_alert_summary,
     build_catalog_alerts,
     build_catalog_summary,
     due_provider_ids,
@@ -1912,10 +1913,14 @@ async def provider_catalog():
             provider_ids=list(_config.provider_source_refresh.get("providers") or []),
         )
         source_catalog["alerts"] = build_catalog_alerts(source_catalog)
+        source_catalog["alert_summary"] = build_catalog_alert_summary(
+            list(source_catalog.get("alerts") or [])
+        )
     return {
         **report,
         "source_catalog": source_catalog,
         "source_alerts": list(source_catalog.get("alerts") or []),
+        "source_alert_summary": dict(source_catalog.get("alert_summary") or {}),
     }
 
 

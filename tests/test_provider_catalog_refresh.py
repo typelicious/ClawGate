@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from faigate.provider_catalog_refresh import (
     ProviderCatalogRefresher,
+    build_catalog_alert_summary,
     build_catalog_alerts,
     build_catalog_summary,
     due_provider_ids,
@@ -143,12 +144,19 @@ def test_build_catalog_alerts_prioritizes_source_failures_and_changes():
     }
 
     alerts = build_catalog_alerts(summary)
+    alert_summary = build_catalog_alert_summary(alerts)
 
     assert alerts[0]["kind"] == "source-refresh-error"
+    assert alerts[0]["action"] == "fix-now"
     assert alerts[0]["provider_id"] == "blackbox"
     assert alerts[1]["kind"] == "catalog-change"
+    assert alerts[1]["action"] == "review-now"
     assert alerts[2]["kind"] == "source-refresh-due"
+    assert alerts[2]["action"] == "review-now"
     assert "pricing, context, and routing weights" in alerts[1]["suggestion"]
+    assert alert_summary["status"] == "intervention-needed"
+    assert alert_summary["fix_now"] == 1
+    assert alert_summary["review_now"] == 2
 
 
 def test_due_provider_ids_returns_sources_without_recent_success(tmp_path):

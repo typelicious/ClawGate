@@ -50,6 +50,21 @@ _SEVERITY_RANK = {
 }
 
 
+def _catalog_alert_action(
+    *,
+    kind: str,
+    severity: str,
+    change_type: str = "",
+) -> str:
+    if kind == "source-refresh-error" or severity in {"critical", "warning"}:
+        return "fix-now"
+    if kind == "source-refresh-due":
+        return "review-now"
+    if kind == "catalog-change" and change_type in {"model-removed", "field-changed"}:
+        return "review-now"
+    return "inspect"
+
+
 def _source_refresh_suggestion(item: dict[str, Any]) -> str:
     provider_id = str(item.get("provider_id") or "provider")
     if item.get("last_error"):
@@ -95,10 +110,15 @@ def build_catalog_alerts(
         provider_id = str(item.get("provider_id") or "")
         status = str(item.get("status") or "")
         if status == "error":
+            action = _catalog_alert_action(
+                kind="source-refresh-error",
+                severity="warning",
+            )
             alerts.append(
                 {
                     "kind": "source-refresh-error",
                     "severity": "warning",
+                    "action": action,
                     "provider_id": provider_id,
                     "headline": f"Provider source refresh failing for {provider_id}",
                     "detail": (
@@ -111,10 +131,15 @@ def build_catalog_alerts(
                 }
             )
         elif status == "due":
+            action = _catalog_alert_action(
+                kind="source-refresh-due",
+                severity="notice",
+            )
             alerts.append(
                 {
                     "kind": "source-refresh-due",
                     "severity": "notice",
+                    "action": action,
                     "provider_id": provider_id,
                     "headline": f"Provider source refresh due for {provider_id}",
                     "detail": (
@@ -126,10 +151,17 @@ def build_catalog_alerts(
                 }
             )
     for event in list(summary.get("recent_events") or []):
+        severity = str(event.get("severity") or "notice")
+        change_type = str(event.get("change_type") or "")
         alerts.append(
             {
                 "kind": "catalog-change",
-                "severity": str(event.get("severity") or "notice"),
+                "severity": severity,
+                "action": _catalog_alert_action(
+                    kind="catalog-change",
+                    severity=severity,
+                    change_type=change_type,
+                ),
                 "provider_id": str(event.get("provider_id") or ""),
                 "headline": (
                     f"Catalog change detected for {event.get('provider_id')}: "
@@ -139,7 +171,7 @@ def build_catalog_alerts(
                 or "A provider catalog change was detected.",
                 "suggestion": _catalog_change_suggestion(event),
                 "source_kind": str(event.get("source_kind") or ""),
-                "change_type": str(event.get("change_type") or ""),
+                "change_type": change_type,
                 "model_id": str(event.get("model_id") or ""),
             }
         )
@@ -152,6 +184,37 @@ def build_catalog_alerts(
         reverse=True,
     )
     return alerts[:limit]
+
+
+def build_catalog_alert_summary(alerts: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return compact operator-facing counts and intervention status."""
+    severity_counts = {"critical": 0, "warning": 0, "notice": 0, "info": 0}
+    action_counts = {"fix-now": 0, "review-now": 0, "inspect": 0}
+    for alert in alerts:
+        severity = str(alert.get("severity") or "notice")
+        action = str(alert.get("action") or "inspect")
+        severity_counts[severity] = severity_counts.get(severity, 0) + 1
+        action_counts[action] = action_counts.get(action, 0) + 1
+
+    status = "clear"
+    if action_counts.get("fix-now", 0) > 0:
+        status = "intervention-needed"
+    elif action_counts.get("review-now", 0) > 0:
+        status = "review-needed"
+    elif action_counts.get("inspect", 0) > 0:
+        status = "informational"
+
+    top_alert = alerts[0] if alerts else {}
+    return {
+        "status": status,
+        "total": len(alerts),
+        "fix_now": action_counts.get("fix-now", 0),
+        "review_now": action_counts.get("review-now", 0),
+        "inspect": action_counts.get("inspect", 0),
+        "severity": severity_counts,
+        "top_headline": str(top_alert.get("headline") or ""),
+        "top_suggestion": str(top_alert.get("suggestion") or ""),
+    }
 
 
 def build_catalog_summary(
@@ -244,6 +307,12 @@ def build_catalog_summary(
             "why": ("recent provider catalog changes were detected and should be reviewed."),
         }
 
+    alerts = build_catalog_alerts(
+        {
+            "items": items,
+            "recent_events": recent_events,
+        }
+    )
     return {
         "tracked_sources": len(items),
         "error_sources": error_count,
@@ -251,6 +320,8 @@ def build_catalog_summary(
         "recent_changes": len(recent_events),
         "items": items,
         "recent_events": recent_events,
+        "alerts": alerts,
+        "alert_summary": build_catalog_alert_summary(alerts),
         "priority_next": priority_next,
     }
 
@@ -272,6 +343,17 @@ def render_catalog_summary_text(
         + f"errors={int(summary.get('error_sources') or 0)} | "
         + f"due={int(summary.get('due_sources') or 0)} | "
         + f"recent changes={int(summary.get('recent_changes') or 0)}"
+    )
+    alert_summary = dict(
+        summary.get("alert_summary")
+        or build_catalog_alert_summary(list(summary.get("alerts") or []))
+    )
+    lines.append(
+        "  alert summary: "
+        + f"status={alert_summary.get('status') or 'clear'} | "
+        + f"fix-now={int(alert_summary.get('fix_now') or 0)} | "
+        + f"review-now={int(alert_summary.get('review_now') or 0)} | "
+        + f"inspect={int(alert_summary.get('inspect') or 0)}"
     )
     for item in items:
         lines.append(
@@ -316,8 +398,12 @@ def render_catalog_summary_text(
         lines.append("  alerts:")
         for alert in alerts[:5]:
             lines.append(
-                "    - " + f"[{alert['severity']}] {alert['provider_id']}: {alert['headline']}"
+                "    - "
+                + f"[{alert['severity']}] {alert['provider_id']}: "
+                + f"{alert['headline']} ({alert.get('action') or 'inspect'})"
             )
+            if alert.get("suggestion"):
+                lines.append("      next: " + str(alert["suggestion"]))
     priority_next = dict(summary.get("priority_next") or {})
     if priority_next:
         lines.append("  priority next:")

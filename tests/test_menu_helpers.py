@@ -2320,6 +2320,84 @@ providers:
     assert "- anthropic-claude  (missing-key)" in result.stdout
 
 
+def test_faigate_provider_probe_surfaces_catalog_alert_actions(tmp_path: Path):
+    config_file = tmp_path / "config.yaml"
+    db_path = tmp_path / "faigate.db"
+    config_file.write_text(
+        f"""
+server:
+  host: "127.0.0.1"
+  port: 8090
+providers: {{}}
+fallback_chain: []
+metrics:
+  enabled: false
+  db_path: "{db_path}"
+provider_source_refresh:
+  enabled: true
+  on_startup: false
+  providers:
+    - blackbox
+""".strip(),
+        encoding="utf-8",
+    )
+    env_file = tmp_path / ".env"
+    env_file.write_text("", encoding="utf-8")
+
+    store = ProviderCatalogStore(str(db_path))
+    store.init()
+    store.upsert_source(
+        {
+            "provider_id": "blackbox",
+            "display_name": "BLACKBOX",
+            "refresh_interval_seconds": 21600,
+            "billing_notes": "",
+            "endpoints": [],
+            "availability": {},
+        }
+    )
+    store.mark_source_check("blackbox", success=False, error="temporary source error")
+    store.record_change_events(
+        [
+            {
+                "provider_id": "blackbox",
+                "detected_at": 1.0,
+                "source_kind": "pricing",
+                "change_type": "field-changed",
+                "severity": "notice",
+                "model_id": "x-ai/grok-code-fast-1:free",
+                "field_name": "input_cost",
+                "old_value": "0.0",
+                "new_value": "0.2",
+                "message": "blackbox pricing changed",
+            }
+        ]
+    )
+    store.close()
+
+    fake_bin = _write_fake_curl(tmp_path, {"/health": json.dumps({"providers": {}})})
+
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    env["FAIGATE_CONFIG_FILE"] = str(config_file)
+    env["FAIGATE_ENV_FILE"] = str(env_file)
+    env["FAIGATE_PYTHON"] = sys.executable
+    env["PYTHONPATH"] = str(REPO_ROOT)
+
+    result = subprocess.run(
+        ["bash", "scripts/faigate-provider-probe"],
+        cwd=REPO_ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "Catalog alert actions" in result.stdout
+    assert "blackbox: fix-now | Provider source refresh failing for blackbox" in result.stdout
+    assert "Action summary: fix-now=1 | review-now=1 | inspect=0" in result.stdout
+
+
 def test_faigate_doctor_prefers_same_lane_route_before_cluster_degrade(tmp_path: Path):
     config_file = tmp_path / "config.yaml"
     env_file = tmp_path / "faigate.env"
@@ -2420,6 +2498,94 @@ def test_faigate_doctor_prefers_same_lane_route_before_cluster_degrade(tmp_path:
         "openrouter-anthropic-opus (same-lane-route)"
     ) in result.stdout
     assert "request-ready fallback guidance: same-lane=1 | cluster=0 | family=0" in result.stdout
+
+
+def test_faigate_doctor_surfaces_provider_source_priority_actions(tmp_path: Path):
+    config_file = tmp_path / "config.yaml"
+    db_path = tmp_path / "faigate.db"
+    env_file = tmp_path / "faigate.env"
+    config_file.write_text(
+        f"""
+server:
+  host: "127.0.0.1"
+  port: 8090
+providers: {{}}
+fallback_chain: []
+metrics:
+  enabled: false
+  db_path: "{db_path}"
+provider_source_refresh:
+  enabled: true
+  on_startup: false
+  providers:
+    - kilo
+""".strip(),
+        encoding="utf-8",
+    )
+    env_file.write_text("", encoding="utf-8")
+
+    store = ProviderCatalogStore(str(db_path))
+    store.init()
+    store.upsert_source(
+        {
+            "provider_id": "kilo",
+            "display_name": "Kilo",
+            "refresh_interval_seconds": 21600,
+            "billing_notes": "",
+            "endpoints": [],
+            "availability": {},
+        }
+    )
+    store.mark_source_check("kilo", success=False, error="models source timeout")
+    store.record_change_events(
+        [
+            {
+                "provider_id": "kilo",
+                "detected_at": 1.0,
+                "source_kind": "models",
+                "change_type": "model-removed",
+                "severity": "warning",
+                "model_id": "kilo-auto/frontier",
+                "field_name": "model_id",
+                "old_value": "kilo-auto/frontier",
+                "new_value": "",
+                "message": "kilo frontier model disappeared",
+            }
+        ]
+    )
+    store.close()
+
+    fake_bin = _write_fake_curl(
+        tmp_path,
+        {
+            "/health": json.dumps({"status": "ok", "providers": {}, "summary": {}}),
+            "/v1/models": json.dumps({"data": []}),
+        },
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    env["FAIGATE_CONFIG_FILE"] = str(config_file)
+    env["FAIGATE_ENV_FILE"] = str(env_file)
+    env["FAIGATE_PYTHON"] = sys.executable
+    env["PYTHONPATH"] = str(REPO_ROOT)
+
+    result = subprocess.run(
+        ["bash", "scripts/faigate-doctor"],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert "provider source alert summary: status=intervention-needed" in result.stdout
+    assert "fix-now=2 | review-now=0 | inspect=0" in result.stdout
+    assert (
+        "provider source alert: kilo -> Provider source refresh failing for kilo (fix-now)"
+        in result.stdout
+    )
+    assert "provider source priority next: Provider Catalog Refresh" in result.stdout
 
 
 def test_faigate_doctor_prefers_family_route_when_route_is_on_hold(tmp_path: Path):

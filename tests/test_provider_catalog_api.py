@@ -104,6 +104,8 @@ def test_provider_catalog_endpoint_includes_source_alerts(provider_catalog_api_s
 
     assert body["source_catalog"]["tracked_sources"] == 1
     assert body["source_catalog"]["error_sources"] == 1
+    assert body["source_alert_summary"]["status"] == "intervention-needed"
+    assert body["source_alert_summary"]["fix_now"] == 2
     assert body["source_catalog"]["alerts"][0]["kind"] == "source-refresh-error"
     assert any(alert["kind"] == "catalog-change" for alert in body["source_alerts"])
     assert any(

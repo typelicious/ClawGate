@@ -49,6 +49,8 @@ def test_dashboard_surfaces_provider_catalog_alerts(tmp_path):
 
     assert report["provider_catalog_alerts"][0]["kind"] == "source-refresh-error"
     assert report["cards"]["provider_catalog"]["alerts"] >= 1
+    assert report["cards"]["provider_catalog"]["alert_status"] == "intervention-needed"
+    assert report["cards"]["provider_catalog"]["fix_now"] == 1
 
     text = render_dashboard_text(report, view="alerts")
     assert "Provider source refresh failing for kilo" in text
