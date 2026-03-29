@@ -8,7 +8,7 @@
 [![OpenAI-compatible](https://img.shields.io/badge/OpenAI-compatible-0ea5e9.svg)](./docs/API.md)
 [![OpenClaw-friendly](https://img.shields.io/badge/OpenClaw-friendly-111827.svg)](https://openclaw.ai/)
 [![Workstations](https://img.shields.io/badge/workstations-linux%20%7C%20macOS%20%7C%20windows-0f766e.svg)](./docs/WORKSTATIONS.md)
-[![Homebrew](https://img.shields.io/badge/homebrew-formula-fbbf24?logo=homebrew&logoColor=black)](https://github.com/fusionAIze/homebrew-tap/blob/main/Formula/faigate.rb)
+[![Homebrew](https://img.shields.io/badge/homebrew-formula-fbbf24?logo=homebrew&logoColor=black)](https://github.com/fusionAIze/homebrew-tap)
 [![Docker](https://img.shields.io/badge/docker-ready-2496ED?logo=docker&logoColor=white)](./Dockerfile)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](./pyproject.toml)
 
@@ -294,7 +294,7 @@ fusionAIze Gate can stay small in development and still scale into a more repeat
 - Local Python run: quickest path for development and testing.
 - `systemd` on Linux: recommended for long-running generic host installs.
 - Workstation runtimes: macOS `launchd`, Linux `systemd`, and Windows task-scheduler style installs are documented separately.
-- Homebrew path: the project-owned tap formula now lives in [`fusionAIze/homebrew-tap`](https://github.com/fusionAIze/homebrew-tap/blob/main/Formula/faigate.rb) for macOS-oriented installs and `brew services`.
+- Homebrew path: the project-owned tap formula now lives in [`fusionAIze/homebrew-tap`](https://github.com/fusionAIze/homebrew-tap) for macOS-oriented installs and `brew services`.
 - Docker and GHCR path: tagged releases build container artifacts through the release workflow.
 - Python package path: release workflows build `sdist` and `wheel`.
 - Separate npm CLI package: `packages/faigate-cli` gives CLI-facing environments a small Node entry point without changing the Python service runtime.
@@ -314,7 +314,8 @@ Start here for the deeper deployment details:
 - [Configuration reference](./docs/CONFIGURATION.md)
 - [Operations guide](./docs/OPERATIONS.md)
 - [Workstations guide](./docs/WORKSTATIONS.md)
-- [Homebrew formula](https://github.com/fusionAIze/homebrew-tap/blob/main/Formula/faigate.rb)
+- [Homebrew tap](https://github.com/fusionAIze/homebrew-tap)
+- [Homebrew formula directory](https://github.com/fusionAIze/homebrew-tap/tree/main/Formula)
 - [Integrations](./docs/INTEGRATIONS.md)
 - [Onboarding](./docs/ONBOARDING.md)
 - [Examples](./docs/examples)
