@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 import os
 import re
+import sqlite3
 import stat
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import yaml
@@ -3286,7 +3288,92 @@ client_profiles:
     )
 
     assert "Catalog tracked" in result.stdout
+    assert "Catalog status" in result.stdout
+    assert "Catalog fix now" in result.stdout
     assert "Catalog errors" in result.stdout
+    assert "Provider Catalog" in result.stdout
+
+
+def test_faigate_menu_quick_setup_surfaces_escalated_provider_source_drift(
+    tmp_path: Path,
+):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        """
+server:
+  host: "127.0.0.1"
+  port: 8090
+providers:
+  deepseek-chat:
+    backend: openai-compat
+    api_key: "${DEEPSEEK_API_KEY}"
+    base_url: "https://api.deepseek.com/v1"
+    model: "deepseek-chat"
+fallback_chain:
+  - deepseek-chat
+client_profiles:
+  enabled: true
+  default: generic
+  profiles:
+    generic: {}
+""".strip(),
+        encoding="utf-8",
+    )
+    env_file = tmp_path / ".env"
+    env_file.write_text("DEEPSEEK_API_KEY=test-key\n", encoding="utf-8")
+
+    db_path = tmp_path / "faigate.db"
+    store = ProviderCatalogStore(str(db_path))
+    store.init()
+    store.upsert_source(
+        {
+            "provider_id": "openai",
+            "display_name": "OpenAI",
+            "refresh_interval_seconds": 60,
+            "billing_notes": "",
+            "endpoints": [],
+            "availability": {},
+        }
+    )
+    store.mark_source_check("openai", success=True)
+    store.close()
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE provider_sources SET last_checked_at=?, last_success_at=? WHERE provider_id=?",
+            (time.time() - 90000, time.time() - 90000, "openai"),
+        )
+        conn.commit()
+
+    fake_bin = _write_fake_curl(
+        tmp_path,
+        {
+            "/health": json.dumps({"status": "ok"}),
+            "/v1/models": json.dumps({"data": []}),
+        },
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    env["FAIGATE_CONFIG_FILE"] = str(config_file)
+    env["FAIGATE_ENV_FILE"] = str(env_file)
+    env["FAIGATE_PYTHON"] = sys.executable
+    env["FAIGATE_DB_PATH"] = str(db_path)
+    env["PYTHONPATH"] = str(REPO_ROOT)
+
+    result = subprocess.run(
+        ["bash", "scripts/faigate-menu"],
+        cwd=REPO_ROOT,
+        env=env,
+        input="1\nc\nq\n",
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert "Catalog status     intervention-needed" in result.stdout
+    assert "Catalog fix now    1" in result.stdout
+    assert "Catalog focus      openai (fix-now)" in result.stdout
     assert "Provider Catalog" in result.stdout
 
 

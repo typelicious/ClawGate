@@ -162,6 +162,7 @@ EOF
 dynamic_operator_followups() {
   local snapshot_output line route_gaps refresh_now review_soon top_refresh_provider top_add_provider
   local catalog_errors catalog_due catalog_changes top_catalog_provider
+  local catalog_fix_now catalog_review_now top_catalog_action
   snapshot_output="$(collect_runtime_snapshot)"
   while IFS= read -r line; do
     case "$line" in
@@ -171,9 +172,12 @@ dynamic_operator_followups() {
       catalog_errors=*) catalog_errors="${line#catalog_errors=}" ;;
       catalog_due=*) catalog_due="${line#catalog_due=}" ;;
       catalog_changes=*) catalog_changes="${line#catalog_changes=}" ;;
+      catalog_fix_now=*) catalog_fix_now="${line#catalog_fix_now=}" ;;
+      catalog_review_now=*) catalog_review_now="${line#catalog_review_now=}" ;;
       top_refresh_provider=*) top_refresh_provider="${line#top_refresh_provider=}" ;;
       top_add_provider=*) top_add_provider="${line#top_add_provider=}" ;;
       top_catalog_provider=*) top_catalog_provider="${line#top_catalog_provider=}" ;;
+      top_catalog_action=*) top_catalog_action="${line#top_catalog_action=}" ;;
     esac
   done <<EOF
 $snapshot_output
@@ -187,9 +191,9 @@ EOF
   elif [ "${review_soon:-0}" -gt 0 ]; then
     printf '%s\n' "Review aging route assumptions soon${top_refresh_provider:+, starting with ${top_refresh_provider}}."
   fi
-  if [ "${catalog_errors:-0}" -gt 0 ]; then
-    printf '%s\n' "Refresh provider source catalog now to repair source lookup failures${top_catalog_provider:+, starting with ${top_catalog_provider}}."
-  elif [ "${catalog_due:-0}" -gt 0 ] || [ "${catalog_changes:-0}" -gt 0 ]; then
+  if [ "${catalog_fix_now:-0}" -gt 0 ]; then
+    printf '%s\n' "Refresh provider source catalog now to repair high-priority source drift or lookup failures${top_catalog_provider:+, starting with ${top_catalog_provider}}${top_catalog_action:+ (${top_catalog_action})}."
+  elif [ "${catalog_review_now:-0}" -gt 0 ]; then
     printf '%s\n' "Review provider source catalog freshness before leaning on older pricing or model assumptions${top_catalog_provider:+, starting with ${top_catalog_provider}}."
   fi
 }
@@ -198,6 +202,7 @@ recommended_quick_setup_action() {
   local snapshot_output line health_state providers_count providers_ready providers_missing_keys
   local route_gaps refresh_now review_soon next_client top_refresh_provider top_refresh_action top_add_provider
   local catalog_errors catalog_due catalog_changes top_catalog_provider
+  local catalog_fix_now catalog_review_now top_catalog_action
   local key label reason choice
   snapshot_output="$(collect_runtime_snapshot)"
   while IFS= read -r line; do
@@ -212,11 +217,14 @@ recommended_quick_setup_action() {
       catalog_errors=*) catalog_errors="${line#catalog_errors=}" ;;
       catalog_due=*) catalog_due="${line#catalog_due=}" ;;
       catalog_changes=*) catalog_changes="${line#catalog_changes=}" ;;
+      catalog_fix_now=*) catalog_fix_now="${line#catalog_fix_now=}" ;;
+      catalog_review_now=*) catalog_review_now="${line#catalog_review_now=}" ;;
       next_client=*) next_client="${line#next_client=}" ;;
       top_refresh_provider=*) top_refresh_provider="${line#top_refresh_provider=}" ;;
       top_refresh_action=*) top_refresh_action="${line#top_refresh_action=}" ;;
       top_add_provider=*) top_add_provider="${line#top_add_provider=}" ;;
       top_catalog_provider=*) top_catalog_provider="${line#top_catalog_provider=}" ;;
+      top_catalog_action=*) top_catalog_action="${line#top_catalog_action=}" ;;
     esac
   done <<EOF
 $snapshot_output
@@ -242,16 +250,16 @@ EOF
     choice="1"
     label="Provider Setup -> Guided Route Additions"
     reason="Recommended lane mirrors are still missing. Close those route gaps next${top_add_provider:+, starting with ${top_add_provider}}."
-  elif [ "${catalog_errors:-0}" -gt 0 ]; then
+  elif [ "${catalog_fix_now:-0}" -gt 0 ]; then
     key="provider-catalog"
     choice="10"
     label="Provider Catalog"
-    reason="At least one provider source refresh is failing. Revalidate source URLs and parsers next${top_catalog_provider:+, starting with ${top_catalog_provider}}."
-  elif [ "${catalog_due:-0}" -gt 0 ] || [ "${catalog_changes:-0}" -gt 0 ]; then
+    reason="Provider source evidence needs intervention before we lean on it. Revalidate source URLs, parsers, or overdue refreshes next${top_catalog_provider:+, starting with ${top_catalog_provider}}${top_catalog_action:+ (${top_catalog_action})}."
+  elif [ "${catalog_review_now:-0}" -gt 0 ]; then
     key="provider-catalog"
     choice="10"
     label="Provider Catalog"
-    reason="Provider source snapshots are due or recently changed. Refresh catalog evidence before trusting older route economics${top_catalog_provider:+, starting with ${top_catalog_provider}}."
+    reason="Provider source snapshots need review before we trust older route economics${top_catalog_provider:+, starting with ${top_catalog_provider}}."
   elif [ "${refresh_now:-0}" -gt 0 ]; then
     key="provider-probe"
     choice="3"
@@ -405,7 +413,7 @@ import re
 
 import yaml
 from faigate.provider_catalog import build_provider_refresh_guidance
-from faigate.provider_catalog_refresh import build_catalog_summary
+from faigate.provider_catalog_refresh import build_catalog_alert_summary, build_catalog_summary
 from faigate.provider_catalog_store import ProviderCatalogStore
 from faigate.wizard import build_route_add_setup_plan
 
@@ -513,6 +521,16 @@ if str(db_path) and db_path.exists():
     finally:
         store.close()
 
+catalog_alert_summary = dict(
+    catalog_summary.get("alert_summary")
+    or build_catalog_alert_summary(list(catalog_summary.get("alerts") or []))
+)
+top_catalog_alert = (
+    (catalog_summary.get("alerts") or [{}])[0]
+    if catalog_summary.get("alerts")
+    else {}
+)
+
 print(f"providers={len(providers)}")
 print(f"providers_ready={providers_ready}")
 print(f"providers_missing_keys={providers_missing_keys}")
@@ -538,19 +556,14 @@ print(f"catalog_tracked={int(catalog_summary.get('tracked_sources') or 0)}")
 print(f"catalog_errors={int(catalog_summary.get('error_sources') or 0)}")
 print(f"catalog_due={int(catalog_summary.get('due_sources') or 0)}")
 print(f"catalog_changes={int(catalog_summary.get('recent_changes') or 0)}")
+print(f"catalog_alert_status={str(catalog_alert_summary.get('status') or 'clear')}")
+print(f"catalog_fix_now={int(catalog_alert_summary.get('fix_now') or 0)}")
+print(f"catalog_review_now={int(catalog_alert_summary.get('review_now') or 0)}")
 print(f"top_refresh_provider={top_refresh.get('provider', '')}")
 print(f"top_refresh_action={top_refresh.get('action_label', '')}")
 print(f"top_add_provider={top_add.get('setup_provider_name') or top_add.get('provider_name') or ''}")
-print(
-    "top_catalog_provider="
-    + str(
-        (
-            (catalog_summary.get("items") or [{}])[0]
-            if catalog_summary.get("items")
-            else {}
-        ).get("provider_id", "")
-    )
-)
+print(f"top_catalog_provider={str(top_catalog_alert.get('provider_id') or '')}")
+print(f"top_catalog_action={str(top_catalog_alert.get('action') or '')}")
 PY
 }
 
@@ -560,6 +573,7 @@ collect_runtime_snapshot() {
   local preset_summary next_client route_gaps route_gaps_ready route_gaps_manual
   local refresh_now review_soon top_refresh_provider top_refresh_action top_add_provider
   local catalog_tracked catalog_errors catalog_due catalog_changes top_catalog_provider
+  local catalog_alert_status catalog_fix_now catalog_review_now top_catalog_action
   state="$(faigate_service_state)"
   if faigate_is_healthy; then
     health_state="healthy"
@@ -597,10 +611,14 @@ collect_runtime_snapshot() {
       catalog_errors=*) catalog_errors="${line#catalog_errors=}" ;;
       catalog_due=*) catalog_due="${line#catalog_due=}" ;;
       catalog_changes=*) catalog_changes="${line#catalog_changes=}" ;;
+      catalog_alert_status=*) catalog_alert_status="${line#catalog_alert_status=}" ;;
+      catalog_fix_now=*) catalog_fix_now="${line#catalog_fix_now=}" ;;
+      catalog_review_now=*) catalog_review_now="${line#catalog_review_now=}" ;;
       top_refresh_provider=*) top_refresh_provider="${line#top_refresh_provider=}" ;;
       top_refresh_action=*) top_refresh_action="${line#top_refresh_action=}" ;;
       top_add_provider=*) top_add_provider="${line#top_add_provider=}" ;;
       top_catalog_provider=*) top_catalog_provider="${line#top_catalog_provider=}" ;;
+      top_catalog_action=*) top_catalog_action="${line#top_catalog_action=}" ;;
     esac
   done <<EOF
 $snapshot_output
@@ -628,16 +646,21 @@ EOF
   printf 'catalog_errors=%s\n' "${catalog_errors:-0}"
   printf 'catalog_due=%s\n' "${catalog_due:-0}"
   printf 'catalog_changes=%s\n' "${catalog_changes:-0}"
+  printf 'catalog_alert_status=%s\n' "${catalog_alert_status:-clear}"
+  printf 'catalog_fix_now=%s\n' "${catalog_fix_now:-0}"
+  printf 'catalog_review_now=%s\n' "${catalog_review_now:-0}"
   printf 'top_refresh_provider=%s\n' "${top_refresh_provider:-}"
   printf 'top_refresh_action=%s\n' "${top_refresh_action:-}"
   printf 'top_add_provider=%s\n' "${top_add_provider:-}"
   printf 'top_catalog_provider=%s\n' "${top_catalog_provider:-}"
+  printf 'top_catalog_action=%s\n' "${top_catalog_action:-}"
 }
 
 render_summary_cards() {
   local snapshot_output line state health_state bind providers_count providers_ready providers_missing_keys
   local fallback_count default_mode default_profile profile_count preset_count preset_summary next_client
   local route_gaps refresh_now review_soon catalog_tracked catalog_errors catalog_due catalog_changes
+  local catalog_alert_status catalog_fix_now catalog_review_now top_catalog_provider top_catalog_action
   snapshot_output="$(collect_runtime_snapshot)"
   while IFS= read -r line; do
     case "$line" in
@@ -661,6 +684,11 @@ render_summary_cards() {
       catalog_errors=*) catalog_errors="${line#catalog_errors=}" ;;
       catalog_due=*) catalog_due="${line#catalog_due=}" ;;
       catalog_changes=*) catalog_changes="${line#catalog_changes=}" ;;
+      catalog_alert_status=*) catalog_alert_status="${line#catalog_alert_status=}" ;;
+      catalog_fix_now=*) catalog_fix_now="${line#catalog_fix_now=}" ;;
+      catalog_review_now=*) catalog_review_now="${line#catalog_review_now=}" ;;
+      top_catalog_provider=*) top_catalog_provider="${line#top_catalog_provider=}" ;;
+      top_catalog_action=*) top_catalog_action="${line#top_catalog_action=}" ;;
     esac
   done <<EOF
 $snapshot_output
@@ -691,10 +719,16 @@ EOF
   fi
   if [ "${catalog_tracked:-0}" -gt 0 ]; then
     printf "  %-18s %s\n" "Catalog tracked" "$catalog_tracked"
+    printf "  %-18s %s\n" "Catalog status" "${catalog_alert_status:-clear}"
+    printf "  %-18s %s\n" "Catalog fix now" "${catalog_fix_now:-0}"
+    printf "  %-18s %s\n" "Catalog review" "${catalog_review_now:-0}"
     printf "  %-18s %s\n" "Catalog errors" "${catalog_errors:-0}"
     printf "  %-18s %s\n" "Catalog due" "${catalog_due:-0}"
     if [ "${catalog_changes:-0}" -gt 0 ]; then
       printf "  %-18s %s\n" "Catalog changes" "${catalog_changes:-0}"
+    fi
+    if [ -n "${top_catalog_provider:-}" ]; then
+      printf "  %-18s %s\n" "Catalog focus" "${top_catalog_provider}${top_catalog_action:+ (${top_catalog_action})}"
     fi
   fi
   echo ""

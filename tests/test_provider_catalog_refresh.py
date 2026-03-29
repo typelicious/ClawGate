@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from faigate.provider_catalog_refresh import (
     ProviderCatalogRefresher,
     build_catalog_alert_summary,
@@ -157,6 +159,32 @@ def test_build_catalog_alerts_prioritizes_source_failures_and_changes():
     assert alert_summary["status"] == "intervention-needed"
     assert alert_summary["fix_now"] == 1
     assert alert_summary["review_now"] == 2
+
+
+def test_build_catalog_alerts_escalates_long_overdue_sources():
+    summary = {
+        "items": [
+            {
+                "provider_id": "openai",
+                "status": "due",
+                "last_error": "",
+                "last_success_at": time.time() - 90000,
+                "seconds_since_success": 90000,
+                "refresh_interval_seconds": 21600,
+            }
+        ],
+        "recent_events": [],
+    }
+
+    alerts = build_catalog_alerts(summary)
+    alert_summary = build_catalog_alert_summary(alerts)
+
+    assert alerts[0]["kind"] == "source-refresh-due"
+    assert alerts[0]["severity"] == "warning"
+    assert alerts[0]["action"] == "fix-now"
+    assert "overdue" in alerts[0]["headline"]
+    assert alert_summary["status"] == "intervention-needed"
+    assert alert_summary["fix_now"] == 1
 
 
 def test_due_provider_ids_returns_sources_without_recent_success(tmp_path):

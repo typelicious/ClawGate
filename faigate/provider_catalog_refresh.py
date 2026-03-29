@@ -50,6 +50,25 @@ _SEVERITY_RANK = {
 }
 
 
+def _source_due_severity(item: dict[str, Any]) -> str:
+    """Escalate overdue source drift when it has lingered well past refresh cadence."""
+    refresh_interval_seconds = max(int(item.get("refresh_interval_seconds") or 21600), 1)
+    seconds_since_success = item.get("seconds_since_success")
+    last_success_at = float(item.get("last_success_at") or 0.0)
+
+    if seconds_since_success is None:
+        return "warning"
+
+    if not last_success_at and float(seconds_since_success or 0.0) <= 0.0:
+        return "warning"
+
+    age_seconds = float(seconds_since_success or 0.0)
+    hard_overdue_threshold = max(refresh_interval_seconds * 3, 86400)
+    if age_seconds >= hard_overdue_threshold:
+        return "warning"
+    return "notice"
+
+
 def _catalog_alert_action(
     *,
     kind: str,
@@ -131,17 +150,22 @@ def build_catalog_alerts(
                 }
             )
         elif status == "due":
+            severity = _source_due_severity(item)
             action = _catalog_alert_action(
                 kind="source-refresh-due",
-                severity="notice",
+                severity=severity,
             )
             alerts.append(
                 {
                     "kind": "source-refresh-due",
-                    "severity": "notice",
+                    "severity": severity,
                     "action": action,
                     "provider_id": provider_id,
-                    "headline": f"Provider source refresh due for {provider_id}",
+                    "headline": (
+                        f"Provider source refresh overdue for {provider_id}"
+                        if action == "fix-now"
+                        else f"Provider source refresh due for {provider_id}"
+                    ),
                     "detail": (
                         f"{provider_id} catalog data is due for refresh after "
                         f"{int(float(item.get('seconds_since_success') or 0.0))}s."
