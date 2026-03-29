@@ -9,6 +9,7 @@ Usage:
 import argparse
 import os
 import re
+import subprocess
 import sys
 from datetime import date
 from pathlib import Path
@@ -30,10 +31,19 @@ def get_current_version():
 
 def bump_version(new_version, dry_run=False):
     print(f"Bumping version in pyproject.toml to {new_version}...")
-    content = PYPROJECT.read_text(encoding="utf-8")
-    new_content = re.sub(r'version = "[^"]+"', f'version = "{new_version}"', content)
+    lines = PYPROJECT.read_text(encoding="utf-8").splitlines()
+    new_lines = []
+    found = False
+    for i, line in enumerate(lines):
+        # Only replace 'version' in the first 15 lines (package metadata)
+        if not found and line.startswith('version = "') and i < 15:
+            new_lines.append(f'version = "{new_version}"')
+            found = True
+        else:
+            new_lines.append(line)
+
     if not dry_run:
-        PYPROJECT.write_text(new_content, encoding="utf-8")
+        PYPROJECT.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
     else:
         print("[DRY RUN] Would write pyproject.toml")
 
@@ -87,6 +97,22 @@ def update_formula(new_version, dry_run=False):
         print("[DRY RUN] Would write Formula/faigate.rb")
 
 
+def verify_local(dry_run=False):
+    if dry_run:
+        print("[DRY RUN] Skipping local verification")
+        return True
+
+    print("Running local verification script...")
+    verify_script = ROOT / "scripts" / "faigate-verify"
+    if not verify_script.exists():
+        print("Warning: faigate-verify script not found!")
+        return True
+
+    # Use sys.executable to ensure we use the same python environment
+    result = subprocess.run([sys.executable, str(verify_script)], cwd=ROOT)
+    return result.returncode == 0
+
+
 def main():
     parser = argparse.ArgumentParser(description="faigate release tool")
     parser.add_argument("--version", help="New version number (e.g., 1.11.0)")
@@ -107,6 +133,11 @@ def main():
             new_version = args.version
 
         print(f"Target version: {new_version}")
+
+        # Safety check first!
+        if not verify_local(args.dry_run):
+            print("\n❌ Local verification failed! Aborting release.")
+            sys.exit(1)
 
         bump_version(new_version, args.dry_run)
         update_changelog(new_version, args.dry_run)

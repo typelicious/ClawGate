@@ -50,15 +50,18 @@ import uuid
 
 # ── Grok-Api path resolution ────────────────────────────────────────────────
 
-_GROK_API_DIR = pathlib.Path(
-    os.environ.get("GROK_API_DIR", "~/.config/faigate/grok-api")
-).expanduser().resolve()
+_GROK_API_DIR = (
+    pathlib.Path(os.environ.get("GROK_API_DIR", "~/.config/faigate/grok-api"))
+    .expanduser()
+    .resolve()
+)
 
 if str(_GROK_API_DIR) not in sys.path:
     sys.path.insert(0, str(_GROK_API_DIR))
 
 try:
     from core import Grok  # type: ignore[import]
+
     _GROK_AVAILABLE = True
 except ImportError:
     _GROK_AVAILABLE = False
@@ -79,13 +82,13 @@ _PORT: int = int(os.environ.get("GROK_ADAPTER_PORT", "8091"))
 # ── Model mapping ────────────────────────────────────────────────────────────
 
 _MODEL_MAP: dict[str, str] = {
-    "grok-3":                      "grok-3-auto",
-    "grok-3-auto":                 "grok-3-auto",
-    "grok-3-fast":                 "grok-3-fast",
-    "grok-4":                      "grok-4",
-    "grok-4-mini":                 "grok-4-mini-thinking-tahoe",
-    "grok-4-mini-thinking":        "grok-4-mini-thinking-tahoe",
-    "grok-4-mini-thinking-tahoe":  "grok-4-mini-thinking-tahoe",
+    "grok-3": "grok-3-auto",
+    "grok-3-auto": "grok-3-auto",
+    "grok-3-fast": "grok-3-fast",
+    "grok-4": "grok-4",
+    "grok-4-mini": "grok-4-mini-thinking-tahoe",
+    "grok-4-mini-thinking": "grok-4-mini-thinking-tahoe",
+    "grok-4-mini-thinking-tahoe": "grok-4-mini-thinking-tahoe",
     # Fallback: anything else → auto
 }
 
@@ -101,6 +104,7 @@ app = FastAPI(
 
 # ── Pydantic models ──────────────────────────────────────────────────────────
 
+
 class _ChatMessage(BaseModel):
     role: str
     content: str | None = None
@@ -113,7 +117,9 @@ class _ChatCompletionRequest(BaseModel):
     temperature: float | None = None
     max_tokens: int | None = None
 
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
 
 def _messages_to_prompt(messages: list[_ChatMessage]) -> str:
     """Flatten an OpenAI messages array into a single Grok prompt string.
@@ -158,9 +164,7 @@ def _make_completion_response(request_model: str, content: str) -> dict:
     }
 
 
-async def _stream_tokens(
-    request_model: str, tokens: list[str], fallback_content: str
-) -> object:
+async def _stream_tokens(request_model: str, tokens: list[str], fallback_content: str) -> object:
     """Yield OpenAI SSE chunks from Grok-Api's token list."""
     completion_id = f"chatcmpl-grok-{uuid.uuid4().hex[:12]}"
     created = int(time.time())
@@ -200,7 +204,9 @@ def _call_grok(grok_model: str, prompt: str) -> dict:
     """Blocking call to Grok-Api — run in executor to avoid blocking the event loop."""
     return Grok(model=grok_model, proxy=_PROXY).start_convo(prompt, extra_data=None)
 
+
 # ── Endpoints ────────────────────────────────────────────────────────────────
+
 
 @app.get("/v1/models")
 async def list_models():
@@ -276,6 +282,7 @@ async def health():
         "adapter_port": _PORT,
         "models": _AVAILABLE_MODELS,
     }
+
 
 # ── Entry point ──────────────────────────────────────────────────────────────
 
