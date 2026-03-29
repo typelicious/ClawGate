@@ -7,10 +7,12 @@ core and are addressed through the ``CanonicalChatExecutor`` contract.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from uuid import uuid4
 
 from ...api.anthropic.models import (
+    AnthropicBridgeError,
     AnthropicContentBlock,
     AnthropicMessage,
     AnthropicMessagesRequest,
@@ -35,12 +37,15 @@ def anthropic_request_to_canonical(
     """Map an Anthropic messages request to the internal gateway model."""
 
     normalized_headers = {str(key): str(value) for key, value in (headers or {}).items()}
-    client = (
+    source = (
         normalized_headers.get("x-faigate-client")
         or normalized_headers.get("anthropic-client")
-        or "anthropic"
+        or "claude-code"
     )
+    client = source
     metadata = dict(request.metadata)
+    metadata.setdefault("source", source)
+    metadata.setdefault("bridge_surface", "anthropic-messages")
     if normalized_headers:
         metadata["bridge_headers"] = normalized_headers
 
@@ -107,6 +112,10 @@ async def dispatch_anthropic_messages(
 
 
 def _message_to_canonical(message: AnthropicMessage) -> CanonicalMessage:
+    if any(block.type != "text" for block in message.content):
+        raise AnthropicBridgeError(
+            "Anthropic bridge v1 currently supports only text content blocks in messages"
+        )
     if len(message.content) == 1 and message.content[0].type == "text":
         content: Any = message.content[0].text or ""
     else:
@@ -133,10 +142,11 @@ def _canonical_content_to_anthropic_blocks(
     message: CanonicalResponseMessage,
 ) -> list[AnthropicContentBlock]:
     content = message.content
+    blocks: list[AnthropicContentBlock]
     if isinstance(content, str):
-        return [AnthropicContentBlock(type="text", text=content)]
-    if isinstance(content, list):
-        blocks: list[AnthropicContentBlock] = []
+        blocks = [AnthropicContentBlock(type="text", text=content)]
+    elif isinstance(content, list):
+        blocks = []
         for item in content:
             if isinstance(item, str):
                 blocks.append(AnthropicContentBlock(type="text", text=item))
@@ -154,6 +164,29 @@ def _canonical_content_to_anthropic_blocks(
                     metadata=dict(item.get("metadata", {}) or {}),
                 )
             )
-        return blocks
-    return [AnthropicContentBlock(type="text", text=str(content or ""))]
+    else:
+        blocks = [AnthropicContentBlock(type="text", text=str(content or ""))]
 
+    for tool_call in message.tool_calls:
+        if not isinstance(tool_call, dict):
+            continue
+        function = tool_call.get("function", {}) or {}
+        raw_arguments = str(function.get("arguments", "") or "").strip()
+        parsed_arguments: dict[str, Any]
+        if raw_arguments:
+            try:
+                loaded = json.loads(raw_arguments)
+                parsed_arguments = loaded if isinstance(loaded, dict) else {"arguments": loaded}
+            except json.JSONDecodeError:
+                parsed_arguments = {"raw_arguments": raw_arguments}
+        else:
+            parsed_arguments = {}
+        blocks.append(
+            AnthropicContentBlock(
+                type="tool_use",
+                tool_use_id=str(tool_call.get("id", "") or "").strip() or None,
+                name=str(function.get("name", "") or "").strip() or None,
+                input=parsed_arguments,
+            )
+        )
+    return blocks
