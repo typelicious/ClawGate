@@ -532,6 +532,168 @@ metrics:
     )
 
 
+def test_route_preview_explains_kilo_frontier_lane_choice(api_client, monkeypatch, tmp_path):
+    cfg = load_config(
+        _write_config(
+            tmp_path,
+            """
+server:
+  host: "127.0.0.1"
+  port: 8090
+providers:
+  kilo-opus:
+    backend: openai-compat
+    base_url: "https://api.kilo.ai/api/gateway"
+    api_key: "secret"
+    model: "anthropic/claude-opus-4.6"
+    tier: mid
+    capabilities:
+      cost_tier: premium
+  kilo-sonnet:
+    backend: openai-compat
+    base_url: "https://api.kilo.ai/api/gateway"
+    api_key: "secret"
+    model: "anthropic/claude-sonnet-4.6"
+    tier: mid
+    capabilities:
+      cost_tier: standard
+  kilocode:
+    backend: openai-compat
+    base_url: "https://api.kilo.ai/api/gateway"
+    api_key: "secret"
+    model: "z-ai/glm-5:free"
+    tier: fallback
+    capabilities:
+      cost_tier: free
+client_profiles:
+  enabled: true
+  default: generic
+  rules:
+    - profile: opencode
+      match:
+        header_contains:
+          x-faigate-client: ["opencode"]
+  profiles:
+    generic: {}
+    opencode:
+      routing_mode: premium
+routing_modes:
+  enabled: true
+  default: premium
+  modes:
+    premium:
+      select:
+        prefer_tiers: ["mid"]
+heuristic_rules:
+  enabled: false
+  rules: []
+fallback_chain:
+  - kilo-sonnet
+  - kilocode
+metrics:
+  enabled: false
+""",
+        )
+    )
+    kilo_opus = _ProviderStub()
+    kilo_opus.name = "kilo-opus"
+    kilo_opus.model = "anthropic/claude-opus-4.6"
+    kilo_opus.health = types.SimpleNamespace(
+        healthy=True,
+        last_check=1.0,
+        avg_latency_ms=160.0,
+        last_error="",
+        to_dict=lambda: {
+            "name": "kilo-opus",
+            "healthy": True,
+            "consecutive_failures": 0,
+            "avg_latency_ms": 160.0,
+            "last_error": "",
+        },
+    )
+    kilo_sonnet = _ProviderStub()
+    kilo_sonnet.name = "kilo-sonnet"
+    kilo_sonnet.model = "anthropic/claude-sonnet-4.6"
+    kilo_sonnet.health = types.SimpleNamespace(
+        healthy=True,
+        last_check=1.0,
+        avg_latency_ms=130.0,
+        last_error="",
+        to_dict=lambda: {
+            "name": "kilo-sonnet",
+            "healthy": True,
+            "consecutive_failures": 0,
+            "avg_latency_ms": 130.0,
+            "last_error": "",
+        },
+    )
+    kilo_free = _ProviderStub()
+    kilo_free.name = "kilocode"
+    kilo_free.model = "z-ai/glm-5:free"
+    kilo_free.tier = "fallback"
+    kilo_free.health = types.SimpleNamespace(
+        healthy=True,
+        last_check=1.0,
+        avg_latency_ms=100.0,
+        last_error="",
+        to_dict=lambda: {
+            "name": "kilocode",
+            "healthy": True,
+            "consecutive_failures": 0,
+            "avg_latency_ms": 100.0,
+            "last_error": "",
+        },
+    )
+
+    monkeypatch.setattr(main_module, "_config", cfg, raising=False)
+    monkeypatch.setattr(main_module, "_router", Router(cfg), raising=False)
+    monkeypatch.setattr(
+        main_module,
+        "_providers",
+        {
+            "kilo-opus": kilo_opus,
+            "kilo-sonnet": kilo_sonnet,
+            "kilocode": kilo_free,
+        },
+        raising=False,
+    )
+
+    response = api_client.post(
+        "/api/route",
+        headers={"X-faigate-Client": "opencode"},
+        json={
+            "model": "auto",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": (
+                        "Design a rollback-safe architecture plan for this refactor "
+                        "under load."
+                    ),
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["decision"]["provider"] == "kilo-opus"
+    assert body["route_summary"]["selected"]["canonical_model"] == "anthropic/opus-4.6"
+    assert body["route_summary"]["selected"]["kilo_mode"] == "frontier-premium"
+    assert any(
+        "Kilo frontier fit favored frontier-premium" in item
+        for item in body["route_summary"]["why_selected"]
+    )
+    assert any(
+        "premium Kilo Opus lane" in item for item in body["route_summary"]["why_selected"]
+    )
+    assert body["route_summary"]["alternatives"]
+    assert any(
+        "Kilo lane strategy fit was weaker" in item
+        for item in body["route_summary"]["alternatives"][0]["why_not_selected"]
+    )
+
+
 def test_image_edit_rejects_large_upload(api_client):
     response = api_client.post(
         "/v1/images/edits",

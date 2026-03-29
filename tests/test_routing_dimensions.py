@@ -1161,6 +1161,93 @@ metrics:
 
 
 @pytest.mark.asyncio
+async def test_opencode_balanced_prefers_kilo_sonnet_workhorse_over_free_or_generic_lanes(
+    tmp_path,
+):
+    cfg = load_config(
+        _write_config(
+            tmp_path,
+            """
+server:
+  host: "127.0.0.1"
+  port: 8090
+providers:
+  kilo-sonnet:
+    backend: openai-compat
+    base_url: "https://api.kilo.ai/api/gateway"
+    api_key: "secret"
+    model: "anthropic/claude-sonnet-4.6"
+    tier: mid
+    capabilities:
+      cost_tier: standard
+  deepseek-chat:
+    backend: openai-compat
+    base_url: "https://deepseek.example.com/v1"
+    api_key: "secret"
+    model: "deepseek-chat"
+    tier: default
+    capabilities:
+      cost_tier: standard
+  kilocode:
+    backend: openai-compat
+    base_url: "https://api.kilo.ai/api/gateway"
+    api_key: "secret"
+    model: "z-ai/glm-5:free"
+    tier: fallback
+    capabilities:
+      cost_tier: free
+client_profiles:
+  enabled: true
+  default: generic
+  profiles:
+    generic: {}
+    opencode:
+      routing_mode: auto
+routing_modes:
+  enabled: true
+  default: auto
+  modes:
+    auto:
+      select:
+        prefer_tiers: ["mid"]
+fallback_chain:
+  - deepseek-chat
+  - kilocode
+metrics:
+  enabled: false
+""",
+        )
+    )
+    router = Router(cfg)
+
+    decision = await router.route(
+        [
+            {
+                "role": "user",
+                "content": "Need a rollback-safe architecture review for this refactor under load.",
+            }
+        ],
+        model_requested="auto",
+        client_profile="opencode",
+        profile_hints=cfg.client_profiles["profiles"]["opencode"],
+        provider_health={
+            "kilo-sonnet": {"healthy": True, "avg_latency_ms": 180, "consecutive_failures": 0},
+            "deepseek-chat": {"healthy": True, "avg_latency_ms": 120, "consecutive_failures": 0},
+            "kilocode": {"healthy": True, "avg_latency_ms": 110, "consecutive_failures": 0},
+        },
+    )
+
+    assert decision.provider_name == "kilo-sonnet"
+    ranking = decision.details["candidate_ranking"]
+    assert ranking[0]["provider"] == "kilo-sonnet"
+    assert ranking[0]["kilo_mode"] == "frontier-balanced"
+    assert ranking[0]["kilo_score"] > 0
+    free_lane = next(item for item in ranking if item["provider"] == "kilocode")
+    assert free_lane["kilo_mode"] == "frontier-free"
+    assert free_lane["kilo_score"] < ranking[0]["kilo_score"]
+
+
+@pytest.mark.asyncio
 async def test_opencode_complexity_bias_promotes_single_strong_architecture_hit(tmp_path):
     cfg = load_config(
         _write_config(

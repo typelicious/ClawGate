@@ -117,7 +117,7 @@ providers:
     backend: openai-compat
     base_url: "https://api.blackbox.ai"
     api_key: "secret"
-    model: "blackboxai/x-ai/grok-code-fast-1:free"
+    model: "blackboxai/x-ai/grok-code-fast-1"
 fallback_chain: []
 metrics:
   enabled: false
@@ -130,7 +130,7 @@ metrics:
 
     assert "catalog-source-unofficial" in codes
     assert "volatile-offer-configured" in codes
-    assert report["items"][0]["offer_track"] == "free"
+    assert report["items"][0]["offer_track"] == "credit"
     assert report["items"][0]["volatility"] == "high"
 
 
@@ -258,7 +258,7 @@ providers:
     model: "openrouter/auto"
   kilocode:
     backend: openai-compat
-    base_url: "https://api.kilo.ai/api/gateway/v1"
+    base_url: "https://api.kilo.ai/api/gateway"
     api_key: "secret"
     model: "z-ai/glm-5:free"
 fallback_chain: []

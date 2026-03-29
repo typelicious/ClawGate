@@ -800,6 +800,112 @@ def _freshness_posture_score(lane: dict[str, Any], routing_posture: str) -> int:
     ).get(freshness_status, 0)
 
 
+def _kilo_gateway_fit(
+    lane: dict[str, Any],
+    ctx: _RoutingContext | None,
+    routing_posture: str,
+) -> dict[str, Any]:
+    """Model a Kilo-specific frontier strategy using explicit Opus/Sonnet/Free lanes.
+
+    Kilo currently exposes both explicit paid models and `kilo-auto/*` routes. Gate does not yet
+    attach provider-specific default headers like `x-kilocode-mode`, so we adapt that frontier
+    behavior by steering between explicit Kilo lanes:
+    - `kilo-opus` for higher-risk premium planning/review/debugging work
+    - `kilo-sonnet` for balanced day-to-day coding work
+    - `kilocode` for eco/free overflow
+    """
+    if not lane or str(lane.get("family") or "").lower() != "kilo":
+        return {"score": 0, "mode": "", "reasons": []}
+
+    request_insights = dict(getattr(ctx, "request_insights", {}) or {}) if ctx is not None else {}
+    client_profile = str(getattr(ctx, "client_profile", "") or "")
+    canonical_model = str(lane.get("canonical_model") or "")
+    complexity_profile = str(request_insights.get("complexity_profile") or "")
+    signal_groups = {str(item) for item in (request_insights.get("signal_groups") or []) if item}
+    planning_context = bool(request_insights.get("planning_context"))
+    short_complex = bool(request_insights.get("short_complex"))
+    architecture_risk = bool(request_insights.get("architecture_risk"))
+
+    score = 0
+    reasons: list[str] = []
+    mode = ""
+
+    if canonical_model == "anthropic/opus-4.6":
+        mode = "frontier-premium"
+        if routing_posture == "quality":
+            score += 6
+            reasons.append("Quality posture keeps the premium Kilo Opus lane eligible.")
+        elif routing_posture == "balanced":
+            score += 2
+            reasons.append("Balanced posture still allows Opus for harder coding work.")
+        else:
+            score -= 4
+            reasons.append("Eco/free posture pushes Opus behind cheaper Kilo lanes.")
+
+        if client_profile == "opencode" and complexity_profile in {"medium", "high"}:
+            score += 4
+            reasons.append("Opencode complexity makes the premium Kilo frontier lane worthwhile.")
+        if architecture_risk or {"architecture", "change-risk", "concurrency"} & signal_groups:
+            score += 4
+            reasons.append("Architecture or change-risk signals favored Opus over lighter lanes.")
+        if planning_context:
+            score += 2
+            reasons.append("Planning language matched Kilo's premium frontier path.")
+        if short_complex:
+            score += 2
+            reasons.append("Brief but risky request stayed on a stronger Kilo lane.")
+
+    elif canonical_model == "anthropic/sonnet-4.6":
+        mode = "frontier-balanced"
+        if routing_posture == "balanced":
+            score += 6
+            reasons.append("Balanced posture lined up with the Kilo Sonnet workhorse lane.")
+        elif routing_posture == "quality":
+            score += 3
+            reasons.append("Quality posture kept Sonnet as the lower-cost premium-adjacent option.")
+        elif routing_posture == "eco":
+            score += 1
+            reasons.append("Eco posture still allows Sonnet for moderate coding work.")
+        else:
+            score -= 2
+            reasons.append("Free posture prefers cheaper Kilo routes over Sonnet.")
+
+        if client_profile == "opencode" and complexity_profile in {"medium", "high"}:
+            score += 4
+            reasons.append("Opencode coding work matched the Kilo Sonnet workhorse lane.")
+        if {"quality", "debugging", "testing", "security", "database", "devops"} & signal_groups:
+            score += 2
+            reasons.append("Coding quality signals favored Sonnet over free overflow.")
+        if planning_context:
+            score += 1
+            reasons.append("Planning language still fit the balanced Kilo workhorse.")
+
+    elif canonical_model == "aggregator/kilo-glm5-free":
+        mode = "frontier-free"
+        if routing_posture in {"eco", "free"}:
+            score += 5
+            reasons.append("Eco/free posture matched the Kilo free overflow lane.")
+        elif routing_posture == "balanced":
+            score += 1
+            reasons.append("Balanced posture kept the Kilo free lane as overflow only.")
+        else:
+            score -= 5
+            reasons.append("Quality posture demoted the Kilo free lane.")
+
+        if client_profile == "opencode" and complexity_profile in {"medium", "high"}:
+            score -= 5
+            reasons.append("Complex opencode work was kept off the free Kilo lane.")
+        if short_complex or architecture_risk:
+            score -= 3
+            reasons.append("Risky short-form coding work was too sharp for the free Kilo lane.")
+
+    return {
+        "score": score,
+        "mode": mode,
+        "reasons": reasons,
+    }
+
+
 def _merge_select_constraints(*selects: dict[str, Any]) -> dict[str, Any]:
     """Merge policy-like select mappings without dropping list/dict constraints."""
     merged: dict[str, Any] = {
@@ -1502,6 +1608,8 @@ class Router:
             cost_tier=cost_tier,
         )
         freshness_score = _freshness_posture_score(lane, routing_posture)
+        kilo_fit = _kilo_gateway_fit(lane, ctx, routing_posture)
+        kilo_score = int(kilo_fit.get("score") or 0)
         adaptation_penalty = int(runtime_state.get("penalty", 0) or 0)
         recovery_score = self._recovery_posture_score(lane, runtime_state, routing_posture)
         image_score = 0
@@ -1562,6 +1670,7 @@ class Router:
             + benchmark_request_score
             + cost_score
             + freshness_score
+            + kilo_score
             + recovery_score
             + image_score
             + image_policy_score
@@ -1588,6 +1697,9 @@ class Router:
             "freshness_score": freshness_score,
             "freshness_status": str(lane.get("freshness_status") or ""),
             "review_age_days": int(lane.get("review_age_days") or -1),
+            "kilo_score": kilo_score,
+            "kilo_mode": str(kilo_fit.get("mode") or ""),
+            "kilo_reasons": list(kilo_fit.get("reasons") or []),
             "adaptation_penalty": adaptation_penalty,
             "recovery_score": recovery_score,
             "image_score": image_score,
@@ -1930,6 +2042,9 @@ class Router:
                     "freshness_score": details["freshness_score"],
                     "freshness_status": details["freshness_status"],
                     "review_age_days": details["review_age_days"],
+                    "kilo_score": details["kilo_score"],
+                    "kilo_mode": details["kilo_mode"],
+                    "kilo_reasons": details["kilo_reasons"],
                     "runtime_penalty": details["runtime_penalty"],
                     "runtime_issue_type": details["runtime_issue_type"],
                     "runtime_recovered_recently": details["runtime_recovered_recently"],

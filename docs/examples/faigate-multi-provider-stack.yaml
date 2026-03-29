@@ -108,12 +108,12 @@ routing_policies:
       select:
         prefer_tiers: ["cheap", "default"]
 
-# Optional additional fallback providers with free-tier or free-model paths:
+# Optional additional fallback providers with free-tier or low-cost model paths:
 #
 # providers:
 #   kilocode:
 #     backend: openai-compat
-#     base_url: "${KILOCODE_BASE_URL:-https://api.kilo.ai/api/gateway/v1}"
+#     base_url: "${KILOCODE_BASE_URL:-https://api.kilo.ai/api/gateway}"
 #     api_key: "${KILOCODE_API_KEY}"
 #     model: "z-ai/glm-5:free"
 #     max_tokens: 8000
@@ -123,6 +123,6 @@ routing_policies:
 #     backend: openai-compat
 #     base_url: "${BLACKBOX_BASE_URL:-https://api.blackbox.ai}"
 #     api_key: "${BLACKBOX_API_KEY}"
-#     model: "blackboxai/x-ai/grok-code-fast-1:free"
+#     model: "blackboxai/x-ai/grok-code-fast-1"
 #     max_tokens: 8000
 #     tier: fallback

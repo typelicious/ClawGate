@@ -116,11 +116,47 @@ _CATALOG: dict[str, dict[str, Any]] = {
         "notes": "Current curated Kilo free-tier model; free and budget tracks can move quickly",
         "last_reviewed": "2026-03-19",
     },
+    "kilo-sonnet": {
+        "recommended_model": "anthropic/claude-sonnet-4.6",
+        "aliases": ["anthropic/claude-sonnet-4.6", "kilo-auto/frontier", "kilo-auto/balanced"],
+        "track": "stable",
+        "offer_track": "gateway-paid",
+        "provider_type": "aggregator",
+        "auth_modes": ["api_key", "byok"],
+        "volatility": "medium",
+        "evidence_level": "official",
+        "official_source_url": "https://kilo.ai/docs/gateway/models-and-providers",
+        "signup_url": "https://kilo.ai/",
+        "watch_sources": [],
+        "notes": (
+            "Kilo paid Sonnet lane; useful as the workhorse path when you want "
+            "Kilo credits to absorb balanced coding traffic"
+        ),
+        "last_reviewed": "2026-03-29",
+    },
+    "kilo-opus": {
+        "recommended_model": "anthropic/claude-opus-4.6",
+        "aliases": ["anthropic/claude-opus-4.6", "kilo-auto/frontier"],
+        "track": "stable",
+        "offer_track": "gateway-paid",
+        "provider_type": "aggregator",
+        "auth_modes": ["api_key", "byok"],
+        "volatility": "medium",
+        "evidence_level": "official",
+        "official_source_url": "https://kilo.ai/docs/gateway/models-and-providers",
+        "signup_url": "https://kilo.ai/",
+        "watch_sources": [],
+        "notes": (
+            "Kilo paid Opus lane; useful when expiring Kilo credits should absorb "
+            "premium reasoning traffic"
+        ),
+        "last_reviewed": "2026-03-29",
+    },
     "blackbox-free": {
-        "recommended_model": "blackboxai/x-ai/grok-code-fast-1:free",
-        "aliases": ["blackboxai/x-ai/grok-code-fast-1:free"],
-        "track": "free",
-        "offer_track": "free",
+        "recommended_model": "blackboxai/x-ai/grok-code-fast-1",
+        "aliases": ["blackboxai/x-ai/grok-code-fast-1"],
+        "track": "cheap",
+        "offer_track": "credit",
         "provider_type": "aggregator",
         "auth_modes": ["api_key"],
         "volatility": "high",
@@ -129,10 +165,10 @@ _CATALOG: dict[str, dict[str, Any]] = {
         "signup_url": "https://cloud.blackbox.ai/",
         "watch_sources": [_COMMUNITY_WATCHLIST],
         "notes": (
-            "Current curated BLACKBOX free-tier path; verify often because free "
-            "offerings can rotate"
+            "Legacy provider id for the current low-cost BLACKBOX Grok Code Fast route; "
+            "verify often because pricing and model availability can rotate"
         ),
-        "last_reviewed": "2026-03-19",
+        "last_reviewed": "2026-03-29",
     },
     "openai-gpt4o": {
         "recommended_model": "gpt-4o",
