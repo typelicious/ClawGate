@@ -128,9 +128,15 @@ except ConfigError as exc:
     print(f"[fail] config invalid: {exc}")
     sys.exit(1)
 configured_provider_names = set(config.providers.keys())
-store = ProviderCatalogStore(str(config.metrics.get("db_path") or ""))
-store.init()
-if os.environ.get("FAIGATE_DOCTOR_REFRESH_CATALOG") == "1":
+store = None
+catalog_store_error = ""
+try:
+    store = ProviderCatalogStore(str(config.metrics.get("db_path") or ""))
+    store.init()
+except Exception as exc:
+    catalog_store_error = str(exc)
+
+if store is not None and os.environ.get("FAIGATE_DOCTOR_REFRESH_CATALOG") == "1":
     refresher = ProviderCatalogRefresher(store)
     refresh_results = refresher.refresh(
         provider_ids=list(config.provider_source_refresh.get("providers") or []),
@@ -169,7 +175,7 @@ for item in catalog.get("items", []):
     print(f"[ok] provider discovery: {item['provider']} -> {label} -> {resolved}")
 
 health_raw = os.environ.get("FAIGATE_HEALTH_PAYLOAD", "").strip()
-if health_raw:
+if store is not None and health_raw:
     health_payload = json.loads(health_raw)
     record_availability_from_health(store, health_payload=health_payload)
     providers = (health_payload.get("providers") or {})
@@ -496,56 +502,60 @@ if health_raw:
                 "the provider layer looks ready enough to move on to client defaults and wiring"
             )
 
-catalog_summary = build_catalog_summary(
-    store,
-    provider_ids=list(config.provider_source_refresh.get("providers") or []),
-)
-catalog_alerts = list(catalog_summary.get("alerts") or [])
-catalog_alert_summary = build_catalog_alert_summary(catalog_alerts)
-print(
-    "[ok] provider source catalog: "
-    f"{int(catalog_summary.get('tracked_sources') or 0)} tracked sources"
-)
-print(
-    "[ok] provider source alert summary: "
-    f"status={catalog_alert_summary.get('status') or 'clear'} | "
-    f"fix-now={int(catalog_alert_summary.get('fix_now') or 0)} | "
-    f"review-now={int(catalog_alert_summary.get('review_now') or 0)} | "
-    f"inspect={int(catalog_alert_summary.get('inspect') or 0)}"
-)
-for item in catalog_summary.get("items", [])[:5]:
-    print(
-        f"[ok] provider source snapshot: {item['provider_id']} -> "
-        f"models={item['models_count']} pricing={item['pricing_count']} docs={item['docs_index_count']}"
+if store is not None:
+    catalog_summary = build_catalog_summary(
+        store,
+        provider_ids=list(config.provider_source_refresh.get("providers") or []),
     )
-    if item.get("last_error"):
-        print(f"[warn] provider source snapshot: {item['provider_id']} -> {item['last_error']}")
-for event in catalog_summary.get("recent_events", [])[:3]:
+    catalog_alerts = list(catalog_summary.get("alerts") or [])
+    catalog_alert_summary = build_catalog_alert_summary(catalog_alerts)
     print(
-        f"[ok] provider source change: {event['provider_id']} / {event['source_kind']} / "
-        f"{event['change_type']} -> {event['message']}"
+        "[ok] provider source catalog: "
+        f"{int(catalog_summary.get('tracked_sources') or 0)} tracked sources"
     )
-for alert in catalog_alerts[:3]:
-    label = "warn" if str(alert.get("action") or "") == "fix-now" else "ok"
     print(
-        f"[{label}] provider source alert: {alert['provider_id']} -> "
-        f"{alert['headline']} ({alert.get('action') or 'inspect'})"
+        "[ok] provider source alert summary: "
+        f"status={catalog_alert_summary.get('status') or 'clear'} | "
+        f"fix-now={int(catalog_alert_summary.get('fix_now') or 0)} | "
+        f"review-now={int(catalog_alert_summary.get('review_now') or 0)} | "
+        f"inspect={int(catalog_alert_summary.get('inspect') or 0)}"
     )
-    if alert.get("suggestion"):
+    for item in catalog_summary.get("items", [])[:5]:
         print(
-            f"[ok] provider source alert action: {alert['provider_id']} -> "
-            f"{alert.get('action') or 'inspect'} | {alert['suggestion']}"
+            f"[ok] provider source snapshot: {item['provider_id']} -> "
+            f"models={item['models_count']} pricing={item['pricing_count']} docs={item['docs_index_count']}"
         )
-if catalog_alert_summary.get("status") == "intervention-needed":
-    print(
-        "[ok] provider source priority next: Provider Catalog Refresh -> "
-        "at least one source refresh failure needs intervention now"
-    )
-elif catalog_alert_summary.get("status") == "review-needed":
-    print(
-        "[ok] provider source priority next: Provider Catalog Review -> "
-        "recent model or pricing drift should be reviewed before trusting older assumptions"
-    )
+        if item.get("last_error"):
+            print(f"[warn] provider source snapshot: {item['provider_id']} -> {item['last_error']}")
+    for event in catalog_summary.get("recent_events", [])[:3]:
+        print(
+            f"[ok] provider source change: {event['provider_id']} / {event['source_kind']} / "
+            f"{event['change_type']} -> {event['message']}"
+        )
+    for alert in catalog_alerts[:3]:
+        label = "warn" if str(alert.get("action") or "") == "fix-now" else "ok"
+        print(
+            f"[{label}] provider source alert: {alert['provider_id']} -> "
+            f"{alert['headline']} ({alert.get('action') or 'inspect'})"
+        )
+        if alert.get("suggestion"):
+            print(
+                f"[ok] provider source alert action: {alert['provider_id']} -> "
+                f"{alert.get('action') or 'inspect'} | {alert['suggestion']}"
+            )
+    if catalog_alert_summary.get("status") == "intervention-needed":
+        print(
+            "[ok] provider source priority next: Provider Catalog Refresh -> "
+            "at least one source refresh failure needs intervention now"
+        )
+    elif catalog_alert_summary.get("status") == "review-needed":
+        print(
+            "[ok] provider source priority next: Provider Catalog Review -> "
+            "recent model or pricing drift should be reviewed before trusting older assumptions"
+        )
+    store.close()
+elif catalog_store_error:
+    print(f"[warn] provider source catalog unavailable: {catalog_store_error}")
 PY
 then
   status=1

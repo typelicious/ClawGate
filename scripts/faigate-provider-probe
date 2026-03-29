@@ -90,21 +90,31 @@ from faigate.wizard import build_provider_probe_report, render_provider_probe_te
 health_raw = os.environ.get("FAIGATE_PROVIDER_PROBE_HEALTH", "").strip()
 health_payload = json.loads(health_raw) if health_raw else None
 config = load_config(os.environ["FAIGATE_PROVIDER_PROBE_CONFIG"])
-store = ProviderCatalogStore(str(config.metrics.get("db_path") or ""))
-store.init()
-if os.environ.get("FAIGATE_PROVIDER_PROBE_REFRESH_CATALOG") == "1":
+store = None
+catalog_summary = {}
+catalog_alerts = []
+catalog_alert_summary = {"status": "clear", "fix_now": 0, "review_now": 0, "inspect": 0}
+catalog_store_error = ""
+try:
+    store = ProviderCatalogStore(str(config.metrics.get("db_path") or ""))
+    store.init()
+except Exception as exc:
+    catalog_store_error = str(exc)
+
+if store is not None and os.environ.get("FAIGATE_PROVIDER_PROBE_REFRESH_CATALOG") == "1":
     refresher = ProviderCatalogRefresher(store)
     refresher.refresh(
         provider_ids=list(config.provider_source_refresh.get("providers") or []),
         timeout_seconds=float(os.environ.get("FAIGATE_PROVIDER_PROBE_TIMEOUT") or "2.0"),
     )
-record_availability_from_health(store, health_payload=health_payload)
-catalog_summary = build_catalog_summary(
-    store,
-    provider_ids=list(config.provider_source_refresh.get("providers") or []),
-)
-catalog_alerts = list(catalog_summary.get("alerts") or [])
-catalog_alert_summary = build_catalog_alert_summary(catalog_alerts)
+if store is not None:
+    record_availability_from_health(store, health_payload=health_payload)
+    catalog_summary = build_catalog_summary(
+        store,
+        provider_ids=list(config.provider_source_refresh.get("providers") or []),
+    )
+    catalog_alerts = list(catalog_summary.get("alerts") or [])
+    catalog_alert_summary = build_catalog_alert_summary(catalog_alerts)
 report = build_provider_probe_report(
     config_path=os.environ["FAIGATE_PROVIDER_PROBE_CONFIG"],
     env_file=os.environ["FAIGATE_PROVIDER_PROBE_ENV"],
@@ -123,6 +133,8 @@ if os.environ["FAIGATE_PROVIDER_PROBE_MODE"] == "json":
     print(json.dumps(payload, indent=2, sort_keys=True))
 else:
     print(render_catalog_summary_text(catalog_summary, heading="Provider source catalog"), end="")
+    if catalog_store_error:
+        print(f"[warn] provider source catalog unavailable: {catalog_store_error}")
     if catalog_alerts:
         print("Catalog alert actions")
         for alert in catalog_alerts[:3]:
@@ -140,4 +152,7 @@ else:
         )
         print("")
     print(render_provider_probe_text(report), end="")
+
+if store is not None:
+    store.close()
 PY

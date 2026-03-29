@@ -3,6 +3,14 @@ from __future__ import annotations
 from faigate.provider_catalog_store import ProviderCatalogStore
 
 
+def test_provider_catalog_store_init_creates_missing_parent_directories(tmp_path):
+    db_path = tmp_path / "nested" / "catalog" / "faigate.db"
+    store = ProviderCatalogStore(str(db_path))
+    store.init()
+
+    assert db_path.exists()
+
+
 def test_provider_catalog_store_round_trips_sources_and_account_profiles(tmp_path):
     db_path = tmp_path / "faigate.db"
     store = ProviderCatalogStore(str(db_path))

@@ -6,6 +6,7 @@ import json
 import logging
 import sqlite3
 import time
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger("faigate.provider_catalog_store")
@@ -99,6 +100,8 @@ class ProviderCatalogStore:
         self._conn: sqlite3.Connection | None = None
 
     def init(self) -> None:
+        if self._db_path and self._db_path != ":memory:":
+            Path(self._db_path).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA synchronous=NORMAL")

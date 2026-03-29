@@ -513,13 +513,19 @@ elif os.environ.get("FAIGATE_MENU_DB_EXPLICIT") == "1":
     db_path = Path(os.environ["FAIGATE_MENU_DB"])
 else:
     db_path = Path("")
-if str(db_path) and db_path.exists():
-    store = ProviderCatalogStore(str(db_path))
-    store.init()
+if str(db_path):
     try:
-        catalog_summary = build_catalog_summary(store, provider_ids=list(tracked_catalog_providers))
-    finally:
-        store.close()
+        store = ProviderCatalogStore(str(db_path))
+        store.init()
+        try:
+            catalog_summary = build_catalog_summary(
+                store,
+                provider_ids=list(tracked_catalog_providers),
+            )
+        finally:
+            store.close()
+    except Exception:
+        catalog_summary = {}
 
 catalog_alert_summary = dict(
     catalog_summary.get("alert_summary")
