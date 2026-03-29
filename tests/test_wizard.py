@@ -1440,7 +1440,8 @@ providers:
     assert "openrouter-fallback" in auto_apply_names
     assert actionable_names >= {
         "openrouter-fallback",
-        "kilocode",
+        "kilo-opus",
+        "kilo-sonnet",
         "blackbox-free",
         "openai-gpt4o",
         "deepseek-reasoner",
@@ -1493,7 +1494,8 @@ providers:
     assert "openrouter-fallback" in auto_apply_names
     assert actionable_names >= {
         "openrouter-fallback",
-        "kilocode",
+        "kilo-opus",
+        "kilo-sonnet",
         "blackbox-free",
         "openai-gpt4o",
         "deepseek-chat",

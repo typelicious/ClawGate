@@ -134,7 +134,7 @@ BUILTIN: dict[str, ProviderDef] = {
     # ── Kilo Gateway ──────────────────────────────────────────────────────
     "kilocode": ProviderDef(
         backend="openai-compat",
-        base_url="https://api.kilo.ai/api/gateway/v1",
+        base_url="https://api.kilo.ai/api/gateway",
         base_url_env="KILOCODE_BASE_URL",
         api_key_env="KILOCODE_API_KEY",
         tier="fallback",

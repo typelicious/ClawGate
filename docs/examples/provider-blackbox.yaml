@@ -3,9 +3,12 @@ providers:
     backend: openai-compat
     base_url: "${BLACKBOX_BASE_URL:-https://api.blackbox.ai}"
     api_key: "${BLACKBOX_API_KEY}"
-    model: "blackboxai/x-ai/grok-code-fast-1:free"
+    model: "blackboxai/x-ai/grok-code-fast-1"
     max_tokens: 8000
     tier: fallback
+
+# `blackbox-free` is kept as a legacy provider id for compatibility.
+# The current curated route is low-cost, not guaranteed free.
 
 fallback_chain:
   - blackbox-free

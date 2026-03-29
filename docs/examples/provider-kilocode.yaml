@@ -1,11 +1,34 @@
 providers:
   kilocode:
     backend: openai-compat
-    base_url: "${KILOCODE_BASE_URL:-https://api.kilo.ai/api/gateway/v1}"
+    base_url: "${KILOCODE_BASE_URL:-https://api.kilo.ai/api/gateway}"
     api_key: "${KILOCODE_API_KEY}"
     model: "z-ai/glm-5:free"
     max_tokens: 8000
     tier: fallback
+  kilo-sonnet:
+    backend: openai-compat
+    base_url: "${KILOCODE_BASE_URL:-https://api.kilo.ai/api/gateway}"
+    api_key: "${KILOCODE_API_KEY}"
+    model: "anthropic/claude-sonnet-4.6"
+    max_tokens: 16000
+    tier: mid
+  kilo-opus:
+    backend: openai-compat
+    base_url: "${KILOCODE_BASE_URL:-https://api.kilo.ai/api/gateway}"
+    api_key: "${KILOCODE_API_KEY}"
+    model: "anthropic/claude-opus-4.6"
+    max_tokens: 32000
+    tier: mid
 
 fallback_chain:
+  - kilo-sonnet
+  - kilo-opus
   - kilocode
+
+# Notes
+# - Kilo explicit paid lanes let Gate model Sonnet and Opus separately instead of relying on
+#   `kilo-auto/*` header hints.
+# - If Kilo reports `usage.is_byok: true`, the request is not billed to your Kilo balance.
+#   In that case verify whether a user- or org-scoped BYOK provider key exists, or treat the
+#   flag as a Kilo-side billing-signal issue until proven otherwise.

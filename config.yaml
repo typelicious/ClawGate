@@ -385,7 +385,7 @@ model_shortcuts:
       aliases:
       - blackbox
       - bb
-      description: BLACKBOX free-tier route
+      description: BLACKBOX budget burst route (legacy id)
       target: blackbox-free
     deepseek-chat:
       aliases:
@@ -557,10 +557,10 @@ providers:
     backend: openai-compat
     base_url: ${BLACKBOX_BASE_URL:-https://api.blackbox.ai}
     capabilities:
-      cost_tier: free
+      cost_tier: cheap
       latency_tier: fast
     lane:
-      benchmark_cluster: free-coding
+      benchmark_cluster: budget-chat
       canonical_model: aggregator/blackbox-grok-code-fast
       cluster: budget-general
       context_strength: mid
@@ -571,15 +571,15 @@ providers:
       freshness_hint: benchmark and cost assumptions were reviewed recently
       freshness_status: fresh
       last_reviewed: '2026-03-22'
-      name: free-burst
-      quality_tier: free
+      name: burst
+      quality_tier: budget
       reasoning_strength: mid
       review_age_days: 1
       route_type: aggregator
       same_model_group: aggregator/blackbox-grok-code-fast
       tool_strength: mid
     max_tokens: 8000
-    model: blackboxai/x-ai/grok-code-fast-1:free
+    model: blackboxai/x-ai/grok-code-fast-1
     tier: fallback
     timeout:
       connect_s: 10
@@ -797,7 +797,7 @@ providers:
   kilocode:
     api_key: ${KILOCODE_API_KEY}
     backend: openai-compat
-    base_url: ${KILOCODE_BASE_URL:-https://api.kilo.ai/api/gateway/v1}
+    base_url: ${KILOCODE_BASE_URL:-https://api.kilo.ai/api/gateway}
     capabilities:
       cost_tier: free
       latency_tier: balanced

@@ -37,6 +37,30 @@ The detailed design lives in [Adaptive model orchestration](./ADAPTIVE-ORCHESTRA
 
 The next block should stay disciplined: build on the workstation baseline, keep packaging practical, and avoid turning fusionAIze Gate into a sprawling platform.
 
+## Current release target: `v1.12.0`
+
+The next release should land as a clean operational release, not as another loose pile of runtime slices.
+
+`v1.12.0` should close around three themes that now fit together:
+
+- provider source cataloging and alerting as a first-class operator surface
+- clearer aggregator behavior for Kilo and BLACKBOX, especially where "free", "budget", "wallet", and explicit paid lanes are easy to conflate
+- hardened release automation after the `v1.11.x` release failures
+
+The release should feel coherent from an operator point of view:
+
+- Quick Setup, Doctor, Provider Probe, Dashboard, and route preview all explain drift or route pressure using the same language
+- Kilo explicit Sonnet/Opus lanes are visible as deliberate routing choices instead of hidden aggregator magic
+- release prep, tag validation, and publish dry-runs are boring and repeatable again
+
+What is intentionally not in scope for `v1.12.0`:
+
+- the virtual key layer
+- gateway-level response caching
+- fully automated external provider-source crawling on a long-running schedule
+
+Those stay as follow-on tracks once the operator surfaces, release path, and aggregator semantics are stable enough to trust.
+
 ## Shipped: `v1.8.0` – `v1.9.1`
 
 The adaptive model orchestration foundation is fully in place:

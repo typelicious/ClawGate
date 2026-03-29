@@ -1,5 +1,21 @@
 # fusionAIze Gate Changelog
 
+## v1.12.0 - Unreleased
+
+### Added
+
+- Added a provider source catalog line with startup refresh, dashboard/API summaries, and operator-facing alert actions across `faigate-doctor`, `faigate-provider-probe`, and Quick Setup so model/pricing drift is visible earlier instead of hiding behind stale curated assumptions
+- Added explicit Kilo paid workhorse lanes for Sonnet and Opus plus Kilo-specific routing fit scoring, which lets Gate model premium, balanced, and free Kilo traffic without relying on opaque `kilo-auto/*` header behavior
+- Added route-preview coverage for Kilo frontier lane selection so operators can see when Gate chose `kilo-opus`, `kilo-sonnet`, or `kilocode` and why
+- Added stronger release automation dry-run coverage so the release helper itself is exercised in CI before a tagged release is cut
+
+### Changed
+
+- Hardened release automation end-to-end: local release scripts now validate versions more strictly, verify package metadata coherency, and point to the dedicated `fusionAIze/homebrew-tap` repository instead of assuming a local formula in this repo
+- Release artifact publishing now validates tag/version alignment before publishing and reuses prebuilt Python artifacts for PyPI instead of rebuilding a second time in the publish job
+- Reframed the legacy `blackbox-free` route as a low-cost burst path rather than a guaranteed free path, because the currently working curated model is not reliably the `:free` SKU for every key
+- Updated Kilo defaults and examples to use the current gateway base URL without the stale `/v1` suffix
+
 ## v1.11.2 - 2026-03-29
 
 ### Changed
