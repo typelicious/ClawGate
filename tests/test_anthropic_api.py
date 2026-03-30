@@ -312,6 +312,32 @@ def test_anthropic_messages_applies_builtin_claude_code_model_aliases(
     assert response.headers["x-faigate-bridge-model-resolved"] == "anthropic-sonnet"
 
 
+def test_anthropic_messages_can_redirect_claude_code_model_ids_to_gateway_routes(
+    anthropic_api_client,
+):
+    client, provider = anthropic_api_client
+    main_module._config.anthropic_bridge["model_aliases"]["claude-sonnet-4-6[1m]"] = "kilo-sonnet"
+
+    response = client.post(
+        "/v1/messages",
+        json={
+            "model": "claude-sonnet-4-6[1m]",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Prefer the gateway-managed sonnet lane",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    metadata = provider.calls[0]["extra_body"]["metadata"]
+    assert metadata["requested_model_original"] == "claude-sonnet-4-6[1m]"
+    assert metadata["requested_model_resolved"] == "kilo-sonnet"
+    assert response.headers["x-faigate-bridge-model-resolved"] == "kilo-sonnet"
+
+
 def test_anthropic_messages_preserve_version_headers(anthropic_api_client):
     client, provider = anthropic_api_client
 
@@ -414,6 +440,69 @@ def test_anthropic_messages_tolerate_tool_result_without_id(anthropic_api_client
             "role": "user",
             "content": "Detached tool result text",
         }
+    ]
+
+
+def test_anthropic_messages_keep_tool_result_adjacent_before_user_text(anthropic_api_client):
+    client, provider = anthropic_api_client
+
+    response = client.post(
+        "/v1/messages",
+        json={
+            "model": "claude-sonnet",
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_lookup",
+                            "name": "lookup_doc",
+                            "input": {"id": "design-note"},
+                        }
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Use the most relevant snippet"},
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "toolu_lookup",
+                            "content": "Design note loaded",
+                        },
+                    ],
+                },
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    forwarded_messages = provider.calls[0]["messages"]
+    assert forwarded_messages == [
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "toolu_lookup",
+                    "type": "function",
+                    "function": {
+                        "name": "lookup_doc",
+                        "arguments": '{"id":"design-note"}',
+                    },
+                }
+            ],
+        },
+        {
+            "role": "tool",
+            "content": "Design note loaded",
+            "tool_call_id": "toolu_lookup",
+        },
+        {
+            "role": "user",
+            "content": "Use the most relevant snippet",
+        },
     ]
 
 

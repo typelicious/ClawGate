@@ -259,7 +259,7 @@ def _assistant_message_to_canonical(message: AnthropicMessage) -> CanonicalMessa
 
 
 def _user_message_to_canonical(message: AnthropicMessage) -> list[CanonicalMessage]:
-    canonical_messages: list[CanonicalMessage] = []
+    tool_messages: list[CanonicalMessage] = []
     pending_text: list[AnthropicContentBlock] = []
     for block in message.content:
         if block.type == "text":
@@ -281,13 +281,16 @@ def _user_message_to_canonical(message: AnthropicMessage) -> list[CanonicalMessa
                 )
             )
             continue
-        if pending_text:
-            canonical_messages.append(
-                CanonicalMessage(role="user", content=_text_blocks_to_string(pending_text))
-            )
-            pending_text = []
-        canonical_messages.append(_anthropic_tool_result_to_canonical_message(block))
-    if pending_text or not canonical_messages:
+        tool_messages.append(_anthropic_tool_result_to_canonical_message(block))
+
+    if not tool_messages:
+        return [CanonicalMessage(role="user", content=_text_blocks_to_string(pending_text))]
+
+    canonical_messages = list(tool_messages)
+    if pending_text:
+        # OpenAI-style tool continuity requires tool messages to follow the
+        # assistant tool_calls immediately. Preserve any surrounding user text
+        # as a trailing user turn once all tool_result blocks are emitted.
         canonical_messages.append(
             CanonicalMessage(role="user", content=_text_blocks_to_string(pending_text))
         )
