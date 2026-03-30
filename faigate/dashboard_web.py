@@ -1,6 +1,19 @@
 """Built-in operator dashboard HTML for fusionAIze Gate."""
 
+from pathlib import Path
+
 # ruff: noqa: E501
+
+_VENDOR_DIR = Path(__file__).resolve().parent / "vendor"
+
+
+def _read_vendor_asset(name: str) -> str:
+    """Return one vendored dashboard asset as text."""
+
+    try:
+        return (_VENDOR_DIR / name).read_text(encoding="utf-8")
+    except OSError:
+        return ""
 
 DASHBOARD_HTML = '''<!DOCTYPE html>
 <html lang="en">
@@ -9,6 +22,7 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>fusionAIze Gate</title>
 <style>
+/*__UPLOT_CSS__*/
 :root{
   --bg:#07101d;
   --bg-2:#0d1730;
@@ -670,6 +684,29 @@ button:hover{transform:translateY(-1px)}
   background-size:auto, auto 36px, 56px auto;
 }
 .chart svg{display:block;width:100%;height:100%}
+.chart .uplot{
+  width:100% !important;
+  height:100% !important;
+}
+.chart .u-title,
+.chart .u-legend{
+  display:none;
+}
+.chart .u-wrap{
+  width:100% !important;
+  height:100% !important;
+}
+.chart .u-axis text{
+  fill:#7f98be;
+  font:500 11px/1 var(--mono);
+}
+.chart .u-grid line{
+  stroke:rgba(84,171,238,.1);
+}
+.chart .u-series path{
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
 .chart-empty{
   display:grid;
   place-items:center;
@@ -1180,10 +1217,13 @@ manual hard task   -> premium</code>
 </div>
 
 <script>
+/*__UPLOT_JS__*/
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const VIEW_IDS = ['overview','providers','clients','routes','analytics','catalog','integrations'];
 let currentView = 'overview';
+const chartRegistry = new Map();
+let latestBundle = null;
 
 const fmt = (n, d = 2) => n != null ? Number(n).toLocaleString('en', {minimumFractionDigits:d, maximumFractionDigits:d}) : '—';
 const fmtUsd = n => n != null ? (Number(n) <= 0 ? '$0.00' : '$' + fmt(n, Number(n) < 0.01 ? 4 : 2)) : '—';
@@ -1291,33 +1331,21 @@ function readinessKind(status) {
   return 'fail';
 }
 
-function trendChart(values, opts = {}) {
-  const width = 760;
-  const height = opts.height || 180;
-  const pad = 14;
-  const tone = opts.tone || '#54ABEE';
-  const fill = opts.fill || 'rgba(84,171,238,.16)';
-  if (!values.length || values.every(v => !Number(v))) {
-    return '<div class="chart"><div class="chart-empty">No trend data for the current scope</div></div>';
+function destroyPlot(id) {
+  const chart = chartRegistry.get(id);
+  if (chart) {
+    chart.destroy();
+    chartRegistry.delete(id);
   }
+}
+
+function trendCard(id, values, opts = {}) {
   const nums = values.map(v => Number(v) || 0);
-  const max = Math.max(...nums, 1);
-  const min = Math.min(...nums, 0);
-  const range = Math.max(1, max - min);
-  const step = nums.length > 1 ? (width - pad * 2) / (nums.length - 1) : 0;
-  const coords = nums.map((value, index) => {
-    const x = pad + step * index;
-    const y = height - pad - ((value - min) / range) * (height - pad * 2);
-    return [x, y];
-  });
-  const line = coords.map(([x, y]) => x.toFixed(1) + ',' + y.toFixed(1)).join(' ');
-  const area = 'M ' + coords[0][0].toFixed(1) + ' ' + (height - pad).toFixed(1)
-    + ' L ' + coords.map(([x, y]) => x.toFixed(1) + ' ' + y.toFixed(1)).join(' L ')
-    + ' L ' + coords[coords.length - 1][0].toFixed(1) + ' ' + (height - pad).toFixed(1) + ' Z';
   const labels = (opts.labels || []).filter(Boolean);
-  const last = nums[nums.length - 1];
-  const peak = Math.max(...nums);
-  const avg = nums.reduce((sum, value) => sum + value, 0) / nums.length;
+  const nonZero = nums.some(v => v !== 0);
+  const last = nums.length ? nums[nums.length - 1] : 0;
+  const peak = nums.length ? Math.max(...nums) : 0;
+  const avg = nums.length ? (nums.reduce((sum, value) => sum + value, 0) / nums.length) : 0;
   return `
     <div class="trend-card">
       <div class="trend-top">
@@ -1327,22 +1355,60 @@ function trendChart(values, opts = {}) {
         </div>
         <div class="tiny mono">last ${esc(opts.format ? opts.format(last) : fmt(last, 0))} · avg ${esc(opts.format ? opts.format(avg) : fmt(avg, 0))} · peak ${esc(opts.format ? opts.format(peak) : fmt(peak, 0))}</div>
       </div>
-      <div class="chart">
-        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="${esc(opts.title || 'trend chart')}">
-          <defs>
-            <linearGradient id="fill-${esc((opts.title || 'trend').replace(/[^a-z0-9]+/gi,'-').toLowerCase())}" x1="0%" x2="0%" y1="0%" y2="100%">
-              <stop offset="0%" stop-color="${tone}" stop-opacity=".35"></stop>
-              <stop offset="100%" stop-color="${tone}" stop-opacity="0"></stop>
-            </linearGradient>
-          </defs>
-          <path d="${area}" fill="url(#fill-${esc((opts.title || 'trend').replace(/[^a-z0-9]+/gi,'-').toLowerCase())})"></path>
-          <polyline points="${line}" fill="none" stroke="${tone}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
-          ${coords.map(([x, y], index) => index === coords.length - 1 ? '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="5" fill="' + tone + '"></circle>' : '').join('')}
-        </svg>
-      </div>
+      <div class="chart" id="${esc(id)}">${nonZero ? '' : '<div class="chart-empty">No trend data for the current scope</div>'}</div>
       ${labels.length ? '<div class="tiny" style="margin-top:10px">' + esc(labels[0]) + ' → ' + esc(labels[labels.length - 1]) + '</div>' : ''}
     </div>
   `;
+}
+
+function renderTrendPlot(id, values, opts = {}) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  destroyPlot(id);
+  const nums = values.map(v => Number(v) || 0);
+  if (!nums.length || nums.every(v => v === 0) || typeof uPlot === 'undefined') {
+    if (!el.querySelector('.chart-empty')) {
+      el.innerHTML = '<div class="chart-empty">No trend data for the current scope</div>';
+    }
+    return;
+  }
+  const labels = opts.labels || [];
+  const x = nums.map((_, index) => index);
+  const width = Math.max(280, Math.floor(el.clientWidth || 720));
+  const height = opts.height || 180;
+  const stroke = opts.tone || '#54ABEE';
+  const fill = opts.fill || 'rgba(84,171,238,.12)';
+  const formatTick = opts.tickFormat || ((value, index) => labels[index] || '');
+  el.innerHTML = '';
+  const chart = new uPlot({
+    width,
+    height,
+    padding: [10, 10, 10, 10],
+    cursor: {drag: {x: false, y: false}},
+    scales: {x: {time: false}, y: {auto: true}},
+    axes: [
+      {
+        grid: {show: false},
+        stroke: 'rgba(84,171,238,.16)',
+        values: (_self, ticks) => ticks.map(tick => formatTick(tick, tick)),
+      },
+      {
+        stroke: 'rgba(84,171,238,.16)',
+        grid: {stroke: 'rgba(84,171,238,.08)', width: 1},
+        values: (_self, ticks) => ticks.map(value => opts.format ? opts.format(value) : fmt(value, 0)),
+      },
+    ],
+    series: [
+      {},
+      {
+        stroke,
+        width: 3,
+        fill,
+        points: {show: false},
+      },
+    ],
+  }, [x, nums], el);
+  chartRegistry.set(id, chart);
 }
 
 function barList(rows, opts = {}) {
@@ -1526,6 +1592,7 @@ function recentRows(rows, limit = 8) {
 }
 
 function render(bundle) {
+  latestBundle = bundle;
   const totals = bundle.stats.totals || {};
   const providers = bundle.inventory.providers || [];
   const providerMetrics = Object.fromEntries((bundle.stats.providers || []).map(row => [row.provider, row]));
@@ -1576,10 +1643,29 @@ function render(bundle) {
   $('#focus-chip').innerHTML = alerts.length ? '<strong>' + esc(alerts.length) + '</strong> live callouts' : 'No active alert';
   $('#overview-alerts').innerHTML = alerts.map(alertCard).join('');
 
+  const overviewDailyLabels = (bundle.stats.daily || []).map(row => row.day || '');
+  const overviewHourlyLabels = (bundle.stats.hourly || []).map(row => row.hour_offset || '');
   $('#overview-trends').innerHTML = [
-    trendChart((bundle.stats.daily || []).map(row => row.cost_usd || 0), {title:'Daily cost', subtitle:'30 day spend line', tone:'#FFAA19', format:fmtUsd, labels:(bundle.stats.daily || []).map(row => row.day || '')}),
-    trendChart((bundle.stats.hourly || []).map(row => row.requests || 0), {title:'Hourly requests', subtitle:'24h traffic pulse', tone:'#54ABEE', format:value => fmt(value, 0), labels:(bundle.stats.hourly || []).map(row => row.hour_offset || '')}),
+    trendCard('overview-cost-plot', (bundle.stats.daily || []).map(row => row.cost_usd || 0), {title:'Daily cost', subtitle:'30 day spend line', tone:'#FFAA19', format:fmtUsd, labels:overviewDailyLabels}),
+    trendCard('overview-hourly-plot', (bundle.stats.hourly || []).map(row => row.requests || 0), {title:'Hourly requests', subtitle:'24h traffic pulse', tone:'#54ABEE', format:value => fmt(value, 0), labels:overviewHourlyLabels}),
   ].join('');
+  renderTrendPlot('overview-cost-plot', (bundle.stats.daily || []).map(row => row.cost_usd || 0), {
+    tone:'#FFAA19',
+    fill:'rgba(255,170,25,.14)',
+    format:fmtUsd,
+    labels:overviewDailyLabels,
+    tickFormat: (value, index) => overviewDailyLabels[index] || '',
+  });
+  renderTrendPlot('overview-hourly-plot', (bundle.stats.hourly || []).map(row => row.requests || 0), {
+    tone:'#54ABEE',
+    fill:'rgba(84,171,238,.16)',
+    format:value => fmt(value, 0),
+    labels:overviewHourlyLabels,
+    tickFormat: (value, index) => {
+      const label = overviewHourlyLabels[index];
+      return index % 4 === 0 ? (label != null ? String(label) : '') : '';
+    },
+  });
 
   $('#overview-families').innerHTML = barList(laneFamilies.slice(0, 6), {
     label: row => row.lane_family || 'unclassified',
@@ -1650,25 +1736,51 @@ function render(bundle) {
     </tr>
   `).join('') : tableEmpty(8, 'No routing rows for the current scope');
 
-  $('#analytics-daily').innerHTML = trendChart((bundle.stats.daily || []).map(row => row.requests || 0), {
+  const analyticsDailyLabels = (bundle.stats.daily || []).map(row => row.day || '');
+  const analyticsHourlyLabels = (bundle.stats.hourly || []).map(row => row.hour_offset || '');
+  $('#analytics-daily').innerHTML = trendCard('analytics-requests-plot', (bundle.stats.daily || []).map(row => row.requests || 0), {
     title:'Requests by day',
     subtitle:'30 day traffic volume',
     tone:'#54ABEE',
     format:value => fmt(value, 0),
-    labels:(bundle.stats.daily || []).map(row => row.day || ''),
-  }) + trendChart((bundle.stats.daily || []).map(row => row.cost_usd || 0), {
+    labels:analyticsDailyLabels,
+  }) + trendCard('analytics-cost-plot', (bundle.stats.daily || []).map(row => row.cost_usd || 0), {
     title:'Cost by day',
     subtitle:'30 day spend cadence',
     tone:'#FFAA19',
     format:fmtUsd,
-    labels:(bundle.stats.daily || []).map(row => row.day || ''),
+    labels:analyticsDailyLabels,
   });
-  $('#analytics-hourly').innerHTML = trendChart((bundle.stats.hourly || []).map(row => (row.tokens || 0)), {
+  $('#analytics-hourly').innerHTML = trendCard('analytics-hourly-plot', (bundle.stats.hourly || []).map(row => (row.tokens || 0)), {
     title:'Tokens by hour',
     subtitle:'24h token pulse',
     tone:'#C4D900',
     format:fmtTok,
-    labels:(bundle.stats.hourly || []).map(row => row.hour_offset || ''),
+    labels:analyticsHourlyLabels,
+  });
+  renderTrendPlot('analytics-requests-plot', (bundle.stats.daily || []).map(row => row.requests || 0), {
+    tone:'#54ABEE',
+    fill:'rgba(84,171,238,.16)',
+    format:value => fmt(value, 0),
+    labels:analyticsDailyLabels,
+    tickFormat: (value, index) => analyticsDailyLabels[index] || '',
+  });
+  renderTrendPlot('analytics-cost-plot', (bundle.stats.daily || []).map(row => row.cost_usd || 0), {
+    tone:'#FFAA19',
+    fill:'rgba(255,170,25,.14)',
+    format:fmtUsd,
+    labels:analyticsDailyLabels,
+    tickFormat: (value, index) => analyticsDailyLabels[index] || '',
+  });
+  renderTrendPlot('analytics-hourly-plot', (bundle.stats.hourly || []).map(row => (row.tokens || 0)), {
+    tone:'#C4D900',
+    fill:'rgba(196,217,0,.16)',
+    format:fmtTok,
+    labels:analyticsHourlyLabels,
+    tickFormat: (value, index) => {
+      const label = analyticsHourlyLabels[index];
+      return index % 4 === 0 ? (label != null ? String(label) : '') : '';
+    },
   });
   $('#analytics-modalities tbody').innerHTML = modalityRows.length ? modalityRows.map(row => `
     <tr>
@@ -1772,7 +1884,19 @@ $('#clear-btn').addEventListener('click', clearFilters);
 syncStateFromUrl();
 load();
 setInterval(load, 30000);
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+  window.clearTimeout(resizeTimer);
+  resizeTimer = window.setTimeout(() => {
+    if (latestBundle) render(latestBundle);
+  }, 120);
+});
 </script>
 </body>
 </html>
 '''
+
+DASHBOARD_HTML = (
+    DASHBOARD_HTML.replace("/*__UPLOT_CSS__*/", _read_vendor_asset("uPlot.min.css"))
+    .replace("/*__UPLOT_JS__*/", _read_vendor_asset("uplot.iife.min.js"))
+)
