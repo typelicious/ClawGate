@@ -120,6 +120,35 @@ Messages path: /v1/messages
 Model: claude-code
 ```
 
+### Local Claude Code test path
+
+Anthropic's current Claude Code gateway docs describe the main local-gateway path as:
+
+- `ANTHROPIC_BASE_URL` pointing at the gateway base URL
+- the gateway exposing `/v1/messages` and `/v1/messages/count_tokens`
+- the gateway preserving `anthropic-version` and `anthropic-beta`
+
+For local Gate testing, the practical flow is:
+
+```bash
+export ANTHROPIC_BASE_URL=http://127.0.0.1:8090
+export ANTHROPIC_AUTH_TOKEN=dummy-local-token
+```
+
+Notes:
+
+- if your local Gate does not enforce client auth, the token can be a harmless placeholder; Claude Code still wants to send one
+- if you place auth in front of Gate, use the real token expected by that layer instead
+- keep the client pointed at one stable alias such as `claude-code`; move real route changes inside Gate
+- if a given Claude Code build does not honor the endpoint override you expect, fall back to the validation scripts first and treat the client as version-sensitive
+
+For local operator validation after the service is running:
+
+```bash
+./docs/examples/anthropic-bridge-smoke.sh
+./docs/examples/anthropic-bridge-validation.sh
+```
+
 ## Local Smoke Test
 
 Use the bundled example:
