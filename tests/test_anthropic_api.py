@@ -236,6 +236,32 @@ def test_anthropic_messages_returns_bridge_response(anthropic_api_client):
     assert response.headers["x-faigate-bridge-model-requested"] == "claude-sonnet"
 
 
+def test_anthropic_messages_accept_system_text_blocks(anthropic_api_client):
+    client, provider = anthropic_api_client
+
+    response = client.post(
+        "/v1/messages",
+        json={
+            "model": "claude-sonnet",
+            "system": [
+                {"type": "text", "text": "Use markdown"},
+                {"type": "text", "text": "Prefer concise patches"},
+            ],
+            "messages": [{"role": "user", "content": "Summarize this"}],
+        },
+    )
+
+    assert response.status_code == 200
+    assert provider.calls[0]["messages"][0] == {
+        "role": "system",
+        "content": "Use markdown",
+    }
+    assert provider.calls[0]["messages"][1] == {
+        "role": "system",
+        "content": "Prefer concise patches",
+    }
+
+
 def test_anthropic_messages_applies_model_aliases(anthropic_api_client):
     client, provider = anthropic_api_client
 

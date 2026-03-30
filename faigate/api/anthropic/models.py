@@ -96,15 +96,7 @@ def parse_anthropic_messages_request(payload: Mapping[str, Any]) -> AnthropicMes
         raise AnthropicBridgeError("Anthropic messages payload requires a model")
 
     raw_system = payload.get("system")
-    system: str | list[str] | None
-    if raw_system is None:
-        system = None
-    elif isinstance(raw_system, str):
-        system = raw_system
-    elif isinstance(raw_system, list) and all(isinstance(item, str) for item in raw_system):
-        system = list(raw_system)
-    else:
-        raise AnthropicBridgeError("'system' must be a string, a list of strings, or null")
+    system = _parse_system_prompt(raw_system)
 
     raw_messages = payload.get("messages", [])
     if not isinstance(raw_messages, list):
@@ -147,6 +139,41 @@ def parse_anthropic_token_count_request(payload: Mapping[str, Any]) -> Anthropic
         tools=request.tools,
         metadata=dict(request.metadata),
     )
+
+
+def _parse_system_prompt(raw: Any) -> str | list[str] | None:
+    """Normalize Anthropic system prompts into the narrow bridge shape.
+
+    Claude-native clients can send system prompts either as a single string or
+    as a list of text blocks. The bridge keeps the internal representation
+    intentionally small by flattening text blocks to plain strings.
+    """
+
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        return raw
+    if not isinstance(raw, list):
+        raise AnthropicBridgeError(
+            "'system' must be a string, a list of strings, a list of text blocks, or null"
+        )
+
+    normalized: list[str] = []
+    for item in raw:
+        if isinstance(item, str):
+            normalized.append(item)
+            continue
+        if not isinstance(item, Mapping):
+            raise AnthropicBridgeError(
+                "'system' blocks must be strings or text block mappings"
+            )
+        block_type = str(item.get("type", "") or "").strip()
+        if block_type != "text":
+            raise AnthropicBridgeError(
+                "Anthropic bridge v1 supports only text blocks in 'system'"
+            )
+        normalized.append(str(item.get("text", "") or ""))
+    return normalized
 
 
 def _parse_message(raw: Any) -> AnthropicMessage:

@@ -48,6 +48,24 @@ def test_parse_anthropic_messages_request_accepts_string_content():
     assert request.messages[0].content[0].text == "hello"
 
 
+def test_parse_anthropic_messages_request_accepts_text_block_system_prompt():
+    request = parse_anthropic_messages_request(
+        {
+            "model": "claude-sonnet",
+            "system": [
+                {"type": "text", "text": "You are a coding assistant."},
+                {"type": "text", "text": "Prefer concise diffs."},
+            ],
+            "messages": [{"role": "user", "content": "hello"}],
+        }
+    )
+
+    assert request.system == [
+        "You are a coding assistant.",
+        "Prefer concise diffs.",
+    ]
+
+
 def test_anthropic_request_maps_to_canonical_and_openai_body():
     wire_request = parse_anthropic_messages_request(
         {
