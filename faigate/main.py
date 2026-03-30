@@ -61,7 +61,7 @@ from .provider_catalog_refresh import (
 )
 from .provider_catalog_store import ProviderCatalogStore
 from .provider_sources import list_provider_sources
-from .providers import ProviderBackend, ProviderError
+from .providers import ProviderBackend, ProviderError, classify_runtime_issue
 from .router import Router, RoutingDecision
 from .updates import (
     UpdateChecker,
@@ -1778,7 +1778,11 @@ async def _execute_chat_completion_body(
             )
         except ProviderError as e:
             _adaptive_state.record_failure(provider_name, error=e.detail[:500])
-            issue_type = provider.classify_runtime_issue(status=e.status, detail=e.detail)
+            classify_issue = getattr(provider, "classify_runtime_issue", None)
+            if callable(classify_issue):
+                issue_type = classify_issue(status=e.status, detail=e.detail)
+            else:
+                issue_type = classify_runtime_issue(status=e.status, detail=e.detail)
             errors.append(
                 _serialize_provider_attempt_error(
                     provider_name,
