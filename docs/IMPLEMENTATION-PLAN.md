@@ -125,6 +125,10 @@ Success bar:
 
 - Claude Desktop can be used locally against Gate without feeling like a fragile workaround
 
+Current gating note:
+
+- only take this line next if [Claude Desktop feasibility](./CLAUDE-DESKTOP-FEASIBILITY.md) clears the endpoint-override and repeatable-local-workflow bar
+
 #### Option B: Adaptive orchestration trust
 
 Goal:

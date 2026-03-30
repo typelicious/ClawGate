@@ -122,6 +122,8 @@ Expected slices:
 3. clearer local testing and troubleshooting instructions
 4. release-readiness validation for desktop workflows
 
+The current feasibility gate for this option is tracked in [Claude Desktop feasibility](./CLAUDE-DESKTOP-FEASIBILITY.md).
+
 #### Option B: adaptive orchestration trust
 
 Primary goals:

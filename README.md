@@ -434,6 +434,7 @@ Start here for the deeper deployment details:
 - [Adaptive model orchestration](./docs/ADAPTIVE-ORCHESTRATION.md)
 - [Roadmap](./docs/FAIGATE-ROADMAP.md)
 - [Implementation plan](./docs/IMPLEMENTATION-PLAN.md)
+- [Claude Desktop feasibility](./docs/CLAUDE-DESKTOP-FEASIBILITY.md)
 - [Releases](./RELEASES.md)
 
 ## Community And Security
