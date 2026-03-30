@@ -71,6 +71,15 @@ Run these in order on a product-like config:
 3. `./scripts/faigate-doctor`
 4. `./scripts/faigate-provider-probe --json`
 
+If you validate against a non-default config or env file, export those first so the script, doctor, and probe all inspect the same runtime:
+
+```bash
+export FAIGATE_BASE_URL=http://127.0.0.1:18090
+export FAIGATE_CONFIG_FILE=/tmp/faigate-bridge-live.yaml
+export FAIGATE_ENV_FILE=/opt/homebrew/etc/faigate/faigate.env
+./docs/examples/anthropic-bridge-validation.sh
+```
+
 The second script is the more complete client-near validation path. It checks:
 
 - Anthropic messages with version/beta headers

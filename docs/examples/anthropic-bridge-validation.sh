@@ -2,6 +2,19 @@ set -euo pipefail
 
 BASE_URL="${FAIGATE_BASE_URL:-http://127.0.0.1:8090}"
 MODEL_ALIAS="${FAIGATE_ANTHROPIC_MODEL_ALIAS:-claude-code}"
+CONFIG_FILE="${FAIGATE_CONFIG_FILE:-}"
+ENV_FILE="${FAIGATE_ENV_FILE:-}"
+
+echo "==> Validation context"
+echo "BASE_URL=${BASE_URL}"
+echo "MODEL_ALIAS=${MODEL_ALIAS}"
+if [ -n "${CONFIG_FILE}" ]; then
+  echo "FAIGATE_CONFIG_FILE=${CONFIG_FILE}"
+fi
+if [ -n "${ENV_FILE}" ]; then
+  echo "FAIGATE_ENV_FILE=${ENV_FILE}"
+fi
+printf '\n'
 
 echo "==> Health"
 rtk curl -fsS "${BASE_URL}/health"
