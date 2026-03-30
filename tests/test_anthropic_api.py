@@ -215,6 +215,51 @@ def test_anthropic_messages_preserve_version_headers(anthropic_api_client):
     assert response.headers["x-faigate-bridge-anthropic-beta"] == "tools-2024-04-04"
 
 
+def test_anthropic_messages_forward_tool_use_and_tool_result_blocks(anthropic_api_client):
+    client, provider = anthropic_api_client
+
+    response = client.post(
+        "/v1/messages",
+        json={
+            "model": "claude-sonnet",
+            "messages": [
+                {"role": "user", "content": "Look up the design note"},
+                {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_lookup",
+                            "name": "lookup_doc",
+                            "input": {"id": "design-note"},
+                        }
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "toolu_lookup",
+                            "content": "Design note loaded",
+                        }
+                    ],
+                },
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    forwarded_messages = provider.calls[0]["messages"]
+    assert forwarded_messages[1]["role"] == "assistant"
+    assert forwarded_messages[1]["tool_calls"][0]["function"]["name"] == "lookup_doc"
+    assert forwarded_messages[2] == {
+        "role": "tool",
+        "content": "Design note loaded",
+        "tool_call_id": "toolu_lookup",
+    }
+
+
 def test_anthropic_messages_rejects_non_text_blocks(anthropic_api_client):
     client, _provider = anthropic_api_client
 
@@ -235,7 +280,7 @@ def test_anthropic_messages_rejects_non_text_blocks(anthropic_api_client):
     body = response.json()
     assert body["type"] == "error"
     assert body["error"]["type"] == "invalid_request_error"
-    assert "text content blocks" in body["error"]["message"]
+    assert "text and tool_result blocks" in body["error"]["message"]
 
 
 def test_anthropic_count_tokens_returns_estimate_with_headers(anthropic_api_client):

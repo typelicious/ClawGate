@@ -134,7 +134,7 @@ This covers:
 ## Known v1 Limits
 
 - non-streaming only
-- text content blocks only
+- text blocks plus basic `tool_use` / `tool_result`
 - `count_tokens` returns a deterministic local estimate
 - image or binary content blocks are not bridged yet
 - the optional `claude-code-router` hook only adds routing hints

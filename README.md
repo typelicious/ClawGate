@@ -314,7 +314,7 @@ anthropic_bridge:
 Known v1 limits:
 
 - non-streaming only
-- text content blocks only
+- text blocks plus basic `tool_use` / `tool_result`
 - `count_tokens` is a local estimate, not provider-exact accounting
 - the optional `claude-code-router` hook only adds routing hints; it is not the protocol bridge
 
