@@ -29,13 +29,63 @@ This means the roadmap no longer needs to ask whether Gate should become a multi
 
 ## Release Direction
 
+## Parity Targets
+
+The roadmap now treats three parity goals as distinct targets, not as one fuzzy promise.
+
+### Full Anthropic parity
+
+Meaning:
+
+- protocol-level parity for the Anthropic-compatible surface
+- clients that speak Anthropic `messages` should not need special-case awareness of Gate
+
+Includes:
+
+- `POST /v1/messages` request and response shape
+- SSE streaming parity
+- content-block parity beyond basic text and tool flow
+- header, version, and beta compatibility
+- compatible error envelopes and stop reasons
+- trustworthy token counting behavior
+
+### Full Claude Code parity
+
+Meaning:
+
+- Claude Code should be comfortable to use against local Gate in real daily coding workflows
+
+Includes:
+
+- iterative coding sessions
+- streaming and tool-oriented flows
+- stable aliasing and route continuity
+- fallback behavior that does not break the working session unnecessarily
+- enough protocol parity that Claude Code does not feel like it is on a fragile compatibility layer
+
+### Full Claude Desktop parity
+
+Meaning:
+
+- Claude Desktop should be a viable local daily-use client against Gate where endpoint override is supported
+
+Includes:
+
+- stable local endpoint configuration
+- good session behavior for the feature set Claude Desktop actually uses
+- no recurring “almost compatible but annoying in practice” gaps
+
+Strategically, this matters beyond personal convenience. If Gate can serve Claude Desktop cleanly, it proves the local Claude-native gateway story much more strongly than API compatibility alone.
+
 ### `v1.14.x`: Claude-native daily-use hardening
 
 This is the highest-leverage next line.
 
 Primary goals:
 
-- make the Anthropic bridge comfortable for real Claude Code and Claude Desktop workflows
+- make the Anthropic bridge comfortable for real Claude Code workflows
+- close the highest-value Anthropic protocol gaps
+- prepare the bridge for a serious Claude Desktop parity track immediately after
 - close the biggest protocol-parity gaps before expanding scope again
 - keep the bridge opt-in and explicit while improving day-to-day reliability
 
@@ -51,9 +101,28 @@ Non-goals:
 - exact provider-side token counting for every backend
 - "full parity" marketing language before live client coverage proves it
 
-### `v1.15.x`: adaptive orchestration trust
+### `v1.15.x`: Claude Desktop parity or adaptive orchestration trust
 
-This is the next major routing-value line.
+This should be chosen by evidence after `v1.14.x`, not by preference.
+
+If Claude Desktop local usage proves to be the next real operator lever, take the desktop-parity line first. Otherwise, take the routing-value line first.
+
+#### Option A: Claude Desktop parity
+
+Primary goals:
+
+- make Claude Desktop a genuinely usable local client against Gate
+- validate supported local endpoint-override paths
+- remove recurring desktop-specific compatibility friction
+
+Expected slices:
+
+1. endpoint-override and config-path validation for supported desktop flows
+2. desktop-specific session and response compatibility hardening
+3. clearer local testing and troubleshooting instructions
+4. release-readiness validation for desktop workflows
+
+#### Option B: adaptive orchestration trust
 
 Primary goals:
 
@@ -69,9 +138,9 @@ Expected slices:
 3. benchmark and cost clusters that are structured, reviewable, and freshness-aware
 4. operator explainability for lane choice, same-lane fallback, and cluster downgrade
 
-### `v1.16.x`: live adaptation under pressure
+### `v1.16.x`: remaining parity or live adaptation under pressure
 
-Only pursue this once `v1.15.x` makes the decision model trustworthy.
+Only pursue the live-adaptation line once the decision model is trustworthy and the most valuable Claude-native parity gaps are no longer the dominant operator pain.
 
 Primary goals:
 
@@ -97,9 +166,9 @@ This section is the reality check: what is already there, what is partially ther
 | Benchmark and cost clusters | Present as curated metadata, but still coarse | Freshness, explainability, and structured ranking are not strong enough yet | Build reviewable cluster metadata in `v1.15.x` |
 | Live adaptation under quota, latency, and failure pressure | Early adaptation exists, but still conservative | Needs stronger operator trust and clearer lane/route semantics first | Keep for `v1.16.x` after orchestration trust work |
 | Operator explainability for major routing decisions | Partly present in traces and previews | Still not compact or decisive enough for day-2 operations | Make this a headline outcome of `v1.15.x` |
-| Full Anthropic parity | Not there | Streaming and deeper block coverage are missing | Treat as staged parity, not one giant promise |
+| Full Anthropic parity | Not there | Streaming and deeper block coverage are missing | Treat as staged protocol parity, beginning in `v1.14.x` |
 | Full Claude Code parity | Not there | Real client workflow coverage is still partial | Focus `v1.14.x` on practical daily-use parity |
-| Full Claude Desktop parity | Not there | Client override paths and feature expectations vary | Keep as follow-on after `v1.14.x` Claude Code hardening |
+| Full Claude Desktop parity | Not there | Desktop-specific override paths and real workflow validation are still thin | Make this an explicit follow-on track right after `v1.14.x` |
 | SSE streaming parity | Not shipped for the bridge yet | Missing bridge streaming path | Highest-priority bridge gap for `v1.14.x` |
 | Exact provider-side token counting | Not shipped | Needs backend-aware counting per route or provider API support | Useful, but not a blocker for `v1.14.x`; likely `v1.15.x` or later |
 
@@ -113,9 +182,9 @@ Avoid release lines built around vague parity claims.
 
 Better framing:
 
-- `v1.14.x`: Claude-native daily-use hardening
+- `v1.14.x`: Anthropic protocol hardening plus Claude Code daily-use parity
 - `v1.15.x`: adaptive orchestration trust
-- `v1.16.x`: live adaptation under pressure
+- `v1.16.x`: Claude Desktop parity or live adaptation under pressure, depending on validated client demand
 
 ### Exact token counting before streaming parity
 

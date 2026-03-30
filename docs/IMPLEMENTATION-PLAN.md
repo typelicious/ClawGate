@@ -22,11 +22,51 @@ It is not a parking lot for every possible feature.
 
 ## Release Sequence
 
-### `v1.14.x` - Claude-native daily-use hardening
+## Parity Definitions
+
+### Full Anthropic parity
+
+Protocol parity for Gate's Anthropic-compatible surface.
+
+Working definition:
+
+- `messages` request and response compatibility
+- SSE streaming compatibility
+- content-block compatibility
+- header/version/beta compatibility
+- compatible error envelopes and stop reasons
+- trustworthy token counting semantics
+
+### Full Claude Code parity
+
+Daily-workflow parity for Claude Code against local Gate.
+
+Working definition:
+
+- iterative coding sessions feel normal
+- streaming works
+- tool flows work
+- aliases and fallback do not constantly disrupt the session
+- operator routing behavior stays behind the gateway, not in the client
+
+### Full Claude Desktop parity
+
+Daily-use parity for Claude Desktop against local Gate where endpoint override is supported.
+
+Working definition:
+
+- stable local endpoint configuration
+- session behavior is acceptable for the feature set Claude Desktop actually uses
+- no recurring compatibility papercuts that make the setup feel experimental
+
+## Release Sequence
+
+### `v1.14.x` - Anthropic protocol hardening plus Claude Code daily-use parity
 
 Goal:
 
-- move the Anthropic bridge from early-adopter-safe to comfortable for everyday Claude-native use
+- move the Anthropic bridge from early-adopter-safe to comfortable for everyday Claude Code use
+- close the highest-value Anthropic protocol gaps at the same time
 
 Why this matters first:
 
@@ -59,7 +99,33 @@ Deliberately not required:
 - exact provider-side token counting
 - full parity claims across every Anthropic client feature
 
-### `v1.15.x` - Adaptive orchestration trust
+### `v1.15.x` - Claude Desktop parity or adaptive orchestration trust
+
+This release should be chosen by evidence, not by taste.
+
+Decision rule:
+
+- if Claude Desktop local usage validates as the next real operator lever, do the desktop parity line first
+- otherwise take the routing-value line first
+
+#### Option A: Claude Desktop parity
+
+Goal:
+
+- make Claude Desktop a genuinely usable local client against Gate
+
+Target slices:
+
+1. endpoint-override and config-path validation for supported desktop flows
+2. desktop-specific session and response compatibility hardening
+3. clearer local testing and troubleshooting instructions
+4. release-readiness validation for desktop workflows
+
+Success bar:
+
+- Claude Desktop can be used locally against Gate without feeling like a fragile workaround
+
+#### Option B: Adaptive orchestration trust
 
 Goal:
 
@@ -94,7 +160,7 @@ Success bar:
 - operators can look at a route decision and understand it without reading source code
 - aggregator handling feels intentional instead of “maybe a fallback”
 
-### `v1.16.x` - Live adaptation under pressure
+### `v1.16.x` - Remaining parity or live adaptation under pressure
 
 Goal:
 
@@ -103,6 +169,7 @@ Goal:
 Why it is third:
 
 - dynamic adaptation is only worth shipping once lane and route semantics are already trusted
+- any still-open Claude Desktop parity work should be resolved before promising a broader "full parity" story
 
 Target slices:
 
@@ -192,6 +259,21 @@ Stretch:
 
 - Claude Desktop local override flow
 - route fallback under Anthropic quota pressure
+
+### Claude parity matrix
+
+Use this matrix when deciding whether a release truly moved parity forward:
+
+| Capability | Anthropic parity | Claude Code parity | Claude Desktop parity |
+| --- | --- | --- | --- |
+| Non-streaming `messages` | Required | Required | Required |
+| SSE streaming | Required | Required | Likely required |
+| `tool_use` / `tool_result` | Required | Required | Maybe, depending on product flow |
+| Header/version/beta tolerance | Required | Required | Required |
+| Stable model aliasing | Helpful | Required | Required |
+| Session continuity under fallback | Helpful | Required | Required |
+| Exact token counting | Strongly preferred | Helpful | Helpful |
+| Real client workflow validation | Not sufficient alone | Required | Required |
 
 ## Open Questions
 
