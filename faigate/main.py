@@ -314,6 +314,38 @@ def _collect_anthropic_bridge_headers(request: Request) -> dict[str, str]:
     return headers
 
 
+def _anthropic_bridge_surface_enabled() -> bool:
+    """Return whether the Anthropic-compatible surface should be exposed."""
+
+    if "_config" not in globals():
+        return False
+    bridge = _config.anthropic_bridge
+    surfaces = _config.api_surfaces
+    return bool(bridge.get("enabled", False) and surfaces.get("anthropic_messages", False))
+
+
+def _resolve_anthropic_requested_model(request: CanonicalChatRequest) -> CanonicalChatRequest:
+    """Apply configured Anthropic bridge aliases without changing wire parsing."""
+
+    alias_map = _config.anthropic_bridge.get("model_aliases", {})
+    requested_model = str(alias_map.get(request.requested_model, request.requested_model))
+    if requested_model == request.requested_model:
+        return request
+    metadata = dict(request.metadata)
+    metadata.setdefault("requested_model_original", request.requested_model)
+    metadata["requested_model_resolved"] = requested_model
+    return CanonicalChatRequest(
+        client=request.client,
+        surface=request.surface,
+        requested_model=requested_model,
+        system=request.system,
+        messages=list(request.messages),
+        tools=list(request.tools),
+        stream=request.stream,
+        metadata=metadata,
+    )
+
+
 def _collect_operator_context(headers: dict[str, str]) -> tuple[str, str]:
     """Return operator action and client tag hints from request headers."""
     max_chars = int((_config.security or {}).get("max_header_value_chars", 160))
@@ -2931,7 +2963,7 @@ async def chat_completions(request: Request):
 async def anthropic_messages(request: Request):
     """Anthropic-compatible messages endpoint, kept intentionally small for v1."""
 
-    if not _config.anthropic_bridge.get("enabled", False):
+    if not _anthropic_bridge_surface_enabled():
         return _anthropic_error_response(
             "Anthropic bridge is disabled",
             error_type="not_found_error",
@@ -2963,6 +2995,7 @@ async def anthropic_messages(request: Request):
                 status_code=501,
             )
         canonical_request = anthropic_request_to_canonical(wire_request, headers=headers)
+        canonical_request = _resolve_anthropic_requested_model(canonical_request)
         execution = await _execute_chat_completion_body(canonical_request.to_openai_body(), headers)
     except AnthropicBridgeError as exc:
         return _anthropic_error_response(
@@ -3022,7 +3055,7 @@ async def anthropic_count_tokens(request: Request):
     explicit.
     """
 
-    if not _config.anthropic_bridge.get("enabled", False):
+    if not _anthropic_bridge_surface_enabled():
         return _anthropic_error_response(
             "Anthropic bridge is disabled",
             error_type="not_found_error",

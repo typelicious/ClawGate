@@ -1723,6 +1723,36 @@ def _normalize_provider_source_refresh(data: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def _normalize_api_surfaces(data: dict[str, Any]) -> dict[str, Any]:
+    """Validate top-level API-surface toggles.
+
+    Anthropic bridge activation remains two-step on purpose:
+    the bridge logic must be enabled and the surface must be exposed. To avoid
+    breaking earlier bridge configs, the Anthropic surface defaults to the
+    bridge-enabled state when the operator does not set it explicitly.
+    """
+
+    raw = data.get("api_surfaces") or {}
+    if not isinstance(raw, dict):
+        raise ConfigError("'api_surfaces' must be a mapping")
+
+    openai_compatible = raw.get("openai_compatible", True)
+    if not isinstance(openai_compatible, bool):
+        raise ConfigError("'api_surfaces.openai_compatible' must be a boolean")
+
+    anthropic_default = bool((data.get("anthropic_bridge") or {}).get("enabled", False))
+    anthropic_messages = raw.get("anthropic_messages", anthropic_default)
+    if not isinstance(anthropic_messages, bool):
+        raise ConfigError("'api_surfaces.anthropic_messages' must be a boolean")
+
+    normalized = dict(data)
+    normalized["api_surfaces"] = {
+        "openai_compatible": openai_compatible,
+        "anthropic_messages": anthropic_messages,
+    }
+    return normalized
+
+
 def _normalize_anthropic_bridge(data: dict[str, Any]) -> dict[str, Any]:
     """Validate the optional Anthropic-compatible bridge surface."""
 
@@ -1810,6 +1840,13 @@ class Config:
         return self._data.get(
             "request_hooks",
             {"enabled": False, "hooks": [], "on_error": "continue"},
+        )
+
+    @property
+    def api_surfaces(self) -> dict:
+        return self._data.get(
+            "api_surfaces",
+            {"openai_compatible": True, "anthropic_messages": False},
         )
 
     @property
@@ -1990,18 +2027,20 @@ def load_config(path: str | Path | None = None) -> Config:
         raw = yaml.safe_load(f)
 
     expanded = _normalize_provider_source_refresh(
-        _normalize_anthropic_bridge(
-            _normalize_provider_catalog_check(
-                _normalize_security(
-                    _normalize_auto_update(
-                        _normalize_update_check(
-                            _normalize_request_hooks(
-                                _validate_routing_mode_references(
-                                    _normalize_model_shortcuts(
-                                        _normalize_routing_modes(
-                                            _normalize_client_profiles(
-                                                _normalize_routing_policies(
-                                                    _normalize_providers(_walk_expand(raw))
+        _normalize_api_surfaces(
+            _normalize_anthropic_bridge(
+                _normalize_provider_catalog_check(
+                    _normalize_security(
+                        _normalize_auto_update(
+                            _normalize_update_check(
+                                _normalize_request_hooks(
+                                    _validate_routing_mode_references(
+                                        _normalize_model_shortcuts(
+                                            _normalize_routing_modes(
+                                                _normalize_client_profiles(
+                                                    _normalize_routing_policies(
+                                                        _normalize_providers(_walk_expand(raw))
+                                                    )
                                                 )
                                             )
                                         )

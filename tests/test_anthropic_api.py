@@ -108,6 +108,8 @@ providers:
     model: "chat-model"
 anthropic_bridge:
   enabled: true
+  model_aliases:
+    claude-code-premium: premium
 fallback_chain:
   - cloud-default
 metrics:
@@ -150,6 +152,28 @@ def test_anthropic_messages_returns_bridge_response(anthropic_api_client):
     assert body["content"][0]["text"] == "anthropic ok"
     assert provider.calls[0]["extra_body"]["metadata"]["source"] == "claude-code"
     assert provider.calls[0]["messages"][0] == {"role": "system", "content": "Use markdown"}
+
+
+def test_anthropic_messages_applies_model_aliases(anthropic_api_client):
+    client, provider = anthropic_api_client
+
+    response = client.post(
+        "/v1/messages",
+        json={
+            "model": "claude-code-premium",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Route this like a premium coding request",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    metadata = provider.calls[0]["extra_body"]["metadata"]
+    assert metadata["requested_model_original"] == "claude-code-premium"
+    assert metadata["requested_model_resolved"] == "premium"
 
 
 def test_anthropic_messages_rejects_non_text_blocks(anthropic_api_client):
@@ -218,3 +242,59 @@ def test_anthropic_count_tokens_rejects_invalid_payload(anthropic_api_client):
     assert body["type"] == "error"
     assert body["error"]["type"] == "invalid_request_error"
     assert "messages" in body["error"]["message"]
+
+
+def test_anthropic_messages_can_be_disabled_by_surface_toggle(tmp_path, monkeypatch):
+    cfg = load_config(
+        _write_config(
+            tmp_path,
+            """
+server:
+  host: "127.0.0.1"
+  port: 8090
+providers:
+  cloud-default:
+    backend: openai-compat
+    base_url: "https://api.example.com/v1"
+    api_key: "secret"
+    model: "chat-model"
+api_surfaces:
+  anthropic_messages: false
+anthropic_bridge:
+  enabled: true
+fallback_chain:
+  - cloud-default
+metrics:
+  enabled: false
+""",
+        )
+    )
+
+    @asynccontextmanager
+    async def _noop_lifespan(_app):
+        yield
+
+    monkeypatch.setattr(main_module, "_config", cfg, raising=False)
+    monkeypatch.setattr(main_module, "_router", Router(cfg), raising=False)
+    monkeypatch.setattr(
+        main_module,
+        "_providers",
+        {"cloud-default": _CapturingProviderStub()},
+        raising=False,
+    )
+    monkeypatch.setattr(main_module, "_metrics", _MetricsStub(), raising=False)
+    monkeypatch.setattr(main_module.app.router, "lifespan_context", _noop_lifespan, raising=False)
+
+    with TestClient(main_module.app) as client:
+        response = client.post(
+            "/v1/messages",
+            json={
+                "model": "claude-sonnet",
+                "messages": [{"role": "user", "content": "hello"}],
+            },
+        )
+
+    assert response.status_code == 404
+    body = response.json()
+    assert body["type"] == "error"
+    assert body["error"]["type"] == "not_found_error"
