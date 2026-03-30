@@ -437,8 +437,7 @@ metrics:
         assert hook_state.routing_hints["routing_mode"] == "premium"
         assert hook_state.routing_hints["prefer_tiers"] == ["reasoning", "default"]
         assert any(
-            "Claude Code router hook applied profile: premium" in note
-            for note in hook_state.notes
+            "Claude Code router hook applied profile: premium" in note for note in hook_state.notes
         )
 
     @pytest.mark.asyncio

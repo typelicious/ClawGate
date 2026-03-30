@@ -133,4 +133,3 @@ class CanonicalChatExecutor(Protocol):
 
     async def execute_canonical_chat(self, request: CanonicalChatRequest) -> CanonicalChatResponse:
         """Run one canonical chat request through the gateway core."""
-

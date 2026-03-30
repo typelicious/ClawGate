@@ -193,10 +193,7 @@ def _parse_content_blocks(raw: Any) -> list[AnthropicContentBlock]:
             AnthropicContentBlock(
                 type=block_type,
                 text=item.get("text"),
-                tool_use_id=str(
-                    item.get("tool_use_id") or item.get("id") or ""
-                ).strip()
-                or None,
+                tool_use_id=str(item.get("tool_use_id") or item.get("id") or "").strip() or None,
                 name=str(item.get("name", "") or "").strip() or None,
                 input=dict(raw_input),
                 metadata=block_metadata,

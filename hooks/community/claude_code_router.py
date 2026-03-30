@@ -83,24 +83,31 @@ def _resolve_profile(metadata: dict[str, Any], headers: dict[str, str]) -> str:
 
 
 def _normalized_source(metadata: dict[str, Any], headers: dict[str, str]) -> str:
-    return str(
-        metadata.get("source")
-        or headers.get("x-faigate-client")
-        or headers.get("anthropic-client")
-        or ""
-    ).strip().lower()
+    return (
+        str(
+            metadata.get("source")
+            or headers.get("x-faigate-client")
+            or headers.get("anthropic-client")
+            or ""
+        )
+        .strip()
+        .lower()
+    )
 
 
 def _normalized_surface(metadata: dict[str, Any], headers: dict[str, str]) -> str:
-    return str(
-        metadata.get("bridge_surface")
-        or metadata.get("surface")
-        or headers.get("x-faigate-surface")
-        or ""
-    ).strip().lower()
+    return (
+        str(
+            metadata.get("bridge_surface")
+            or metadata.get("surface")
+            or headers.get("x-faigate-surface")
+            or ""
+        )
+        .strip()
+        .lower()
+    )
 
 
 def _metadata(body: dict[str, Any]) -> dict[str, Any]:
     value = body.get("metadata", {})
     return dict(value) if isinstance(value, dict) else {}
-
