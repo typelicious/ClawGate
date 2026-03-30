@@ -332,6 +332,15 @@ Client-near validation before release:
 
 For a fuller operator view, see [docs/anthropic-bridge.md](./docs/anthropic-bridge.md) and [docs/API.md](./docs/API.md).
 
+Local Claude Code testing, where the client supports Anthropic gateway overrides, follows the same pattern Anthropic documents for LLM gateways:
+
+```bash
+export ANTHROPIC_BASE_URL=http://127.0.0.1:8090
+export ANTHROPIC_AUTH_TOKEN=dummy-local-token
+```
+
+Keep the model alias stable and let Gate move the real route behind it. If your local Gate does not enforce auth, the token can be a harmless placeholder. If your setup does enforce client auth, use the token expected by that layer instead.
+
 ## API Surface
 
 fusionAIze Gate keeps the primary surface compact and OpenAI-compatible. The full endpoint reference lives in [docs/API.md](./docs/API.md).
@@ -424,6 +433,8 @@ Start here for the deeper deployment details:
 - [Troubleshooting](./docs/TROUBLESHOOTING.md)
 - [Adaptive model orchestration](./docs/ADAPTIVE-ORCHESTRATION.md)
 - [Roadmap](./docs/FAIGATE-ROADMAP.md)
+- [Implementation plan](./docs/IMPLEMENTATION-PLAN.md)
+- [Claude Desktop feasibility](./docs/CLAUDE-DESKTOP-FEASIBILITY.md)
 - [Releases](./RELEASES.md)
 
 ## Community And Security
