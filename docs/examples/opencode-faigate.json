@@ -19,36 +19,43 @@
             "output": 8000
           }
         },
-        "deepseek-chat": {
-          "name": "DeepSeek Chat (via fusionAIze Gate)",
+        "coding-auto": {
+          "name": "fusionAIze Gate Coding Auto",
           "limit": {
             "context": 128000,
             "output": 8000
           }
         },
-        "deepseek-reasoner": {
-          "name": "DeepSeek Reasoner (via fusionAIze Gate)",
+        "coding-fast": {
+          "name": "fusionAIze Gate Coding Fast",
           "limit": {
             "context": 128000,
             "output": 8000
           }
         },
-        "gemini-flash-lite": {
-          "name": "Gemini Flash-Lite (via fusionAIze Gate)",
+        "coding-premium": {
+          "name": "fusionAIze Gate Coding Premium",
           "limit": {
-            "context": 1000000,
+            "context": 128000,
             "output": 8000
           }
         },
-        "gemini-flash": {
-          "name": "Gemini Flash (via fusionAIze Gate)",
+        "eco": {
+          "name": "fusionAIze Gate Eco",
           "limit": {
-            "context": 1000000,
+            "context": 128000,
             "output": 8000
           }
         },
-        "openrouter-fallback": {
-          "name": "OpenRouter Fallback (via fusionAIze Gate)",
+        "premium": {
+          "name": "fusionAIze Gate Premium",
+          "limit": {
+            "context": 128000,
+            "output": 8000
+          }
+        },
+        "free": {
+          "name": "fusionAIze Gate Free",
           "limit": {
             "context": 128000,
             "output": 8000

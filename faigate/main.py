@@ -12,6 +12,7 @@ import argparse
 import asyncio
 import json
 import logging
+import mimetypes
 import os
 import re
 import time
@@ -21,10 +22,11 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from dataclasses import asdict, dataclass
 from hashlib import sha256
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from starlette.datastructures import UploadFile
 
 from . import __version__
@@ -34,9 +36,11 @@ from .bridges.anthropic import (
     anthropic_request_to_canonical,
     canonical_response_to_anthropic,
     dispatch_anthropic_count_tokens,
+    openai_sse_to_anthropic,
 )
 from .canonical import CanonicalChatRequest, CanonicalChatResponse, CanonicalResponseMessage
 from .config import Config, load_config
+from .dashboard_web import DASHBOARD_HTML
 from .hooks import (
     AppliedHooks,
     HookExecutionError,
@@ -71,6 +75,7 @@ from .updates import (
 
 logger = logging.getLogger("faigate")
 _SAFE_TOKEN_RE = re.compile(r"[^a-z0-9._-]+")
+_DASHBOARD_ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 
 # ── Globals (initialized in lifespan) ──────────────────────────
 _config: Config
@@ -115,6 +120,57 @@ class _ChatExecutionFailure:
 def _client_error_response(message: str, *, error_type: str, status_code: int) -> JSONResponse:
     """Return a client-facing JSON error without exposing internal exception details."""
     return JSONResponse({"error": message, "type": error_type}, status_code=status_code)
+
+
+def _openai_sse_data(payload: dict[str, Any]) -> bytes:
+    """Return one OpenAI-style SSE data frame."""
+    return f"data: {json.dumps(payload, separators=(',', ':'))}\n\n".encode()
+
+
+async def _safe_openai_sse_stream(
+    stream: AsyncIterator[bytes],
+    *,
+    provider_name: str,
+    trace_id: str | None,
+) -> AsyncIterator[bytes]:
+    """Keep streaming responses well-formed when the upstream fails mid-turn."""
+
+    try:
+        async for chunk in stream:
+            yield chunk
+    except ProviderError as exc:
+        logger.warning(
+            "Streaming response from %s failed after stream start: %s",
+            provider_name,
+            exc.detail[:200],
+        )
+        yield _openai_sse_data(
+            {
+                "error": {
+                    "message": str(exc.detail or "Streaming request failed"),
+                    "type": classify_runtime_issue(status=exc.status, detail=exc.detail),
+                    "provider": provider_name,
+                    "trace_id": trace_id or "",
+                }
+            }
+        )
+        yield b"data: [DONE]\n\n"
+    except Exception:
+        logger.exception(
+            "Streaming response from %s failed unexpectedly after stream start",
+            provider_name,
+        )
+        yield _openai_sse_data(
+            {
+                "error": {
+                    "message": "Streaming request failed unexpectedly",
+                    "type": "provider_error",
+                    "provider": provider_name,
+                    "trace_id": trace_id or "",
+                }
+            }
+        )
+        yield b"data: [DONE]\n\n"
 
 
 def _request_hook_error_response(exc: Exception) -> JSONResponse:
@@ -420,7 +476,19 @@ def _resolve_anthropic_requested_model(request: CanonicalChatRequest) -> Canonic
     """Apply configured Anthropic bridge aliases without changing wire parsing."""
 
     alias_map = _config.anthropic_bridge.get("model_aliases", {})
-    requested_model = str(alias_map.get(request.requested_model, request.requested_model))
+    requested_model_raw = str(request.requested_model or "").strip()
+    requested_model = str(
+        alias_map.get(
+            requested_model_raw,
+            alias_map.get(
+                requested_model_raw.lower(),
+                alias_map.get(
+                    _normalize_anthropic_model_alias(requested_model_raw),
+                    request.requested_model,
+                ),
+            ),
+        )
+    )
     if requested_model == request.requested_model:
         return request
     metadata = dict(request.metadata)
@@ -436,6 +504,21 @@ def _resolve_anthropic_requested_model(request: CanonicalChatRequest) -> Canonic
         stream=request.stream,
         metadata=metadata,
     )
+
+
+def _normalize_anthropic_model_alias(model_id: str) -> str:
+    """Return a stable alias key for Claude-native model ids.
+
+    Claude Code sometimes sends model ids with display-oriented suffixes like
+    ``[1m]``. The bridge should treat those as the same model family for alias
+    resolution instead of forcing operators to encode every formatting variant.
+    """
+
+    normalized = str(model_id or "").strip().lower()
+    if not normalized:
+        return ""
+    normalized = re.sub(r"\[[^\]]+]", "", normalized).strip()
+    return normalized
 
 
 def _collect_operator_context(headers: dict[str, str]) -> tuple[str, str]:
@@ -3041,6 +3124,23 @@ async def dashboard():
     return _DASHBOARD_HTML
 
 
+@app.get("/dashboard/assets/{asset_kind}/{asset_name:path}")
+async def dashboard_asset(asset_kind: str, asset_name: str):
+    """Serve packaged dashboard assets such as fonts."""
+    safe_kind = asset_kind.strip()
+    if safe_kind not in {"brand", "fonts"}:
+        return JSONResponse({"error": {"message": "Asset kind not found"}}, status_code=404)
+    asset_path = (_DASHBOARD_ASSETS_DIR / safe_kind / asset_name).resolve()
+    try:
+        asset_path.relative_to((_DASHBOARD_ASSETS_DIR / safe_kind).resolve())
+    except ValueError:
+        return JSONResponse({"error": {"message": "Asset path is invalid"}}, status_code=404)
+    if not asset_path.is_file():
+        return JSONResponse({"error": {"message": "Asset not found"}}, status_code=404)
+    media_type, _ = mimetypes.guess_type(str(asset_path))
+    return FileResponse(asset_path, media_type=media_type)
+
+
 # ── Main completion endpoint ───────────────────────────────────
 
 
@@ -3070,7 +3170,11 @@ async def chat_completions(request: Request):
 
     if execution.stream:
         return StreamingResponse(
-            execution.result,
+            _safe_openai_sse_stream(
+                execution.result,
+                provider_name=execution.provider_name,
+                trace_id=execution.trace_id,
+            ),
             media_type="text/event-stream",
             headers={
                 "X-faigate-Provider": execution.provider_name,
@@ -3125,12 +3229,6 @@ async def anthropic_messages(request: Request):
     headers = _collect_anthropic_bridge_headers(request)
     try:
         wire_request = parse_anthropic_messages_request(body)
-        if wire_request.stream:
-            return _anthropic_error_response(
-                "Anthropic bridge v1 does not support streaming yet",
-                error_type="not_supported_error",
-                status_code=501,
-            )
         canonical_request = anthropic_request_to_canonical(wire_request, headers=headers)
         canonical_request = _resolve_anthropic_requested_model(canonical_request)
         execution = await _execute_chat_completion_body(canonical_request.to_openai_body(), headers)
@@ -3159,11 +3257,46 @@ async def anthropic_messages(request: Request):
             status_code=execution.status_code,
         )
 
-    if execution.stream or not isinstance(execution.result, dict):
+    bridge_headers = _anthropic_bridge_response_headers(
+        source=str(canonical_request.metadata.get("source") or "claude-code"),
+        requested_model=str(
+            canonical_request.metadata.get("requested_model_original") or wire_request.model
+        ),
+        resolved_model=str(canonical_request.requested_model or wire_request.model),
+        anthropic_version=str(headers.get("anthropic-version") or "") or None,
+        anthropic_beta=str(headers.get("anthropic-beta") or "") or None,
+    )
+
+    if execution.stream:
+        return StreamingResponse(
+            openai_sse_to_anthropic(
+                _safe_openai_sse_stream(
+                    execution.result,
+                    provider_name=execution.provider_name,
+                    trace_id=execution.trace_id,
+                ),
+                requested_model=str(
+                    canonical_request.metadata.get("requested_model_original") or wire_request.model
+                ),
+                resolved_model=str(canonical_request.requested_model or wire_request.model),
+            ),
+            media_type="text/event-stream",
+            headers={
+                "X-faigate-Provider": execution.provider_name,
+                "X-faigate-Profile": execution.client_profile,
+                "X-faigate-Layer": execution.decision.layer,
+                "X-faigate-Rule": execution.decision.rule_name,
+                "X-faigate-Hooks": ",".join(execution.hook_state.applied_hooks),
+                "X-faigate-Hook-Errors": str(len(execution.hook_state.errors)),
+                "x-faigate-trace-id": execution.trace_id or str(uuid.uuid4()),
+                **bridge_headers,
+            },
+        )
+    if not isinstance(execution.result, dict):
         return _anthropic_error_response(
-            "Anthropic bridge v1 does not support streaming responses",
-            error_type="not_supported_error",
-            status_code=501,
+            "Anthropic bridge returned an unsupported upstream response shape",
+            error_type="api_error",
+            status_code=502,
         )
 
     canonical_response = _openai_result_to_canonical_response(execution.result)
@@ -3182,15 +3315,7 @@ async def anthropic_messages(request: Request):
     response.headers["X-faigate-Hooks"] = ",".join(execution.hook_state.applied_hooks)
     response.headers["X-faigate-Hook-Errors"] = str(len(execution.hook_state.errors))
     response.headers["x-faigate-trace-id"] = execution.trace_id or str(uuid.uuid4())
-    for key, value in _anthropic_bridge_response_headers(
-        source=str(canonical_request.metadata.get("source") or "claude-code"),
-        requested_model=str(
-            canonical_request.metadata.get("requested_model_original") or wire_request.model
-        ),
-        resolved_model=str(canonical_request.requested_model or wire_request.model),
-        anthropic_version=str(headers.get("anthropic-version") or "") or None,
-        anthropic_beta=str(headers.get("anthropic-beta") or "") or None,
-    ).items():
+    for key, value in bridge_headers.items():
         response.headers[key] = value
     return response
 
@@ -3302,7 +3427,7 @@ def _dashboard_csp() -> str:
         "default-src 'self'; "
         f"style-src 'self' {style_hash}; "
         f"script-src 'self' {script_hash}; "
-        "img-src 'self' data:; connect-src 'self'; object-src 'none'; "
+        "img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; "
         "base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
     )
 
@@ -3735,3 +3860,6 @@ load();
 setInterval(load, 30000);
 </script>
 </body></html>"""
+
+# Keep the runtime wired to the extracted operator cockpit UI.
+_DASHBOARD_HTML = DASHBOARD_HTML

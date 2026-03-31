@@ -53,6 +53,15 @@ Documentation = "https://github.com/fusionAIze/faigate#readme"
 [tool.setuptools.packages.find]
 include = ["faigate*"]
 
+[tool.setuptools.package-data]
+faigate = [
+    "vendor/*.js",
+    "vendor/*.css",
+    "assets/brand/*.svg",
+    "assets/fonts/Montserrat/*.ttf",
+    "assets/fonts/Open-Sans/*.ttf",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"

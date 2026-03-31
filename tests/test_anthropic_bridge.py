@@ -48,6 +48,24 @@ def test_parse_anthropic_messages_request_accepts_string_content():
     assert request.messages[0].content[0].text == "hello"
 
 
+def test_parse_anthropic_messages_request_accepts_text_block_system_prompt():
+    request = parse_anthropic_messages_request(
+        {
+            "model": "claude-sonnet",
+            "system": [
+                {"type": "text", "text": "You are a coding assistant."},
+                {"type": "text", "text": "Prefer concise diffs."},
+            ],
+            "messages": [{"role": "user", "content": "hello"}],
+        }
+    )
+
+    assert request.system == [
+        "You are a coding assistant.",
+        "Prefer concise diffs.",
+    ]
+
+
 def test_anthropic_request_maps_to_canonical_and_openai_body():
     wire_request = parse_anthropic_messages_request(
         {
@@ -125,6 +143,102 @@ def test_anthropic_request_maps_tool_use_and_tool_result_blocks():
         "content": "Spec text",
         "tool_call_id": "toolu_lookup",
     }
+
+
+def test_anthropic_request_degrades_tool_result_without_id_to_user_text():
+    wire_request = parse_anthropic_messages_request(
+        {
+            "model": "claude-sonnet",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "content": "Result text without a stable tool id",
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+
+    canonical = anthropic_request_to_canonical(
+        wire_request,
+        headers={"x-faigate-client": "claude-code"},
+    )
+    openai_body = canonical.to_openai_body()
+
+    assert openai_body["messages"] == [
+        {
+            "role": "user",
+            "content": "Result text without a stable tool id",
+        }
+    ]
+
+
+def test_anthropic_request_keeps_tool_results_adjacent_to_tool_calls():
+    wire_request = parse_anthropic_messages_request(
+        {
+            "model": "claude-sonnet",
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_lookup",
+                            "name": "lookup_doc",
+                            "input": {"id": "spec"},
+                        }
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Here is the context you asked for"},
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "toolu_lookup",
+                            "content": "Spec body",
+                        },
+                    ],
+                },
+            ],
+        }
+    )
+
+    canonical = anthropic_request_to_canonical(
+        wire_request,
+        headers={"x-faigate-client": "claude-code"},
+    )
+    openai_body = canonical.to_openai_body()
+
+    assert openai_body["messages"] == [
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "toolu_lookup",
+                    "type": "function",
+                    "function": {
+                        "name": "lookup_doc",
+                        "arguments": '{"id":"spec"}',
+                    },
+                }
+            ],
+        },
+        {
+            "role": "tool",
+            "content": "Spec body",
+            "tool_call_id": "toolu_lookup",
+        },
+        {
+            "role": "user",
+            "content": "Here is the context you asked for",
+        },
+    ]
 
 
 def test_detached_router_runs_bridge_dispatch():

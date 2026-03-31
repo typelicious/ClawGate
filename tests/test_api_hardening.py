@@ -267,8 +267,17 @@ def test_dashboard_sets_security_headers(api_client):
     assert response.headers["referrer-policy"] == "no-referrer"
     csp = response.headers["content-security-policy"]
     assert "frame-ancestors 'none'" in csp
+    assert "font-src 'self'" in csp
     assert "'unsafe-inline'" not in csp
     assert "sha256-" in csp
+
+
+def test_dashboard_serves_packaged_font_asset(api_client):
+    response = api_client.get("/dashboard/assets/fonts/Montserrat/Montserrat-VariableFont_wght.ttf")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] in {"font/ttf", "application/x-font-ttf"}
+    assert len(response.content) > 1000
 
 
 def test_stats_includes_client_highlights(api_client):

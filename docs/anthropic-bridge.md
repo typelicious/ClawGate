@@ -80,7 +80,20 @@ Good first aliases:
 - `claude-code-fast -> eco`
 - `claude-code-premium -> premium`
 
-That keeps Claude-oriented clients on stable logical targets while Gate can still adapt the real route underneath.
+Built-in bridge defaults also recognize common Claude Code model ids such as:
+
+- `claude-sonnet-4-6[1m]`
+- `claude-sonnet-4-6-20251001`
+- `claude-opus-4-6[1m]`
+- `claude-haiku-4-5-20251001`
+
+By default those map to routing intents, not direct frontier providers:
+
+- `claude-sonnet-* -> auto`
+- `claude-opus-* -> premium`
+- `claude-haiku-* -> eco`
+
+That keeps Claude-oriented clients on stable logical targets while Gate can still adapt the real route underneath and avoid burning Sonnet or Opus for trivial turns.
 
 ## Limits And Fallback Design
 

@@ -110,6 +110,23 @@ _SUPPORTED_PROVIDER_TRANSPORT_AUTH_MODES = {"bearer", "query", "none"}
 _SUPPORTED_PROVIDER_TRANSPORT_PROBE_STRATEGIES = {"models", "chat", "models_or_chat", "none"}
 _SUPPORTED_PROVIDER_TRANSPORT_COMPATIBILITY = {"native", "aggregator", "compat-layer"}
 _SUPPORTED_PROVIDER_TRANSPORT_CONFIDENCE = {"high", "medium", "low"}
+_DEFAULT_ANTHROPIC_BRIDGE_MODEL_ALIASES = {
+    "claude-code": "auto",
+    "claude-code-fast": "eco",
+    "claude-code-premium": "premium",
+    # Claude Code currently sends its own Anthropic model ids. These built-ins
+    # let the bridge accept them without per-machine operator tuning. They map
+    # to routing intents, not direct frontier providers, so Gate can still
+    # score the cheapest capable route for the current request shape.
+    "claude-sonnet-4-6": "auto",
+    "claude-sonnet-4-6-20251001": "auto",
+    "claude-sonnet-4-6[1m]": "auto",
+    "claude-opus-4-6": "premium",
+    "claude-opus-4-6-20251001": "premium",
+    "claude-opus-4-6[1m]": "premium",
+    "claude-haiku-4-5": "eco",
+    "claude-haiku-4-5-20251001": "eco",
+}
 
 _CLIENT_PROFILE_PRESET_SPECS: dict[str, dict[str, Any]] = {
     "openclaw": {
@@ -1256,6 +1273,7 @@ def _normalize_routing_modes(data: dict[str, Any]) -> dict[str, Any]:
                 f"routing mode '{normalized_name}'",
                 dict(spec.get("select", {}) or {}),
                 provider_names,
+                extra_keys={"routing_mode"},
             ),
         }
 
@@ -1792,7 +1810,7 @@ def _normalize_anthropic_bridge(data: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(model_aliases, dict):
         raise ConfigError("'anthropic_bridge.model_aliases' must be a mapping")
 
-    normalized_aliases: dict[str, str] = {}
+    normalized_aliases: dict[str, str] = dict(_DEFAULT_ANTHROPIC_BRIDGE_MODEL_ALIASES)
     for key, value in model_aliases.items():
         alias = str(key or "").strip()
         target = str(value or "").strip()
@@ -1987,7 +2005,7 @@ class Config:
                 "enabled": False,
                 "route_prefix": "/v1",
                 "allow_claude_code_hints": True,
-                "model_aliases": {},
+                "model_aliases": dict(_DEFAULT_ANTHROPIC_BRIDGE_MODEL_ALIASES),
             },
         )
 

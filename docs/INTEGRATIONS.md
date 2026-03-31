@@ -146,7 +146,11 @@ If you want a small Node-facing helper instead of shell aliases, the separate np
 
 - starter: [examples/opencode-faigate.json](./examples/opencode-faigate.json)
 - recommended header: `X-faigate-Client: opencode`
-- recommended model: pick one of the fusionAIze Gate model ids exposed by `GET /v1/models`, usually `auto`
+- recommended models:
+  - `coding-auto` for normal coding sessions
+  - `coding-fast` for fast, cheaper iterations
+  - `coding-premium` for architecture, review, or higher-risk changes
+  - `auto` only when you really want the generic cross-client router surface
 
 The current opencode docs recommend `@ai-sdk/openai-compatible` for custom OpenAI-compatible providers and a custom `provider.<id>.options.baseURL` value for the gateway endpoint. This fusionAIze Gate starter follows that pattern and keeps the provider-local model ids aligned with `GET /v1/models`.
 
