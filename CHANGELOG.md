@@ -1,5 +1,14 @@
 # fusionAIze Gate Changelog
 
+## Unreleased
+
+### Changed
+
+- Reframed Claude-native bridge model aliases around routing intent instead of direct frontier spend: built-in Claude Code model ids now resolve to `auto`, `premium`, or `eco` so Gate can still choose the cheapest capable route for the request
+- Tightened the shipped config and integration examples around coding auto modes, so `claude`, `opencode`, `openclaw`, and related coding clients can share clearer `coding-auto`, `coding-fast`, and `coding-premium` entry points instead of muddled provider-first defaults
+- Updated the roadmap and implementation plan to prioritize cost-aware coding auto modes first, then stronger product surfaces and licensing-aware stack boundaries for Gate as a standalone product
+- Added a dedicated dashboard IA document so the next web and shell dashboard work is grouped around operator jobs such as overview, providers, clients, routes, analytics, request log, integrations, and troubleshooting instead of one long admin surface
+
 ## v1.13.0 - 2026-03-30
 
 ### Added

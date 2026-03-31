@@ -54,7 +54,13 @@ Documentation = "https://github.com/fusionAIze/faigate#readme"
 include = ["faigate*"]
 
 [tool.setuptools.package-data]
-faigate = ["vendor/*.js", "vendor/*.css", "assets/brand/*.svg"]
+faigate = [
+    "vendor/*.js",
+    "vendor/*.css",
+    "assets/brand/*.svg",
+    "assets/fonts/Montserrat/*.ttf",
+    "assets/fonts/Open-Sans/*.ttf",
+]
 
 [tool.ruff]
 line-length = 100

@@ -3,6 +3,8 @@
 import re
 from pathlib import Path
 
+from . import __version__
+
 # ruff: noqa: E501
 
 _VENDOR_DIR = Path(__file__).resolve().parent / "vendor"
@@ -34,6 +36,21 @@ def _inline_svg(name: str) -> str:
     if not svg:
         return ""
     svg = svg.replace('<?xml version="1.0" encoding="UTF-8"?>', "").strip()
+    fill_rules = {
+        cls: fill
+        for cls, fill in re.findall(
+            r"\.(st\d+)\s*\{[^{}]*fill:\s*([^;]+);[^{}]*\}",
+            svg,
+            flags=re.DOTALL,
+        )
+    }
+    for cls, fill in fill_rules.items():
+        svg = re.sub(
+            rf'\sclass="{re.escape(cls)}"',
+            f' fill="{fill.strip()}"',
+            svg,
+        )
+    svg = re.sub(r"<defs>.*?</defs>", "", svg, flags=re.DOTALL).strip()
     svg = re.sub(r"<!--.*?-->", "", svg, flags=re.DOTALL).strip()
     return svg
 
@@ -45,6 +62,27 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
 <title>fusionAIze Gate</title>
 <style>
 /*__UPLOT_CSS__*/
+@font-face{
+  font-family:"Gate Display";
+  src:url("/dashboard/assets/fonts/Montserrat/Montserrat-VariableFont_wght.ttf") format("truetype");
+  font-weight:100 900;
+  font-style:normal;
+  font-display:swap;
+}
+@font-face{
+  font-family:"Gate Body";
+  src:url("/dashboard/assets/fonts/Open-Sans/OpenSans-VariableFont_wdth,wght.ttf") format("truetype");
+  font-weight:300 800;
+  font-style:normal;
+  font-display:swap;
+}
+@font-face{
+  font-family:"Gate Body";
+  src:url("/dashboard/assets/fonts/Open-Sans/OpenSans-Italic-VariableFont_wdth,wght.ttf") format("truetype");
+  font-weight:300 800;
+  font-style:italic;
+  font-display:swap;
+}
 :root{
   --bg:#07101d;
   --bg-2:#0d1730;
@@ -64,14 +102,14 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
   --green:#2EA75D;
   --orange:#FFAA19;
   --danger:#ff7b7b;
-  --shadow:0 30px 120px rgba(0,0,0,.45);
+  --shadow:0 20px 56px rgba(2,8,19,.28);
   --radius-xl:28px;
   --radius-lg:20px;
   --radius-md:14px;
   --radius-sm:10px;
   --mono:"SFMono-Regular","IBM Plex Mono","Menlo","Consolas",monospace;
-  --body:"Avenir Next","Segoe UI","Helvetica Neue",sans-serif;
-  --display:"Avenir Next Condensed","Gill Sans","Trebuchet MS",sans-serif;
+  --body:"Gate Body","Open Sans","Segoe UI","Helvetica Neue",sans-serif;
+  --display:"Gate Display","Montserrat","Avenir Next","Segoe UI",sans-serif;
 }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -81,10 +119,10 @@ body{
   color:var(--text);
   font-family:var(--body);
   background:
-    radial-gradient(circle at 15% 20%, rgba(84,171,238,.16), transparent 28%),
-    radial-gradient(circle at 82% 16%, rgba(196,217,0,.08), transparent 20%),
-    radial-gradient(circle at 70% 85%, rgba(255,170,25,.08), transparent 24%),
-    linear-gradient(180deg, #09111f 0%, #07101d 44%, #06101c 100%);
+    radial-gradient(circle at 15% 20%, rgba(84,171,238,.07), transparent 30%),
+    radial-gradient(circle at 82% 16%, rgba(196,217,0,.03), transparent 18%),
+    radial-gradient(circle at 70% 85%, rgba(255,170,25,.025), transparent 22%),
+    linear-gradient(180deg, #09111f 0%, #08111f 44%, #07101b 100%);
 }
 body::before{
   content:"";
@@ -96,7 +134,7 @@ body::before{
     linear-gradient(90deg, rgba(255,255,255,.02) 1px, transparent 1px);
   background-size:32px 32px;
   mask-image:radial-gradient(circle at center, black 40%, transparent 88%);
-  opacity:.3;
+  opacity:.07;
 }
 a{color:inherit}
 button,input,select{font:inherit}
@@ -118,12 +156,12 @@ button:hover{transform:translateY(-1px)}
   top:22px;
   height:calc(100vh - 44px);
   padding:22px 18px;
-  border:1px solid rgba(84,171,238,.16);
+  border:1px solid rgba(84,171,238,.09);
   border-radius:var(--radius-xl);
   background:
-    linear-gradient(180deg, rgba(16,29,56,.95), rgba(10,19,37,.92)),
-    radial-gradient(circle at top left, rgba(84,171,238,.14), transparent 38%);
-  box-shadow:var(--shadow);
+    linear-gradient(180deg, rgba(15,27,50,.95), rgba(10,18,33,.94)),
+    radial-gradient(circle at top left, rgba(84,171,238,.055), transparent 40%);
+  box-shadow:0 16px 42px rgba(2,8,19,.24);
   overflow:hidden;
 }
 .rail::after{
@@ -131,70 +169,70 @@ button:hover{transform:translateY(-1px)}
   position:absolute;
   inset:auto 16px 16px 16px;
   height:1px;
-  background:linear-gradient(90deg, transparent, rgba(84,171,238,.35), transparent);
+  background:linear-gradient(90deg, transparent, rgba(84,171,238,.2), transparent);
 }
 .brand{
   display:grid;
-  gap:12px;
-  margin-bottom:24px;
+  gap:11px;
+  margin-bottom:22px;
 }
 .brand-lockup{
   display:flex;
+  flex-direction:column;
   align-items:flex-start;
-  gap:12px;
+  gap:10px;
 }
 .brand-wordmark{
   display:flex;
   align-items:center;
-  min-height:28px;
+  width:100%;
+  min-height:0;
 }
 .brand-wordmark svg{
   display:block;
-  width:166px;
+  width:242px;
+  max-width:100%;
   height:auto;
 }
+.brand-product{
+  display:flex;
+  align-items:baseline;
+  gap:9px;
+}
 .brand-gate{
-  display:inline-flex;
-  align-items:center;
-  min-height:28px;
-  padding:0 10px;
-  border-radius:999px;
-  border:1px solid rgba(84,171,238,.16);
-  background:rgba(255,255,255,.03);
-  color:#f6fbff;
-  font:700 .74rem/1 var(--mono);
-  letter-spacing:.16em;
+  color:#f4f8ff;
+  font:650 1.02rem/1 var(--display);
+  letter-spacing:.1em;
   text-transform:uppercase;
 }
-.brand-copy p{
-  margin:0;
-  color:var(--muted);
-  font-size:.82rem;
-  line-height:1.45;
+.brand-version{
+  color:var(--muted-soft);
+  font:500 .68rem/1 var(--body);
+  letter-spacing:.02em;
 }
 .rail-meta{
   display:grid;
-  gap:10px;
-  margin-bottom:24px;
+  gap:8px;
+  margin-bottom:22px;
 }
 .rail-stat{
-  padding:12px 14px;
-  border:1px solid rgba(84,171,238,.12);
-  border-radius:var(--radius-md);
-  background:rgba(7,16,29,.45);
+  padding:10px 13px;
+  border:1px solid rgba(84,171,238,.07);
+  border-radius:16px;
+  background:rgba(255,255,255,.018);
 }
 .rail-stat .kicker{
   display:block;
   color:var(--muted-soft);
-  font:600 .66rem/1 var(--mono);
+  font:600 .63rem/1 var(--mono);
   text-transform:uppercase;
-  letter-spacing:.14em;
-  margin-bottom:8px;
+  letter-spacing:.09em;
+  margin-bottom:7px;
 }
 .rail-stat strong{
   display:block;
-  font-size:1rem;
-  letter-spacing:.02em;
+  font:600 .94rem/1.2 var(--display);
+  letter-spacing:0;
 }
 .nav{
   display:grid;
@@ -206,9 +244,9 @@ button:hover{transform:translateY(-1px)}
   align-items:center;
   justify-content:space-between;
   gap:10px;
-  padding:13px 14px;
+  padding:12px 14px;
   border:1px solid transparent;
-  border-radius:14px;
+  border-radius:16px;
   background:transparent;
   color:var(--muted);
   text-align:left;
@@ -218,25 +256,30 @@ button:hover{transform:translateY(-1px)}
   font:600 .72rem/1 var(--mono);
 }
 .nav button .label{
-  font-weight:600;
-  letter-spacing:.02em;
+  font:600 .9rem/1.1 var(--display);
+  letter-spacing:0;
 }
 .nav button.active{
-  background:linear-gradient(90deg, rgba(0,82,204,.22), rgba(84,171,238,.1));
+  background:linear-gradient(90deg, rgba(54,99,190,.16), rgba(84,171,238,.04));
   color:#f4f8ff;
-  border-color:rgba(84,171,238,.24);
-  box-shadow:inset 0 1px 0 rgba(225,233,243,.06), 0 0 0 1px rgba(84,171,238,.08);
+  border-color:rgba(84,171,238,.1);
+  box-shadow:inset 0 1px 0 rgba(225,233,243,.03), 0 0 0 1px rgba(84,171,238,.03);
 }
 .nav button.active .num{color:var(--lime)}
 .rail-note{
-  margin-top:24px;
-  padding:14px;
+  margin-top:20px;
+  padding:12px 13px;
   border-radius:16px;
-  background:linear-gradient(160deg, rgba(255,170,25,.12), rgba(255,170,25,.02));
-  border:1px solid rgba(255,170,25,.14);
-  color:#e7d8b6;
-  font-size:.85rem;
+  background:linear-gradient(160deg, rgba(255,255,255,.025), rgba(255,255,255,.01));
+  border:1px solid rgba(84,171,238,.06);
+  color:var(--muted);
+  font-size:.8rem;
   line-height:1.5;
+}
+.rail-note strong{
+  color:#dbe6f5;
+  font:600 .8rem/1.2 var(--display);
+  letter-spacing:.01em;
 }
 .content{
   min-width:0;
@@ -246,97 +289,116 @@ button:hover{transform:translateY(-1px)}
 .hero{
   position:relative;
   overflow:hidden;
-  padding:18px 20px;
-  border:1px solid rgba(84,171,238,.16);
-  border-radius:var(--radius-xl);
-  background:
-    linear-gradient(145deg, rgba(18,34,68,.96), rgba(9,17,31,.96)),
-    radial-gradient(circle at top right, rgba(84,171,238,.14), transparent 28%);
-  box-shadow:var(--shadow);
+  padding:11px 16px 12px;
+  border:1px solid rgba(84,171,238,.08);
+  border-radius:18px;
+  background:linear-gradient(180deg, rgba(16,28,50,.9), rgba(10,18,33,.9));
+  box-shadow:0 10px 24px rgba(2,8,19,.16);
 }
 .hero::before{
-  content:"";
+  content:none;
   position:absolute;
   inset:0;
-  background:linear-gradient(90deg, rgba(84,171,238,.06), transparent 24%, transparent 76%, rgba(196,217,0,.04));
+  background:linear-gradient(90deg, rgba(84,171,238,.02), transparent 24%, transparent 76%, rgba(196,217,0,.015));
   pointer-events:none;
 }
 .hero-top{
   display:flex;
   align-items:flex-end;
   justify-content:space-between;
-  gap:16px;
-  margin-bottom:14px;
+  gap:10px 14px;
   flex-wrap:wrap;
+}
+.hero-top > *{
+  min-width:0;
 }
 .hero-head{
   display:grid;
-  gap:8px;
-}
-.hero-headline{
-  display:flex;
-  align-items:center;
-  gap:12px;
-  flex-wrap:wrap;
-}
-.hero-brand{
-  display:inline-flex;
-  align-items:center;
-}
-.hero-brand svg{
-  display:block;
-  width:150px;
-  height:auto;
-  opacity:.95;
-}
-.hero-brand-sep{
-  width:1px;
-  height:22px;
-  background:rgba(84,171,238,.18);
+  gap:2px;
+  min-width:0;
 }
 .eyebrow{
   display:inline-flex;
   align-items:center;
-  gap:10px;
+  gap:7px;
   color:var(--muted);
-  font:600 .68rem/1 var(--mono);
-  letter-spacing:.16em;
-  text-transform:uppercase;
+  font:600 .68rem/1.2 var(--body);
+  letter-spacing:.01em;
+  text-transform:none;
+  opacity:.92;
 }
 .pulse{
-  width:10px;
-  height:10px;
+  width:6px;
+  height:6px;
   border-radius:50%;
   background:var(--lime);
-  box-shadow:0 0 0 0 rgba(196,217,0,.45);
-  animation:pulse 2.4s infinite;
-}
-@keyframes pulse{
-  0%{box-shadow:0 0 0 0 rgba(196,217,0,.45)}
-  70%{box-shadow:0 0 0 16px rgba(196,217,0,0)}
-  100%{box-shadow:0 0 0 0 rgba(196,217,0,0)}
+  box-shadow:0 0 0 3px rgba(196,217,0,.08);
 }
 .hero h2{
   margin:0;
   max-width:none;
-  font:700 clamp(1.4rem, 2vw, 2rem)/1 var(--display);
-  text-transform:uppercase;
-  letter-spacing:.05em;
+  display:flex;
+  align-items:baseline;
+  gap:.28rem;
+  flex-wrap:nowrap;
+  white-space:nowrap;
+  font:600 clamp(1rem, 1.18vw, 1.18rem)/1.04 var(--display);
+  text-transform:none;
+  letter-spacing:-.012em;
+}
+.hero h2 .title-line{
+  display:inline;
 }
 .hero h2 .accent{color:var(--lime)}
 .hero p{
   margin:0;
-  max-width:58ch;
+  max-width:56ch;
   color:var(--muted);
-  line-height:1.45;
-  font-size:.92rem;
+  line-height:1.32;
+  font-size:.79rem;
 }
 .hero-actions{
   display:flex;
   flex-wrap:wrap;
-  gap:10px;
-  align-items:flex-end;
+  gap:7px;
+  align-items:center;
   justify-content:flex-end;
+  min-width:0;
+  max-width:100%;
+}
+.hero-actions .btn{
+  min-height:34px;
+  padding:0 11px;
+  border-radius:999px;
+  border:1px solid rgba(225,233,243,.06);
+  background:rgba(255,255,255,.03);
+  color:#e5edf7;
+  box-shadow:none;
+  font:600 .8rem/1 var(--body);
+}
+.hero-actions .btn.primary{
+  background:linear-gradient(135deg, rgba(0,82,204,.54), rgba(54,99,190,.48));
+  border-color:rgba(84,171,238,.14);
+}
+.hero-actions .btn.secondary{
+  background:rgba(255,255,255,.035);
+}
+.hero-actions .btn.ghost{
+  color:var(--muted);
+}
+.hero-actions .chip{
+  min-height:34px;
+  padding:0 11px;
+  border-radius:999px;
+  border:1px solid rgba(225,233,243,.07);
+  background:rgba(255,255,255,.025);
+  color:var(--muted);
+  font:600 .76rem/1 var(--body);
+  text-transform:none;
+  letter-spacing:.01em;
+}
+.hero-actions .chip strong{
+  font:700 .76rem/1 var(--mono);
 }
 .btn{
   display:inline-flex;
@@ -359,21 +421,6 @@ button:hover{transform:translateY(-1px)}
 }
 .btn.ghost{
   color:var(--muted);
-}
-.hero-ribbon{
-  display:grid;
-  grid-template-columns:1.1fr .9fr;
-  gap:16px;
-}
-.ribbon-panel{
-  padding:16px;
-  border-radius:20px;
-  border:1px solid rgba(84,171,238,.14);
-  background:rgba(7,16,29,.48);
-  backdrop-filter:blur(10px);
-}
-.ribbon-panel.attention{
-  background:linear-gradient(160deg, rgba(17,29,56,.72), rgba(9,17,31,.72));
 }
 .ribbon-title{
   margin-bottom:12px;
@@ -462,126 +509,148 @@ button:hover{transform:translateY(-1px)}
 }
 .toolbar{
   display:grid;
-  gap:12px;
-  padding:16px 18px;
-  border:1px solid rgba(84,171,238,.12);
-  border-radius:var(--radius-lg);
-  background:linear-gradient(180deg, rgba(13,24,48,.92), rgba(8,16,31,.92));
-  box-shadow:var(--shadow);
+  gap:10px;
+  padding:13px 14px;
+  border:1px solid rgba(84,171,238,.09);
+  border-radius:18px;
+  background:linear-gradient(180deg, rgba(12,22,42,.9), rgba(8,16,29,.9));
+  box-shadow:0 12px 28px rgba(2,8,19,.14);
 }
 .toolbar-head{
   display:flex;
   align-items:flex-end;
   justify-content:space-between;
-  gap:16px;
+  gap:10px 14px;
   flex-wrap:wrap;
 }
 .toolbar-head-right{
   display:flex;
-  align-items:center;
-  gap:10px;
+  align-items:flex-end;
+  gap:8px;
   flex-wrap:wrap;
+}
+.toolbar-head-right .field{
+  min-width:172px;
+  max-width:212px;
 }
 .toolbar-copy strong{
   display:block;
-  margin-bottom:4px;
-  font:700 .76rem/1 var(--mono);
-  text-transform:uppercase;
-  letter-spacing:.16em;
+  margin-bottom:3px;
   color:var(--muted-soft);
+  font:600 .64rem/1 var(--display);
+  letter-spacing:.04em;
+  text-transform:none;
 }
 .toolbar-copy p{
   margin:0;
-  color:var(--text);
-  font:700 1.05rem/1.2 var(--display);
-  letter-spacing:.05em;
-  text-transform:uppercase;
+  color:#eef4fd;
+  font:600 .96rem/1.15 var(--display);
+  letter-spacing:-.01em;
+  text-transform:none;
 }
 .toolbar-copy p .accent{
   color:var(--lime);
 }
 .toolbar-copy .toolbar-subline{
-  margin-top:6px;
+  margin-top:4px;
   color:var(--muted);
-  font:500 .88rem/1.45 var(--body);
+  font:500 .78rem/1.38 var(--body);
   text-transform:none;
   letter-spacing:0;
 }
 .filters{
   display:grid;
   grid-template-columns:repeat(auto-fit,minmax(146px,1fr));
-  gap:12px;
+  gap:10px;
 }
 .field{
   display:grid;
-  gap:7px;
+  gap:5px;
 }
 .field span{
   color:var(--muted-soft);
-  font:600 .7rem/1 var(--mono);
-  letter-spacing:.14em;
-  text-transform:uppercase;
+  font:600 .66rem/1 var(--display);
+  letter-spacing:.02em;
+  text-transform:none;
 }
 .field input,
 .field select{
   width:100%;
-  min-height:40px;
-  padding:0 12px;
+  min-height:38px;
+  padding:0 11px;
   color:var(--text);
-  background:rgba(9,17,31,.58);
-  border:1px solid rgba(84,171,238,.14);
-  border-radius:12px;
+  background:rgba(8,16,29,.52);
+  border:1px solid rgba(84,171,238,.11);
+  border-radius:11px;
   outline:none;
+  box-shadow:none;
 }
 .field input:focus,
 .field select:focus{
-  border-color:rgba(84,171,238,.34);
-  box-shadow:0 0 0 3px rgba(0,82,204,.14);
+  border-color:rgba(84,171,238,.28);
+  box-shadow:0 0 0 3px rgba(0,82,204,.11);
 }
 .toolbar-meta{
   display:flex;
   align-items:center;
   justify-content:space-between;
-  gap:12px;
+  gap:10px;
   flex-wrap:wrap;
+}
+.toolbar-meta > *{
+  min-width:0;
 }
 .toolbar-summary{
   color:var(--muted);
-  font-size:.9rem;
+  font-size:.83rem;
+  line-height:1.35;
 }
 .toolbar-summary strong{
   color:var(--text);
 }
 .toolbar-actions{
   display:flex;
-  gap:10px;
+  gap:8px;
   flex-wrap:wrap;
 }
 .toolbar-chips{
   display:flex;
-  gap:8px;
+  gap:7px;
   flex-wrap:wrap;
+}
+.toolbar-head-right .chip{
+  min-height:38px;
+  padding:0 10px;
+  border-radius:999px;
+  border-color:rgba(84,171,238,.1);
+  background:rgba(255,255,255,.022);
+  color:var(--muted);
+  font:600 .7rem/1 var(--body);
+  text-transform:none;
+  letter-spacing:.01em;
+}
+.toolbar-actions .btn{
+  min-height:38px;
+  padding:0 12px;
+  border-radius:999px;
+  font:600 .78rem/1 var(--body);
 }
 .chip.active-filter{
   background:rgba(0,82,204,.12);
   border-color:rgba(84,171,238,.22);
   color:#dff0ff;
 }
-.saved-view{
-  min-width:170px;
-}
-.saved-view select{
-  min-height:42px;
-  padding:0 12px;
-  border-radius:999px;
-  border:1px solid rgba(84,171,238,.16);
-  background:rgba(255,255,255,.04);
-  color:var(--text);
-}
 .attention-grid{
   display:grid;
   grid-template-columns:1.05fr .95fr;
   gap:18px;
+}
+.attention-grid > *,
+.metrics-grid > *,
+.columns > *,
+.cards-3 > *,
+.cards-2 > *{
+  min-width:0;
 }
 .overview-actions{
   display:flex;
@@ -645,6 +714,7 @@ button:hover{transform:translateY(-1px)}
   gap:18px;
 }
 .panel{
+  min-width:0;
   padding:20px;
   border-radius:var(--radius-lg);
   border:1px solid rgba(84,171,238,.12);
@@ -661,9 +731,9 @@ button:hover{transform:translateY(-1px)}
 }
 .panel-header h3{
   margin:0;
-  font:700 1.02rem/1 var(--display);
-  text-transform:uppercase;
-  letter-spacing:.08em;
+  font:650 1rem/1.08 var(--display);
+  text-transform:none;
+  letter-spacing:-.01em;
 }
 .panel-header p{
   margin:8px 0 0;
@@ -681,12 +751,12 @@ button:hover{transform:translateY(-1px)}
   border:1px solid rgba(84,171,238,.14);
   background:rgba(255,255,255,.03);
   color:var(--muted);
-  font:600 .72rem/1 var(--mono);
-  text-transform:uppercase;
-  letter-spacing:.12em;
+  font:600 .74rem/1 var(--body);
+  text-transform:none;
+  letter-spacing:.01em;
 }
 .chip strong{
-  font:700 .84rem/1 var(--mono);
+  font:700 .76rem/1 var(--body);
   color:var(--text);
 }
 .alert-stack,.stack-list,.integration-grid,.cards-3{
@@ -712,8 +782,8 @@ button:hover{transform:translateY(-1px)}
 .catalog-card strong{
   display:block;
   margin-bottom:8px;
-  font-size:.95rem;
-  letter-spacing:.02em;
+  font:600 .94rem/1.2 var(--display);
+  letter-spacing:-.01em;
 }
 .focus-card p,
 .integration-card p,
@@ -740,8 +810,8 @@ button:hover{transform:translateY(-1px)}
   margin-bottom:10px;
 }
 .alert-headline{
-  font-weight:700;
-  letter-spacing:.02em;
+  font:600 .92rem/1.2 var(--display);
+  letter-spacing:-.01em;
 }
 .alert-level{
   flex:0 0 auto;
@@ -777,8 +847,8 @@ button:hover{transform:translateY(-1px)}
   margin-bottom:12px;
 }
 .trend-top strong{
-  font-size:.96rem;
-  letter-spacing:.02em;
+  font:600 .94rem/1.2 var(--display);
+  letter-spacing:-.01em;
 }
 .trend-top span{
   color:var(--muted);
@@ -831,6 +901,709 @@ button:hover{transform:translateY(-1px)}
   display:grid;
   gap:7px;
 }
+#view-providers{
+  gap:14px;
+}
+#view-providers .metrics-grid{
+  gap:12px;
+}
+#view-providers .metric-card{
+  padding:16px 16px 14px;
+  border-radius:18px;
+  border-color:rgba(84,171,238,.1);
+  background:
+    linear-gradient(160deg, rgba(16,28,52,.9), rgba(10,17,32,.9)),
+    radial-gradient(circle at top right, rgba(84,171,238,.1), transparent 34%);
+  box-shadow:0 14px 30px rgba(2,8,19,.15);
+}
+#view-providers .metric-card .kicker{
+  font:600 .64rem/1 var(--display);
+  letter-spacing:.04em;
+  text-transform:none;
+}
+#view-providers .metric-card .value{
+  margin:10px 0 7px;
+  font:650 clamp(1.42rem, 1.78vw, 2.08rem)/1 var(--display);
+  letter-spacing:-.015em;
+}
+#view-providers .metric-card .detail{
+  font-size:.83rem;
+  line-height:1.4;
+}
+#view-providers .columns{
+  gap:14px;
+}
+#view-providers .panel{
+  padding:17px 18px;
+  border-radius:18px;
+  border-color:rgba(84,171,238,.1);
+  background:linear-gradient(180deg, rgba(13,23,43,.9), rgba(9,16,29,.88));
+  box-shadow:0 14px 28px rgba(2,8,19,.14);
+}
+#view-providers .panel-header{
+  margin-bottom:12px;
+}
+#view-providers .panel-header h3{
+  font:650 .97rem/1.08 var(--display);
+  text-transform:none;
+  letter-spacing:-.01em;
+}
+#view-providers .panel-header p{
+  margin:6px 0 0;
+  max-width:48ch;
+  font-size:.83rem;
+  line-height:1.42;
+}
+#view-providers .alert-stack,
+#view-providers .cards-3{
+  gap:10px;
+}
+#view-providers .alert-card,
+#view-providers .catalog-card{
+  padding:14px;
+  border-radius:16px;
+}
+#view-providers .table-wrap{
+  border-radius:16px;
+}
+#view-providers #providers-table{
+  min-width:760px;
+}
+#view-providers #providers-table td{
+  padding:11px 12px;
+}
+#view-providers #providers-table td:nth-child(1) strong,
+#view-providers #providers-table td:nth-child(3) strong,
+#view-providers #providers-table td:nth-child(4) strong{
+  display:block;
+  font:600 .9rem/1.24 var(--display);
+  letter-spacing:-.01em;
+}
+#view-providers #providers-table td:nth-child(9){
+  max-width:28ch;
+}
+#view-providers #providers-table .tiny{
+  margin-top:4px;
+  font-size:.79rem;
+  line-height:1.38;
+}
+#view-clients{
+  gap:14px;
+}
+#view-clients .metrics-grid{
+  gap:12px;
+}
+#view-clients .metric-card{
+  padding:16px 16px 14px;
+  border-radius:18px;
+  border-color:rgba(84,171,238,.1);
+  background:
+    linear-gradient(160deg, rgba(16,28,52,.9), rgba(10,17,32,.9)),
+    radial-gradient(circle at top right, rgba(84,171,238,.1), transparent 34%);
+  box-shadow:0 14px 30px rgba(2,8,19,.15);
+}
+#view-clients .metric-card .kicker{
+  font:600 .64rem/1 var(--display);
+  letter-spacing:.04em;
+  text-transform:none;
+}
+#view-clients .metric-card .value{
+  margin:10px 0 7px;
+  font:650 clamp(1.42rem, 1.78vw, 2.08rem)/1 var(--display);
+  letter-spacing:-.015em;
+}
+#view-clients .metric-card .detail{
+  font-size:.83rem;
+  line-height:1.4;
+}
+#view-clients .cards-3{
+  gap:10px;
+}
+#view-clients .catalog-card{
+  padding:13px 14px;
+  border-radius:16px;
+  background:rgba(9,17,31,.42);
+  border-color:rgba(84,171,238,.08);
+  box-shadow:none;
+}
+#view-clients .catalog-card strong{
+  margin-bottom:6px;
+  font:600 .88rem/1.22 var(--display);
+  letter-spacing:-.01em;
+}
+#view-clients .catalog-card p{
+  font-size:.84rem;
+  line-height:1.42;
+}
+#view-clients .panel{
+  padding:17px 18px;
+  border-radius:18px;
+  border-color:rgba(84,171,238,.1);
+  background:linear-gradient(180deg, rgba(13,23,43,.9), rgba(9,16,29,.88));
+  box-shadow:0 14px 28px rgba(2,8,19,.14);
+}
+#view-clients .panel-header{
+  margin-bottom:12px;
+}
+#view-clients .panel-header h3{
+  font:650 .97rem/1.08 var(--display);
+  text-transform:none;
+  letter-spacing:-.01em;
+}
+#view-clients .panel-header p{
+  margin:6px 0 0;
+  max-width:48ch;
+  font-size:.83rem;
+  line-height:1.42;
+}
+#view-clients .table-wrap{
+  border-radius:16px;
+}
+#view-clients #clients-table td{
+  padding:11px 12px;
+}
+#view-clients #clients-table td:first-child strong{
+  display:block;
+  font:600 .9rem/1.24 var(--display);
+  letter-spacing:-.01em;
+}
+#view-clients #clients-table td:last-child{
+  max-width:24ch;
+}
+#view-routes{
+  gap:14px;
+}
+#view-routes .metrics-grid{
+  gap:12px;
+}
+#view-routes .metric-card{
+  padding:16px 16px 14px;
+  border-radius:18px;
+  border-color:rgba(84,171,238,.1);
+  background:
+    linear-gradient(160deg, rgba(16,28,52,.9), rgba(10,17,32,.9)),
+    radial-gradient(circle at top right, rgba(84,171,238,.1), transparent 34%);
+  box-shadow:0 14px 30px rgba(2,8,19,.15);
+}
+#view-routes .metric-card .kicker{
+  font:600 .64rem/1 var(--display);
+  letter-spacing:.04em;
+  text-transform:none;
+}
+#view-routes .metric-card .value{
+  margin:10px 0 7px;
+  font:650 clamp(1.42rem, 1.78vw, 2.08rem)/1 var(--display);
+  letter-spacing:-.015em;
+}
+#view-routes .metric-card .detail{
+  font-size:.83rem;
+  line-height:1.4;
+}
+#view-routes .columns{
+  gap:14px;
+}
+#view-routes .panel{
+  padding:17px 18px;
+  border-radius:18px;
+  border-color:rgba(84,171,238,.1);
+  background:linear-gradient(180deg, rgba(13,23,43,.9), rgba(9,16,29,.88));
+  box-shadow:0 14px 28px rgba(2,8,19,.14);
+}
+#view-routes .panel-header{
+  margin-bottom:12px;
+}
+#view-routes .panel-header h3{
+  font:650 .97rem/1.08 var(--display);
+  text-transform:none;
+  letter-spacing:-.01em;
+}
+#view-routes .panel-header p{
+  margin:6px 0 0;
+  max-width:48ch;
+  font-size:.83rem;
+  line-height:1.42;
+}
+#view-routes .bar-list{
+  gap:10px;
+}
+#view-routes .bar-item{
+  gap:6px;
+}
+#view-routes .table-wrap{
+  border-radius:16px;
+}
+#view-routes #routes-table td{
+  padding:11px 12px;
+}
+#view-routes #routes-table td:nth-child(2),
+#view-routes #routes-table td:nth-child(3),
+#view-routes #routes-table td:nth-child(5){
+  font-size:.89rem;
+  line-height:1.34;
+}
+#view-routes #routes-table td:nth-child(2){
+  font-family:var(--display);
+  font-weight:600;
+  letter-spacing:-.01em;
+}
+#view-catalog{
+  gap:14px;
+}
+#view-catalog .metrics-grid{
+  gap:12px;
+}
+#view-catalog .metric-card{
+  padding:16px 16px 14px;
+  border-radius:18px;
+  border-color:rgba(84,171,238,.1);
+  background:
+    linear-gradient(160deg, rgba(16,28,52,.9), rgba(10,17,32,.9)),
+    radial-gradient(circle at top right, rgba(84,171,238,.1), transparent 34%);
+  box-shadow:0 14px 30px rgba(2,8,19,.15);
+}
+#view-catalog .metric-card .kicker{
+  font:600 .64rem/1 var(--display);
+  letter-spacing:.04em;
+  text-transform:none;
+}
+#view-catalog .metric-card .value{
+  margin:10px 0 7px;
+  font:650 clamp(1.42rem, 1.78vw, 2.08rem)/1 var(--display);
+  letter-spacing:-.015em;
+}
+#view-catalog .metric-card .detail{
+  font-size:.83rem;
+  line-height:1.4;
+}
+#view-catalog .cards-3,
+#view-catalog .columns,
+#view-catalog .alert-stack,
+#view-catalog .bar-list{
+  gap:10px;
+}
+#view-catalog .catalog-card,
+#view-catalog .alert-card{
+  padding:14px;
+  border-radius:16px;
+}
+#view-catalog .catalog-card{
+  background:rgba(9,17,31,.42);
+  border-color:rgba(84,171,238,.08);
+  box-shadow:none;
+}
+#view-catalog .catalog-card strong{
+  margin-bottom:6px;
+  font:600 .88rem/1.22 var(--display);
+  letter-spacing:-.01em;
+}
+#view-catalog .catalog-card p,
+#view-catalog .alert-body{
+  font-size:.84rem;
+  line-height:1.42;
+}
+#view-catalog .panel{
+  padding:17px 18px;
+  border-radius:18px;
+  border-color:rgba(84,171,238,.1);
+  background:linear-gradient(180deg, rgba(13,23,43,.9), rgba(9,16,29,.88));
+  box-shadow:0 14px 28px rgba(2,8,19,.14);
+}
+#view-catalog .panel-header{
+  margin-bottom:12px;
+}
+#view-catalog .panel-header h3{
+  font:650 .97rem/1.08 var(--display);
+  text-transform:none;
+  letter-spacing:-.01em;
+}
+#view-catalog .panel-header p{
+  margin:6px 0 0;
+  max-width:48ch;
+  font-size:.83rem;
+  line-height:1.42;
+}
+#view-catalog .table-wrap{
+  border-radius:16px;
+}
+#view-catalog #catalog-table td{
+  padding:11px 12px;
+}
+#view-catalog #catalog-table td:first-child strong{
+  display:block;
+  font:600 .9rem/1.24 var(--display);
+  letter-spacing:-.01em;
+}
+#view-catalog #catalog-table td:last-child{
+  max-width:30ch;
+}
+#view-catalog #catalog-table .tiny{
+  font-size:.8rem;
+  line-height:1.4;
+}
+#view-integrations{
+  gap:14px;
+}
+#view-integrations .metrics-grid,
+#view-integrations .integration-grid,
+#view-integrations .cards-3,
+#view-integrations .alert-stack{
+  gap:10px;
+}
+#view-integrations .metric-card{
+  padding:16px 16px 14px;
+  border-radius:18px;
+  border-color:rgba(84,171,238,.1);
+  background:
+    linear-gradient(160deg, rgba(16,28,52,.9), rgba(10,17,32,.9)),
+    radial-gradient(circle at top right, rgba(84,171,238,.1), transparent 34%);
+  box-shadow:0 14px 30px rgba(2,8,19,.15);
+}
+#view-integrations .metric-card .kicker{
+  font:600 .64rem/1 var(--display);
+  letter-spacing:.04em;
+  text-transform:none;
+}
+#view-integrations .metric-card .value{
+  margin:10px 0 7px;
+  font:650 clamp(1.42rem, 1.78vw, 2.08rem)/1 var(--display);
+  letter-spacing:-.015em;
+}
+#view-integrations .metric-card .detail{
+  font-size:.83rem;
+  line-height:1.4;
+}
+#view-integrations .integration-card{
+  padding:16px;
+  border-radius:18px;
+  border-color:rgba(84,171,238,.09);
+  background:linear-gradient(180deg, rgba(13,23,43,.88), rgba(9,16,29,.84));
+  box-shadow:0 12px 26px rgba(2,8,19,.12);
+}
+#view-integrations .integration-card strong{
+  margin-bottom:6px;
+  font:600 .94rem/1.2 var(--display);
+  letter-spacing:-.01em;
+}
+#view-integrations .integration-card p{
+  font-size:.84rem;
+  line-height:1.42;
+}
+#view-integrations .columns{
+  gap:14px;
+}
+#view-integrations .panel{
+  padding:17px 18px;
+  border-radius:18px;
+  border-color:rgba(84,171,238,.1);
+  background:linear-gradient(180deg, rgba(13,23,43,.9), rgba(9,16,29,.88));
+  box-shadow:0 14px 28px rgba(2,8,19,.14);
+}
+#view-integrations .panel-header{
+  margin-bottom:12px;
+}
+#view-integrations .panel-header h3{
+  font:650 .97rem/1.08 var(--display);
+  text-transform:none;
+  letter-spacing:-.01em;
+}
+#view-integrations .panel-header p{
+  margin:6px 0 0;
+  max-width:46ch;
+  font-size:.83rem;
+  line-height:1.42;
+}
+#view-integrations .focus-card{
+  padding:13px 14px;
+  border-radius:16px;
+}
+#view-integrations .focus-card strong{
+  margin-bottom:6px;
+  font:600 .88rem/1.22 var(--display);
+  letter-spacing:-.01em;
+}
+#view-integrations .focus-card p{
+  font-size:.84rem;
+  line-height:1.42;
+}
+#view-integrations .code{
+  margin-top:10px;
+  padding:12px 14px;
+  border-radius:14px;
+  border-color:rgba(84,171,238,.14);
+  background:#07101c;
+  font-size:.8rem;
+  line-height:1.55;
+  white-space:pre;
+}
+#view-integrations .foot-note{
+  margin-top:10px;
+  font-size:.8rem;
+  line-height:1.46;
+}
+#view-analytics{
+  gap:14px;
+}
+#view-analytics .metrics-grid,
+#view-analytics .columns{
+  gap:14px;
+}
+#view-analytics .metric-card{
+  padding:16px 16px 14px;
+  border-radius:18px;
+  border-color:rgba(84,171,238,.1);
+  background:
+    linear-gradient(160deg, rgba(16,28,52,.9), rgba(10,17,32,.9)),
+    radial-gradient(circle at top right, rgba(84,171,238,.1), transparent 34%);
+  box-shadow:0 14px 30px rgba(2,8,19,.15);
+}
+#view-analytics .metric-card .kicker{
+  font:600 .64rem/1 var(--display);
+  letter-spacing:.04em;
+  text-transform:none;
+}
+#view-analytics .metric-card .value{
+  margin:10px 0 7px;
+  font:650 clamp(1.42rem, 1.78vw, 2.08rem)/1 var(--display);
+  letter-spacing:-.015em;
+}
+#view-analytics .metric-card .detail{
+  font-size:.83rem;
+  line-height:1.4;
+}
+#view-analytics .panel{
+  padding:17px 18px;
+  border-radius:18px;
+  border-color:rgba(84,171,238,.1);
+  background:linear-gradient(180deg, rgba(13,23,43,.9), rgba(9,16,29,.88));
+  box-shadow:0 14px 28px rgba(2,8,19,.14);
+}
+#view-analytics .panel-header{
+  margin-bottom:12px;
+}
+#view-analytics .panel-header h3{
+  font:650 .97rem/1.08 var(--display);
+  text-transform:none;
+  letter-spacing:-.01em;
+}
+#view-analytics .panel-header p{
+  margin:6px 0 0;
+  max-width:48ch;
+  font-size:.83rem;
+  line-height:1.42;
+}
+#view-analytics .trend-card{
+  padding:15px 16px;
+  border-radius:18px;
+  border-color:rgba(84,171,238,.1);
+  background:rgba(9,17,31,.48);
+}
+#view-analytics .trend-top{
+  margin-bottom:10px;
+}
+#view-analytics .trend-top strong{
+  font-size:.92rem;
+}
+#view-analytics .trend-top span{
+  font-size:.8rem;
+}
+#view-analytics .chart{
+  height:164px;
+  border-radius:14px;
+  border-color:rgba(84,171,238,.07);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.014), rgba(255,255,255,0)),
+    linear-gradient(rgba(84,171,238,.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(84,171,238,.03) 1px, transparent 1px);
+  background-size:auto, auto 34px, 56px auto;
+}
+#view-analytics .chart-empty{
+  font-size:.84rem;
+}
+#view-analytics .table-wrap{
+  border-radius:16px;
+}
+#view-analytics #analytics-modalities,
+#view-analytics #analytics-operators{
+  min-width:520px;
+}
+#view-analytics #analytics-modalities td,
+#view-analytics #analytics-operators td{
+  padding:11px 12px;
+}
+#view-overview{
+  gap:14px;
+}
+#view-overview .metrics-grid{
+  gap:12px;
+}
+#view-overview .metric-card{
+  padding:16px 16px 14px;
+  border-radius:18px;
+  border-color:rgba(84,171,238,.1);
+  background:
+    linear-gradient(160deg, rgba(16,28,52,.9), rgba(10,17,32,.9)),
+    radial-gradient(circle at top right, rgba(84,171,238,.11), transparent 34%);
+  box-shadow:0 14px 30px rgba(2,8,19,.16);
+}
+#view-overview .metric-card .kicker{
+  font:600 .64rem/1 var(--display);
+  letter-spacing:.04em;
+  text-transform:none;
+}
+#view-overview .metric-card .value{
+  margin:10px 0 7px;
+  font:650 clamp(1.42rem, 1.78vw, 2.08rem)/1 var(--display);
+  letter-spacing:-.015em;
+}
+#view-overview .metric-card .detail{
+  font-size:.83rem;
+  line-height:1.4;
+}
+#view-overview .attention-grid,
+#view-overview .columns{
+  gap:14px;
+}
+#view-overview > .columns:first-of-type{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+}
+#view-overview .panel{
+  padding:17px 18px;
+  border-radius:18px;
+  border-color:rgba(84,171,238,.1);
+  background:linear-gradient(180deg, rgba(13,23,43,.9), rgba(9,16,29,.88));
+  box-shadow:0 14px 28px rgba(2,8,19,.14);
+}
+#view-overview .panel-header{
+  margin-bottom:12px;
+}
+#view-overview .panel-header h3{
+  font:650 .97rem/1.08 var(--display);
+  text-transform:none;
+  letter-spacing:-.01em;
+}
+#view-overview .panel-header p{
+  margin:6px 0 0;
+  max-width:48ch;
+  font-size:.83rem;
+  line-height:1.42;
+}
+#view-overview .alert-stack,
+#view-overview .priority-list,
+#view-overview .stats-rack,
+#view-overview .bar-list,
+#view-overview .cards-2{
+  gap:10px;
+}
+#view-overview .overview-actions,
+#view-overview .priority-actions{
+  gap:8px;
+  margin-top:12px;
+}
+#view-overview .priority-title{
+  margin-bottom:10px;
+}
+#view-overview .priority-title strong{
+  font-size:.97rem;
+  letter-spacing:-.01em;
+}
+#view-overview .priority-title .state{
+  padding:4px 7px;
+  font-size:.64rem;
+  letter-spacing:.08em;
+}
+#view-overview .priority-path{
+  font:650 .98rem/1.12 var(--display);
+  text-transform:none;
+  letter-spacing:-.01em;
+}
+#view-overview .priority-why{
+  margin-top:8px;
+  font-size:.86rem;
+  line-height:1.45;
+}
+#view-overview .priority-item{
+  font-size:.86rem;
+  line-height:1.42;
+}
+#view-overview .rack-row{
+  padding:10px 11px;
+  border-radius:13px;
+}
+#view-overview .rack-row strong{
+  font:650 .92rem/1 var(--display);
+}
+#view-overview .trend-card{
+  padding:15px 16px;
+  border-radius:18px;
+  border-color:rgba(84,171,238,.1);
+}
+#view-overview .trend-top{
+  margin-bottom:10px;
+}
+#view-overview .trend-top strong{
+  font-size:.92rem;
+}
+#view-overview .trend-top span{
+  font-size:.8rem;
+}
+#view-overview .table-wrap{
+  border-radius:16px;
+}
+#view-overview > .columns:first-of-type > .panel:last-child .table-wrap{
+  overflow-x:hidden;
+}
+#view-overview #overview-recent{
+  width:100%;
+  min-width:0;
+  table-layout:fixed;
+}
+#view-overview #overview-recent th,
+#view-overview #overview-recent td{
+  padding:10px 11px;
+  box-sizing:border-box;
+}
+#view-overview #overview-recent th:nth-child(1),
+#view-overview #overview-recent td:nth-child(1){
+  width:14%;
+}
+#view-overview #overview-recent th:nth-child(2),
+#view-overview #overview-recent td:nth-child(2){
+  width:19%;
+}
+#view-overview #overview-recent th:nth-child(3),
+#view-overview #overview-recent td:nth-child(3){
+  width:17%;
+}
+#view-overview #overview-recent th:nth-child(4),
+#view-overview #overview-recent td:nth-child(4){
+  width:18%;
+}
+#view-overview #overview-recent th:nth-child(5),
+#view-overview #overview-recent td:nth-child(5){
+  width:12%;
+}
+#view-overview #overview-recent th:nth-child(6),
+#view-overview #overview-recent td:nth-child(6){
+  width:10%;
+}
+#view-overview #overview-recent th:nth-child(7),
+#view-overview #overview-recent td:nth-child(7){
+  width:10%;
+}
+#view-overview .focus-card,
+#view-overview .alert-card{
+  padding:14px;
+  border-radius:16px;
+}
+#view-overview .focus-card strong{
+  margin-bottom:6px;
+  font-size:.9rem;
+}
+#view-overview .focus-card p,
+#view-overview .alert-body{
+  font-size:.87rem;
+  line-height:1.46;
+}
 .bar-meta{
   display:flex;
   align-items:flex-end;
@@ -863,6 +1636,7 @@ button:hover{transform:translateY(-1px)}
 .bar-fill[data-tone="orange"]{background:linear-gradient(90deg, #cf7b00, var(--orange))}
 .bar-fill[data-tone="green"]{background:linear-gradient(90deg, #16653a, var(--green))}
 .table-wrap{
+  min-width:0;
   overflow:auto;
   border-radius:18px;
   border:1px solid rgba(84,171,238,.1);
@@ -960,15 +1734,27 @@ tr:hover td{background:rgba(84,171,238,.045)}
     height:auto;
   }
   .metrics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .columns,.hero-ribbon,.cards-3,.cards-2,.attention-grid{grid-template-columns:1fr}
+  .columns,.cards-3,.cards-2,.attention-grid{grid-template-columns:1fr}
+}
+@media (max-width: 1480px){
+  #view-analytics .metrics-grid{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+  #view-analytics > .columns:last-of-type{
+    grid-template-columns:1fr;
+  }
+}
+@media (max-width: 1100px){
+  .hero p{
+    max-width:100%;
+  }
 }
 @media (max-width: 720px){
   .shell{padding:14px}
-  .hero{padding:18px}
+  .hero{padding:14px}
   .toolbar,.panel{padding:16px}
   .metrics-grid{grid-template-columns:1fr}
   .nav{grid-template-columns:1fr 1fr}
-  .hero-headline{align-items:flex-start}
   .hero-actions{justify-content:flex-start}
 }
 </style>
@@ -978,11 +1764,11 @@ tr:hover td{background:rgba(84,171,238,.045)}
   <aside class="rail">
     <div class="brand">
       <div class="brand-lockup">
-        <div class="brand-wordmark" aria-label="fusionAIze">__BRAND_LOGO_WHITE__</div>
-        <span class="brand-gate">Gate</span>
-      </div>
-      <div class="brand-copy">
-        <p>Local-first routing cockpit.</p>
+        <div class="brand-wordmark" aria-label="fusionAIze">__BRAND_LOGO__</div>
+        <div class="brand-product">
+          <span class="brand-gate">GATE</span>
+          <span class="brand-version">v__FAIGATE_VERSION__</span>
+        </div>
       </div>
     </div>
     <div class="rail-meta" id="rail-meta">
@@ -1010,7 +1796,7 @@ tr:hover td{background:rgba(84,171,238,.045)}
     </nav>
     <div class="rail-note">
       <strong>Operator stance</strong><br>
-      Trust the lane, inspect the route, and spend premium budget only where the request actually earns it.
+      Trust the lane, inspect the route, and spend premium budget only where needed.
     </div>
   </aside>
 
@@ -1019,25 +1805,12 @@ tr:hover td{background:rgba(84,171,238,.045)}
       <div class="hero-top">
         <div class="hero-head">
           <div class="eyebrow"><span class="pulse" id="status-pulse"></span><span id="hero-status">Gateway health is loading</span></div>
-          <div class="hero-headline">
-            <div class="hero-brand" aria-hidden="true">__BRAND_LOGO_WHITE__</div>
-            <div class="hero-brand-sep" aria-hidden="true"></div>
-            <h2><span id="page-title-prefix">Gate</span> <span class="accent" id="page-title">Operator Cockpit</span></h2>
-          </div>
-          <p id="page-subtitle">Live routing health, spend pressure, and operator guidance.</p>
+          <h2 id="page-title"><span class="title-line">Operator</span><span class="title-line accent">Cockpit</span></h2>
+          <p id="page-subtitle">Health, spend, and route guidance.</p>
         </div>
         <div class="hero-actions">
-          <label class="saved-view">
-            <select id="saved-view">
-              <option value="">Saved view</option>
-              <option value="all-traffic">All traffic</option>
-              <option value="claude-coding">Claude coding</option>
-              <option value="premium-pressure">Premium pressure</option>
-              <option value="catalog-review">Catalog review</option>
-              <option value="fallback-inspection">Fallback inspection</option>
-            </select>
-          </label>
           <button class="btn primary" type="button" id="refresh-btn">Refresh now</button>
+          <button class="btn secondary" type="button" id="apply-btn">Apply filters</button>
           <button class="btn ghost" type="button" id="clear-btn">Clear filters</button>
           <span class="chip">Updated <strong id="ago">—</strong></span>
         </div>
@@ -1049,9 +1822,20 @@ tr:hover td{background:rgba(84,171,238,.045)}
         <div class="toolbar-copy">
           <strong>Command bar</strong>
           <p>Operator scope</p>
-          <div class="toolbar-subline">Filters are live. Narrow to one provider, client family, route layer, or status without leaving the cockpit.</div>
+          <div class="toolbar-subline">Filter by provider, client, layer, or status.</div>
         </div>
         <div class="toolbar-head-right">
+          <label class="field">
+            <span>Saved view</span>
+            <select id="saved-view">
+              <option value="">Saved view</option>
+              <option value="all-traffic">All traffic</option>
+              <option value="claude-coding">Claude coding</option>
+              <option value="premium-pressure">Premium pressure</option>
+              <option value="catalog-review">Catalog review</option>
+              <option value="fallback-inspection">Fallback inspection</option>
+            </select>
+          </label>
           <span class="chip" id="scope-chip">All traffic</span>
         </div>
       </div>
@@ -1105,7 +1889,7 @@ tr:hover td{background:rgba(84,171,238,.045)}
           <div class="panel-header">
             <div>
               <h3>What needs attention</h3>
-              <p>High-signal issues first. Open the surface that most likely explains drift, risk, or waste.</p>
+              <p>Start with the top risk or cost signal.</p>
             </div>
             <span class="chip" id="focus-chip">Loading</span>
           </div>
@@ -1120,7 +1904,7 @@ tr:hover td{background:rgba(84,171,238,.045)}
           <div class="panel-header">
             <div>
               <h3>Priority next</h3>
-              <p>One next move, then the smallest evidence set you need to act with confidence.</p>
+              <p>One next move and the evidence behind it.</p>
             </div>
           </div>
           <div class="priority-title">
@@ -1128,7 +1912,7 @@ tr:hover td{background:rgba(84,171,238,.045)}
             <span class="state" id="priority-state">loading</span>
           </div>
           <div class="priority-path" id="priority-path">Loading priority path</div>
-          <div class="priority-why" id="priority-why">The gateway is calculating the next safest operator move.</div>
+          <div class="priority-why" id="priority-why">Calculating next action.</div>
           <div class="priority-list" id="priority-list"></div>
           <div class="priority-actions">
             <button class="btn secondary" type="button" id="priority-action-primary" data-target-view="providers">Open providers</button>
@@ -1142,7 +1926,7 @@ tr:hover td{background:rgba(84,171,238,.045)}
           <div class="panel-header">
             <div>
               <h3>Spend and traffic</h3>
-              <p>Cost and request pulse first. Use this row to spot spikes before you dive into tables.</p>
+              <p>Cost and request pulse.</p>
             </div>
           </div>
           <div id="overview-trends"></div>
@@ -1151,7 +1935,7 @@ tr:hover td{background:rgba(84,171,238,.045)}
           <div class="panel-header">
             <div>
               <h3>Recent request log</h3>
-              <p>The shortest path from “something feels off” to one concrete request, route, and outcome.</p>
+              <p>Recent requests with route, client, latency, and cost.</p>
             </div>
           </div>
           <div class="table-wrap"><table id="overview-recent"><thead><tr><th>Time</th><th>Provider</th><th>Lane</th><th>Client</th><th>Latency</th><th>Cost</th><th>Status</th></tr></thead><tbody></tbody></table></div>
@@ -1162,7 +1946,7 @@ tr:hover td{background:rgba(84,171,238,.045)}
           <div class="panel-header">
             <div>
               <h3>Lane families</h3>
-              <p>See which canonical families carry volume, absorb fallback pressure, or need tuning next.</p>
+              <p>Volume and fallback pressure by family.</p>
             </div>
           </div>
           <div class="bar-list" id="overview-families"></div>
@@ -1171,7 +1955,7 @@ tr:hover td{background:rgba(84,171,238,.045)}
           <div class="panel-header">
             <div>
               <h3>Operator evidence</h3>
-              <p>Small but useful reminders that help you hold the cheapest-capable line without guessing.</p>
+              <p>Checks for cost posture and fallback drift.</p>
             </div>
           </div>
           <div class="cards-2" id="overview-evidence"></div>
@@ -1186,7 +1970,7 @@ tr:hover td{background:rgba(84,171,238,.045)}
           <div class="panel-header">
             <div>
               <h3>Provider warnings</h3>
-              <p>Readiness blockers, unresolved runtime state, and premium risk first.</p>
+              <p>Readiness, health, and premium risk.</p>
             </div>
           </div>
           <div class="alert-stack" id="providers-alerts"></div>
@@ -1195,7 +1979,7 @@ tr:hover td{background:rgba(84,171,238,.045)}
           <div class="panel-header">
             <div>
               <h3>Remediation guidance</h3>
-              <p>Use this before editing routes. Fix health, keys, and quota coupling in that order.</p>
+              <p>Fix health, keys, then quota.</p>
             </div>
           </div>
           <div class="cards-3" id="providers-summary"></div>
@@ -1204,8 +1988,8 @@ tr:hover td{background:rgba(84,171,238,.045)}
       <div class="panel">
         <div class="panel-header">
           <div>
-            <h3>Provider fleet</h3>
-            <p>Sorted for operator relevance: health, readiness, quota coupling, spend relevance, and latency.</p>
+              <h3>Provider fleet</h3>
+              <p>Sorted by readiness, health, quota, spend, and latency.</p>
           </div>
           <span class="chip" id="providers-chip">Inventory</span>
         </div>
@@ -1219,8 +2003,8 @@ tr:hover td{background:rgba(84,171,238,.045)}
       <div class="panel">
         <div class="panel-header">
           <div>
-            <h3>Client posture</h3>
-            <p>Find the clients bypassing cheapest-capable, carrying premium drift, or concentrating failures.</p>
+              <h3>Client posture</h3>
+              <p>Clients carrying spend, failures, or latency.</p>
           </div>
         </div>
         <div class="table-wrap"><table id="clients-table"><thead><tr><th>Client</th><th>Profile</th><th>Requests</th><th>Success</th><th>Tokens</th><th>Cost</th><th>Cost / req</th><th>Latency</th><th>Providers</th></tr></thead><tbody></tbody></table></div>
@@ -1234,7 +2018,7 @@ tr:hover td{background:rgba(84,171,238,.045)}
           <div class="panel-header">
             <div>
               <h3>Selection paths</h3>
-              <p>See which lane was selected, which fallback path stayed available, and where routing changed.</p>
+              <p>Selected path and fallback availability.</p>
             </div>
           </div>
           <div class="bar-list" id="routes-selection"></div>
@@ -1243,7 +2027,7 @@ tr:hover td{background:rgba(84,171,238,.045)}
           <div class="panel-header">
             <div>
               <h3>Route pressure</h3>
-              <p>Cooldown, failure, premium pressure, and quota coupling in one operator read.</p>
+              <p>Cooldown, degradation, and recovery pressure.</p>
             </div>
           </div>
           <div class="bar-list" id="routes-pressure"></div>
@@ -1252,8 +2036,8 @@ tr:hover td{background:rgba(84,171,238,.045)}
       <div class="panel">
         <div class="panel-header">
           <div>
-            <h3>Routing breakdown</h3>
-            <p>Chosen rule, selected provider, lane family, and observed selection path for successful traffic.</p>
+              <h3>Routing breakdown</h3>
+            <p>Layer, rule, provider, family, and selected path.</p>
           </div>
         </div>
         <div class="table-wrap"><table id="routes-table"><thead><tr><th>Layer</th><th>Rule</th><th>Provider</th><th>Lane family</th><th>Selection path</th><th>Requests</th><th>Cost</th><th>Latency</th></tr></thead><tbody></tbody></table></div>
@@ -1267,7 +2051,7 @@ tr:hover td{background:rgba(84,171,238,.045)}
           <div class="panel-header">
             <div>
               <h3>30-day cost trend</h3>
-              <p>Financial-desk style long view of requests, spend, and failure pressure.</p>
+              <p>Requests and spend over 30 days.</p>
             </div>
           </div>
           <div id="analytics-daily"></div>
@@ -1276,7 +2060,7 @@ tr:hover td{background:rgba(84,171,238,.045)}
           <div class="panel-header">
             <div>
               <h3>24-hour traffic pulse</h3>
-              <p>Short-window request flow for detecting fallbacks, spikes, and cold periods.</p>
+              <p>Traffic for spikes, fallbacks, and cold periods.</p>
             </div>
           </div>
           <div id="analytics-hourly"></div>
@@ -1287,7 +2071,7 @@ tr:hover td{background:rgba(84,171,238,.045)}
           <div class="panel-header">
             <div>
               <h3>Modality mix</h3>
-              <p>How different request types distribute across providers and layers.</p>
+              <p>Request types by provider and layer.</p>
             </div>
           </div>
           <div class="table-wrap"><table id="analytics-modalities"><thead><tr><th>Modality</th><th>Provider</th><th>Layer</th><th>Requests</th><th>Cost</th><th>Latency</th></tr></thead><tbody></tbody></table></div>
@@ -1296,7 +2080,7 @@ tr:hover td{background:rgba(84,171,238,.045)}
           <div class="panel-header">
             <div>
               <h3>Operator actions</h3>
-              <p>Update checks and local operator events, surfaced beside the traffic they affect.</p>
+              <p>Update checks and local operator events.</p>
             </div>
           </div>
           <div class="table-wrap"><table id="analytics-operators"><thead><tr><th>Event</th><th>Action</th><th>Status</th><th>Target</th><th>Eligible</th><th>Events</th></tr></thead><tbody></tbody></table></div>
@@ -1312,7 +2096,7 @@ tr:hover td{background:rgba(84,171,238,.045)}
           <div class="panel-header">
             <div>
               <h3>Catalog alerts</h3>
-              <p>Stale assumptions, evidence issues, and model mismatches before they become routing debt.</p>
+              <p>Freshness, evidence, and model mismatch risk.</p>
             </div>
           </div>
           <div class="alert-stack" id="catalog-alerts"></div>
@@ -1321,7 +2105,7 @@ tr:hover td{background:rgba(84,171,238,.045)}
           <div class="panel-header">
             <div>
               <h3>Refresh guidance</h3>
-              <p>What to review now, what can wait, and which assumptions are still trustworthy enough to route on.</p>
+              <p>What to review now and what is still safe to trust.</p>
             </div>
           </div>
           <div class="bar-list" id="catalog-guidance"></div>
@@ -1330,8 +2114,8 @@ tr:hover td{background:rgba(84,171,238,.045)}
       <div class="panel">
         <div class="panel-header">
           <div>
-            <h3>Tracked provider assumptions</h3>
-            <p>Configured model, recommended model, offer track, volatility, and evidence quality in one surface.</p>
+              <h3>Tracked provider assumptions</h3>
+            <p>Configured vs recommended model, freshness, volatility, and notes.</p>
           </div>
         </div>
         <div class="table-wrap"><table id="catalog-table"><thead><tr><th>Provider</th><th>Status</th><th>Configured</th><th>Recommended</th><th>Offer track</th><th>Volatility</th><th>Reviewed</th><th>Why it matters</th></tr></thead><tbody></tbody></table></div>
@@ -1342,23 +2126,23 @@ tr:hover td{background:rgba(84,171,238,.045)}
       <div class="metrics-grid" id="integrations-kpis"></div>
       <div class="integration-grid">
         <div class="integration-card">
-          <strong>Claude Code</strong>
-          <p>Anthropic-compatible local endpoint for daily-use coding flows. Use `coding-auto` when you want cheapest-capable behavior, not a fixed premium provider.</p>
+              <strong>Claude Code</strong>
+          <p>Point Claude Code at the local Anthropic endpoint. Default to `coding-auto` unless you need a premium lane.</p>
           <code class="code">export ANTHROPIC_BASE_URL=http://127.0.0.1:8090
 export ANTHROPIC_AUTH_TOKEN=dummy-local-token
 claude --model coding-auto</code>
         </div>
         <div class="integration-card">
-          <strong>OpenAI-compatible tools</strong>
-          <p>Cursor-style tools, Continue, Cline, scripts, and agent shells should point at one local endpoint and use Gate modes instead of raw provider names.</p>
+              <strong>OpenAI-compatible tools</strong>
+          <p>Point Cursor, Continue, Cline, scripts, and shells at one local endpoint. Use Gate modes instead of raw provider ids.</p>
           <code class="code">export OPENAI_BASE_URL=http://127.0.0.1:8090/v1
 export OPENAI_API_KEY=dummy-local-token
 # models: auto, coding-auto, coding-fast, coding-premium, eco, premium</code>
         </div>
         <div class="integration-card">
-          <strong>Agent-native clients</strong>
-          <p>Use client-aware entry points for `opencode`, `openclaw`, local automation, and future n8n flows. Keep the client identity visible so the router can treat them differently.</p>
-          <code class="code">Recommended mental model
+              <strong>Agent-native clients</strong>
+          <p>Keep `opencode`, `openclaw`, and automation clients on named entry modes for clear routing and pricing.</p>
+          <code class="code">Recommended entry modes
 
 light coding       -> coding-auto
 cheap background   -> eco
@@ -1371,21 +2155,21 @@ manual hard task   -> premium</code>
           <div class="panel-header">
             <div>
               <h3>Quick connect posture</h3>
-              <p>Connect, validate, and route safely without turning this into provider-string roulette.</p>
+              <p>Connect, validate, then route through intent modes.</p>
             </div>
           </div>
           <div class="cards-3">
             <div class="focus-card">
               <strong>Local-first security</strong>
-              <p>Your keys, routes, and request traces stay on your machine unless you explicitly wire in remote services.</p>
+              <p>Keys, routes, and traces stay local unless you wire in remote services.</p>
             </div>
             <div class="focus-card">
               <strong>Agent-native routing</strong>
-              <p>Claude Code, opencode, openclaw, and OpenAI-compatible clients are traffic shapes with different economics, not identical callers.</p>
+              <p>Different clients have different economics. Keep client identity visible.</p>
             </div>
             <div class="focus-card">
               <strong>Explainable by default</strong>
-              <p>Lane family, selection path, route type, quota coupling, and freshness are visible in the same operator surface.</p>
+              <p>Lane family, selection path, route type, quota coupling, and freshness stay visible.</p>
             </div>
           </div>
         </div>
@@ -1393,11 +2177,11 @@ manual hard task   -> premium</code>
           <div class="panel-header">
             <div>
               <h3>Troubleshooting shortcuts</h3>
-              <p>Short recovery paths for the things that break in the real world.</p>
+              <p>Fast checks for common integration failures.</p>
             </div>
           </div>
           <div class="alert-stack" id="integration-alerts"></div>
-          <p class="foot-note">If a model is unexpectedly expensive, first check the client model id, then the selected lane, then the actual route type. Gate can only be “cheapest capable” if the client enters through the right intent surface.</p>
+          <p class="foot-note">If a model is unexpectedly expensive, check the client model id, then the lane, then the route type.</p>
         </div>
       </div>
     </section>
@@ -1409,15 +2193,6 @@ manual hard task   -> premium</code>
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const VIEW_IDS = ['overview','providers','clients','routes','analytics','catalog','integrations'];
-const VIEW_META = {
-  overview: {title: 'Overview', subtitle: 'Live routing health, spend pressure, and operator guidance.'},
-  providers: {title: 'Providers', subtitle: 'Provider health, request-readiness, quota coupling, and remediation.'},
-  clients: {title: 'Clients', subtitle: 'Client posture, premium drift, and cheapest-capable entry discipline.'},
-  routes: {title: 'Routes', subtitle: 'Selection paths, fallback pressure, and explainable routing evidence.'},
-  analytics: {title: 'Analytics', subtitle: 'Spend, latency, token flow, and operator event evidence.'},
-  catalog: {title: 'Catalog', subtitle: 'Trust posture, freshness drift, and tracked routing assumptions.'},
-  integrations: {title: 'Integrations', subtitle: 'Connect, validate, and route safely across local and agent-native tools.'},
-};
 const SAVED_VIEWS = {
   'all-traffic': {view: 'overview'},
   'claude-coding': {view: 'clients', client_profile: 'claude'},
@@ -1464,9 +2239,8 @@ function currentFilters() {
 }
 
 function updateHeaderForView() {
-  const meta = VIEW_META[currentView] || VIEW_META.overview;
-  $('#page-title').textContent = meta.title;
-  $('#page-subtitle').textContent = meta.subtitle;
+  $('#page-title').innerHTML = '<span class="title-line">Operator</span><span class="title-line accent">Cockpit</span>';
+  $('#page-subtitle').textContent = 'Routing health, spend pressure, and operator guidance.';
 }
 
 function syncStateFromUrl() {
@@ -1498,7 +2272,7 @@ function describeFilters(params) {
     parts.push(label.toLowerCase() + ' ' + value);
     chips.push('<span class="chip active-filter">' + esc(label) + ' <strong>' + esc(value) + '</strong></span>');
   }
-  $('#filter-summary').innerHTML = parts.length ? '<strong>Scoped:</strong> ' + esc(parts.join(' · ')) : 'No active filters';
+  $('#filter-summary').innerHTML = parts.length ? '<strong>Scope:</strong> ' + esc(parts.join(' · ')) : 'No active filters';
   $('#active-filter-chips').innerHTML = chips.join('');
   $('#scope-chip').textContent = parts.length ? parts.join(' · ') : 'All traffic';
 }
@@ -1601,7 +2375,7 @@ function trendCard(id, values, opts = {}) {
         </div>
         <div class="tiny mono">last ${esc(opts.format ? opts.format(last) : fmt(last, 0))} · avg ${esc(opts.format ? opts.format(avg) : fmt(avg, 0))} · peak ${esc(opts.format ? opts.format(peak) : fmt(peak, 0))}</div>
       </div>
-      <div class="chart" id="${esc(id)}">${nonZero ? '' : '<div class="chart-empty">No trend data for the current scope</div>'}</div>
+      <div class="chart" id="${esc(id)}">${nonZero ? '' : '<div class="chart-empty">No trend data in this scope</div>'}</div>
       ${labels.length ? '<div class="tiny" style="margin-top:10px">' + esc(labels[0]) + ' → ' + esc(labels[labels.length - 1]) + '</div>' : ''}
     </div>
   `;
@@ -1614,7 +2388,7 @@ function renderTrendPlot(id, values, opts = {}) {
   const nums = values.map(v => Number(v) || 0);
   if (!nums.length || nums.every(v => v === 0) || typeof uPlot === 'undefined') {
     if (!el.querySelector('.chart-empty')) {
-      el.innerHTML = '<div class="chart-empty">No trend data for the current scope</div>';
+      el.innerHTML = '<div class="chart-empty">No trend data in this scope</div>';
     }
     return;
   }
@@ -1716,17 +2490,17 @@ function topAlertBundle(bundle) {
   if (bundle.update && (bundle.update.alert_level === 'critical' || bundle.update.alert_level === 'warning')) {
     alerts.push({
       level: bundle.update.alert_level,
-      headline: 'Release update posture',
-      detail: bundle.update.recommended_action || 'A release or channel review is recommended.',
-      suggestion: bundle.update.latest_version ? 'Review ' + bundle.update.latest_version + ' before the next tuning pass.' : 'Review the release channel and update cadence.',
+      headline: 'Release update',
+      detail: bundle.update.recommended_action || 'Review the current release channel.',
+      suggestion: bundle.update.latest_version ? 'Review ' + bundle.update.latest_version + ' before the next tuning pass.' : 'Review the release channel.',
     });
   }
   (bundle.catalog.alerts || []).slice(0, 2).forEach(alert => {
     alerts.push({
       level: alert.severity || 'notice',
       headline: alert.provider ? alert.provider + ': ' + (alert.code || 'catalog alert') : (alert.code || 'catalog alert'),
-      detail: alert.message || 'Provider catalog drift needs attention.',
-      suggestion: alert.recommended_model ? 'Check the recommended model ' + alert.recommended_model + '.' : 'Refresh the provider catalog or review the source trail.',
+      detail: alert.message || 'Catalog drift detected.',
+      suggestion: alert.recommended_model ? 'Check recommended model ' + alert.recommended_model + '.' : 'Refresh the catalog or review the source trail.',
     });
   });
   const unhealthy = (bundle.inventory.providers || []).filter(row => row.healthy === false);
@@ -1735,16 +2509,16 @@ function topAlertBundle(bundle) {
     alerts.unshift({
       level: 'warning',
       headline: top.name + ' is currently unhealthy',
-      detail: top.last_error || 'The route is failing live health checks or request-readiness checks.',
-      suggestion: ((top.request_readiness || {}).operator_hint) || 'Inspect provider detail and recent route traces before sending more primary traffic here.',
+      detail: top.last_error || 'The route is failing health or readiness checks.',
+      suggestion: ((top.request_readiness || {}).operator_hint) || 'Inspect provider detail and recent route traces.',
     });
   }
   if (!alerts.length) {
     alerts.push({
       level: 'notice',
-      headline: 'No active operator alert',
-      detail: 'The gateway is currently healthy enough to focus on cost posture, client defaults, and lane hygiene.',
-      suggestion: 'Inspect the highest-cost client and make sure it enters through coding-auto, eco, or premium on purpose.',
+      headline: 'No active alert',
+      detail: 'No active risk in this scope.',
+      suggestion: 'Check the highest-cost client and confirm its entry mode.',
     });
   }
   return alerts;
@@ -1761,11 +2535,11 @@ function derivePriority(bundle) {
   const path = alerts.length ? 'Operator focus' : 'Healthy routing';
   let state = 'stable';
   let priorityPath = 'Tune client defaults';
-  let why = 'The next best move is tightening entry intents so cheap-capable traffic does not accidentally land on premium routes.';
+  let why = 'Tighten entry intents so cheap-capable traffic does not land on premium routes.';
   if ((readiness.providers_not_ready || 0) > 0) {
     state = 'guard';
     priorityPath = 'Providers → request-readiness';
-    why = 'At least one route is not request-ready, so the safest next move is checking live health, cooldown state, and quota coupling.';
+    why = 'At least one route is not request-ready. Check health, cooldown, and quota coupling.';
   } else if (alerts[0] && (alerts[0].level === 'critical' || alerts[0].level === 'warning')) {
     state = alerts[0].level;
     priorityPath = 'Review top alert';
@@ -1773,15 +2547,15 @@ function derivePriority(bundle) {
   } else if (topCost && Number(topCost.cost_usd || 0) > 0.5) {
     state = 'spend';
     priorityPath = 'Clients → highest-cost profile';
-    why = (topCost.client_tag || topCost.client_profile || 'The top-cost client') + ' is carrying real spend; confirm that it should be on a premium entry mode instead of coding-auto or eco.';
+    why = (topCost.client_tag || topCost.client_profile || 'The top-cost client') + ' is carrying real spend. Confirm it belongs on a premium entry mode.';
   } else if (fallbackRequests > 0) {
     state = 'fallback';
     priorityPath = 'Routes → selection paths';
-    why = 'Fallback traffic is present. Validate whether the fallback share is desirable resilience or evidence that your primary defaults are still misaligned.';
+    why = 'Fallback traffic is present. Confirm whether the share is expected or a default-path issue.';
   }
   const list = [
-    'Cheapest-capable should come from client entry modes, not provider strings.',
-    'If a route is premium, make the reason legible in the route and client views.',
+    'Use client entry modes, not provider strings, for cheapest-capable routing.',
+    'If a route is premium, make the reason visible in route and client views.',
     'Refresh stale catalog assumptions before reshaping high-traffic families.',
   ];
   return {state, path, why, list, ribbon: path};
@@ -1889,7 +2663,7 @@ function render(bundle) {
     secondaryAction = {target: 'providers', label: 'Open providers'};
   }
 
-  $('#hero-status').textContent = (bundle.health.summary && bundle.health.summary.providers_unhealthy === 0) ? 'System healthy enough to optimize for cost posture' : 'Risk or drift detected. Start with the attention layer';
+  $('#hero-status').textContent = (bundle.health.summary && bundle.health.summary.providers_unhealthy === 0) ? 'System healthy. Safe to review cost posture.' : 'Risk or drift detected. Start with attention.';
   $('#ago').textContent = ago(totals.last_request);
   $('#priority-ribbon').textContent = priority.ribbon || 'Operator focus';
   $('#priority-state').textContent = priority.state;
@@ -1913,28 +2687,28 @@ function render(bundle) {
   ].map(([label, value]) => `<div class="rack-row"><div class="label">${esc(label)}</div><strong>${esc(value)}</strong></div>`).join('');
 
   $('#overview-cards').innerHTML = [
-    {kicker:'Request-ready', value:(readiness.providers_ready || 0) + '/' + (readiness.providers_total || providers.length), detail:String(readiness.providers_not_ready || 0) + ' still need operator attention', tone:'blue'},
-    {kicker:'Healthy providers', value:(bundle.health.summary ? bundle.health.summary.providers_healthy : providers.filter(row => row.healthy).length) + '/' + providers.length, detail:String(unhealthyProviders.length) + ' unhealthy right now', tone:'green'},
-    {kicker:'Active alerts', value:String(alerts.length), detail:alerts[0] ? alerts[0].headline : 'No active operator alert', tone:alerts.length ? 'orange' : 'lime'},
-    {kicker:'Fallback share', value:fmtPct(fallbackShare), detail:'Requests that needed fallback selection paths', tone:fallbackShare > 10 ? 'danger' : 'blue'},
-    {kicker:'Estimated spend', value:fmtUsd(totals.total_cost_usd || 0), detail:fmtTok((totals.total_prompt_tokens || 0) + (totals.total_compl_tokens || 0)) + ' tokens total', tone:'orange'},
+    {kicker:'Request-ready', value:(readiness.providers_ready || 0) + '/' + (readiness.providers_total || providers.length), detail:String(readiness.providers_not_ready || 0) + ' need review', tone:'blue'},
+    {kicker:'Healthy providers', value:(bundle.health.summary ? bundle.health.summary.providers_healthy : providers.filter(row => row.healthy).length) + '/' + providers.length, detail:String(unhealthyProviders.length) + ' unhealthy', tone:'green'},
+    {kicker:'Active alerts', value:String(alerts.length), detail:alerts[0] ? alerts[0].headline : 'No active alert', tone:alerts.length ? 'orange' : 'lime'},
+    {kicker:'Fallback share', value:fmtPct(fallbackShare), detail:'Traffic that routed through fallback', tone:fallbackShare > 10 ? 'danger' : 'blue'},
+    {kicker:'Estimated spend', value:fmtUsd(totals.total_cost_usd || 0), detail:fmtTok((totals.total_prompt_tokens || 0) + (totals.total_compl_tokens || 0)) + ' tokens', tone:'orange'},
     {kicker:'Avg latency', value:fmtMs(totals.avg_latency_ms || 0), detail:'Last request ' + ago(totals.last_request), tone:'green'},
-    {kicker:'Catalog drift', value:String(bundle.catalog.alert_count || 0), detail:String(sourceCatalog.due_sources || 0) + ' source reviews due', tone:'orange'},
-    {kicker:'Top client', value:esc(bundle.stats.client_highlights && bundle.stats.client_highlights.top_requests ? (bundle.stats.client_highlights.top_requests.client_tag || bundle.stats.client_highlights.top_requests.client_profile || 'generic') : '—'), detail:'Highest request volume in current scope', tone:'lime'},
+    {kicker:'Catalog drift', value:String(bundle.catalog.alert_count || 0), detail:String(sourceCatalog.due_sources || 0) + ' reviews due', tone:'orange'},
+    {kicker:'Top client', value:esc(bundle.stats.client_highlights && bundle.stats.client_highlights.top_requests ? (bundle.stats.client_highlights.top_requests.client_tag || bundle.stats.client_highlights.top_requests.client_profile || 'generic') : '—'), detail:'Highest request volume', tone:'lime'},
   ].map(metricCard).join('');
 
-  $('#focus-chip').innerHTML = alerts.length ? '<strong>' + esc(alerts.length) + '</strong> live callouts' : 'No active alert';
+  $('#focus-chip').innerHTML = alerts.length ? '<strong>' + esc(alerts.length) + '</strong> active issues' : 'No active alert';
   $('#overview-alerts').innerHTML = alerts.map(alertCard).join('');
   $('#overview-evidence').innerHTML = [
-    {title:'Cheapest-capable discipline', body:topCost ? 'Top cost is currently carried by ' + (topCost.client_tag || topCost.client_profile || 'one client') + '. Confirm the entry mode is intentional.' : 'No client is carrying meaningful cost pressure yet.'},
-    {title:'Fallback posture', body:fallbackShare > 0 ? 'Fallback is active in ' + fmtPct(fallbackShare) + ' of scoped traffic. Validate whether that is resilience or drift.' : 'No route pressure detected for this scope yet.'},
+    {title:'Cost pressure', body:topCost ? 'Top spend is coming from ' + (topCost.client_tag || topCost.client_profile || 'one client') + '. Confirm the entry mode.' : 'No client spend pressure in this scope.'},
+    {title:'Fallback pressure', body:fallbackShare > 0 ? 'Fallback is active in ' + fmtPct(fallbackShare) + ' of scoped traffic. Confirm it is expected.' : 'No fallback pressure in this scope.'},
   ].map(card => `<div class="focus-card"><strong>${esc(card.title)}</strong><p>${esc(card.body)}</p></div>`).join('');
 
   const overviewDailyLabels = (bundle.stats.daily || []).map(row => row.day || '');
   const overviewHourlyLabels = (bundle.stats.hourly || []).map(row => row.hour_offset || '');
   $('#overview-trends').innerHTML = [
-    trendCard('overview-cost-plot', (bundle.stats.daily || []).map(row => row.cost_usd || 0), {title:'Daily cost', subtitle:'30 day spend line', tone:'#FFAA19', format:fmtUsd, labels:overviewDailyLabels}),
-    trendCard('overview-hourly-plot', (bundle.stats.hourly || []).map(row => row.requests || 0), {title:'Hourly requests', subtitle:'24h traffic pulse', tone:'#54ABEE', format:value => fmt(value, 0), labels:overviewHourlyLabels}),
+    trendCard('overview-cost-plot', (bundle.stats.daily || []).map(row => row.cost_usd || 0), {title:'Daily cost', subtitle:'30 day spend', tone:'#FFAA19', format:fmtUsd, labels:overviewDailyLabels}),
+    trendCard('overview-hourly-plot', (bundle.stats.hourly || []).map(row => row.requests || 0), {title:'Hourly requests', subtitle:'24 hour traffic', tone:'#54ABEE', format:value => fmt(value, 0), labels:overviewHourlyLabels}),
   ].join('');
   renderTrendPlot('overview-cost-plot', (bundle.stats.daily || []).map(row => row.cost_usd || 0), {
     tone:'#FFAA19',
@@ -1960,17 +2734,17 @@ function render(bundle) {
     value: row => row.requests || 0,
     format: value => fmtTok(value),
     tone: 'blue',
-    empty: 'No lane family data for this scope yet',
+    empty: 'No lane family data in this scope',
   });
   $('#overview-recent tbody').innerHTML = recentRows(recent);
 
   $('#providers-kpis').innerHTML = [
-    {kicker:'Healthy vs total', value:(bundle.health.summary ? bundle.health.summary.providers_healthy : providers.filter(row => row.healthy).length) + '/' + providers.length, detail:String(unhealthyProviders.length) + ' unhealthy routes', tone:unhealthyProviders.length ? 'orange' : 'green'},
+    {kicker:'Healthy vs total', value:(bundle.health.summary ? bundle.health.summary.providers_healthy : providers.filter(row => row.healthy).length) + '/' + providers.length, detail:String(unhealthyProviders.length) + ' unhealthy', tone:unhealthyProviders.length ? 'orange' : 'green'},
     {kicker:'Request-ready', value:(readiness.providers_ready || 0) + '/' + (readiness.providers_total || providers.length), detail:String(readiness.providers_not_ready || 0) + ' blocked or degraded', tone:(readiness.providers_not_ready || 0) ? 'danger' : 'green'},
     {kicker:'Unresolved keys', value:String(providers.filter(row => String(((row.request_readiness || {}).operator_hint || '')).toLowerCase().includes('key')).length), detail:'Runtime key and auth blockers', tone:'orange'},
-    {kicker:'Quota-coupled', value:String(quotaCoupled.length), detail:'Routes with visible quota grouping', tone:'blue'},
+    {kicker:'Quota-coupled', value:String(quotaCoupled.length), detail:'Shared quota domains visible', tone:'blue'},
     {kicker:'Aggregator-backed', value:String(providers.filter(row => ((row.lane || {}).route_type || '') === 'aggregator').length), detail:'Aggregator transport surfaces', tone:'blue'},
-    {kicker:'Premium-risk', value:String(premiumRoutes.length), detail:'Direct premium or subscription-backed routes', tone:'orange'},
+    {kicker:'Premium-risk', value:String(premiumRoutes.length), detail:'Premium or subscription-backed', tone:'orange'},
   ].map(metricCard).join('');
   $('#providers-alerts').innerHTML = [
     ...(unresolvedProviders.slice(0, 2).map(row => ({
@@ -1985,27 +2759,27 @@ function render(bundle) {
       detail: row.last_error || 'The route is failing live checks.',
       suggestion: 'Check provider health and recent traces before sending more traffic.',
     }))),
-  ].slice(0, 4).map(alertCard).join('') || empty('No provider warnings in current scope', 'Open All traffic if you expected a readiness or health issue.');
+  ].slice(0, 4).map(alertCard).join('') || empty('No provider warnings in this scope', 'Open All traffic if you expected a readiness or health issue.');
   $('#providers-summary').innerHTML = [
-    {title:'Healthy vs total', body:(bundle.health.summary ? bundle.health.summary.providers_healthy : providers.filter(row => row.healthy).length) + ' healthy routes across ' + providers.length + ' configured providers.'},
-    {title:'Request-readiness', body:(readiness.providers_ready || 0) + ' routes are request-ready, ' + (readiness.providers_not_ready || 0) + ' still need operator attention.'},
-    {title:'Quota coupling', body:quotaCoupled.length + ' providers advertise quota grouping; keep coupled routes visible before they surprise the fallback chain.'},
+    {title:'Healthy vs total', body:(bundle.health.summary ? bundle.health.summary.providers_healthy : providers.filter(row => row.healthy).length) + ' healthy routes across ' + providers.length + ' providers.'},
+    {title:'Request-readiness', body:(readiness.providers_ready || 0) + ' routes are request-ready; ' + (readiness.providers_not_ready || 0) + ' need review.'},
+    {title:'Quota coupling', body:quotaCoupled.length + ' providers share a visible quota domain.'},
   ].map(card => `<div class="catalog-card"><strong>${esc(card.title)}</strong><p>${esc(card.body)}</p></div>`).join('');
   $('#providers-chip').textContent = providers.length + ' providers';
-  $('#providers-table tbody').innerHTML = sortedProviders.length ? sortedProviders.map(row => providerRow(row, providerMetrics)).join('') : tableEmpty(9, 'No provider inventory is available', 'Open All traffic or check whether the provider inventory endpoint is returning data.');
+  $('#providers-table tbody').innerHTML = sortedProviders.length ? sortedProviders.map(row => providerRow(row, providerMetrics)).join('') : tableEmpty(9, 'No provider inventory available', 'Open All traffic or check the provider inventory endpoint.');
 
   $('#clients-kpis').innerHTML = [
     {kicker:'Active clients', value:String(clientTotals.length), detail:'Distinct client tags or profiles in scope', tone:'blue'},
-    {kicker:'Premium drift', value:topCost ? fmtUsd(topCost.cost_usd || 0) : '$0.00', detail:topCost ? (topCost.client_tag || topCost.client_profile || 'top client') : 'No cost-bearing client yet', tone:'orange'},
-    {kicker:'Failure-heavy', value:failureHeavy ? fmtPct(100 - (failureHeavy.success_pct || 0)) : '0.0%', detail:failureHeavy ? (failureHeavy.client_tag || failureHeavy.client_profile || 'client') : 'No client failures yet', tone:failureHeavy ? 'danger' : 'green'},
-    {kicker:'Slowest client', value:slowest ? fmtMs(slowest.avg_latency_ms || 0) : '—', detail:slowest ? (slowest.client_tag || slowest.client_profile || 'client') : 'No latency outlier', tone:'blue'},
-    {kicker:'Highest spend', value:topCost ? (topCost.client_tag || topCost.client_profile || 'client') : '—', detail:topCost ? fmtUsd(topCost.cost_usd || 0) + ' total' : 'No cost-bearing client yet', tone:'orange'},
-    {kicker:'Fallback-active', value:String(selectionPaths.filter(row => String(row.selection_path || '').includes('fallback')).length), detail:'Client traffic that used fallback paths', tone:'lime'},
+    {kicker:'Premium drift', value:topCost ? fmtUsd(topCost.cost_usd || 0) : '$0.00', detail:topCost ? (topCost.client_tag || topCost.client_profile || 'top client') : 'No spend signal', tone:'orange'},
+    {kicker:'Failure-heavy', value:failureHeavy ? fmtPct(100 - (failureHeavy.success_pct || 0)) : '0.0%', detail:failureHeavy ? (failureHeavy.client_tag || failureHeavy.client_profile || 'client') : 'No failure signal', tone:failureHeavy ? 'danger' : 'green'},
+    {kicker:'Slowest client', value:slowest ? fmtMs(slowest.avg_latency_ms || 0) : '—', detail:slowest ? (slowest.client_tag || slowest.client_profile || 'client') : 'No latency signal', tone:'blue'},
+    {kicker:'Highest spend', value:topCost ? (topCost.client_tag || topCost.client_profile || 'client') : '—', detail:topCost ? fmtUsd(topCost.cost_usd || 0) + ' total' : 'No spend signal', tone:'orange'},
+    {kicker:'Fallback-active', value:String(selectionPaths.filter(row => String(row.selection_path || '').includes('fallback')).length), detail:'Clients that used fallback paths', tone:'lime'},
   ].map(metricCard).join('');
   $('#clients-highlights').innerHTML = [
-    {title:'Highest spend', body:topCost ? (topCost.client_tag || topCost.client_profile || 'generic') + ' at ' + fmtUsd(topCost.cost_usd || 0) + ' total.' : 'No cost-bearing client yet.'},
-    {title:'Slowest client', body:slowest ? (slowest.client_tag || slowest.client_profile || 'generic') + ' averages ' + fmtMs(slowest.avg_latency_ms || 0) + '.' : 'No latency signal yet.'},
-    {title:'Failure-heavy client', body:failureHeavy ? (failureHeavy.client_tag || failureHeavy.client_profile || 'generic') + ' is failing ' + fmtPct(100 - (failureHeavy.success_pct || 0)) + ' of requests.' : 'No client failures yet.'},
+    {title:'Cost posture', body:topCost ? (topCost.client_tag || topCost.client_profile || 'generic') + ' is carrying ' + fmtUsd(topCost.cost_usd || 0) + ' in this scope.' : 'No client spend signal in this scope.'},
+    {title:'Latency posture', body:slowest ? (slowest.client_tag || slowest.client_profile || 'generic') + ' averages ' + fmtMs(slowest.avg_latency_ms || 0) + '.' : 'No client latency signal in this scope.'},
+    {title:'Reliability posture', body:failureHeavy ? (failureHeavy.client_tag || failureHeavy.client_profile || 'generic') + ' is failing ' + fmtPct(100 - (failureHeavy.success_pct || 0)) + ' of requests.' : 'No reliability issue in this scope.'},
   ].map(card => `<div class="catalog-card"><strong>${esc(card.title)}</strong><p>${esc(card.body)}</p></div>`).join('');
   $('#clients-table tbody').innerHTML = sortedClients.length ? sortedClients.map(row => `
     <tr>
@@ -2019,15 +2793,15 @@ function render(bundle) {
       <td class="mono">${fmtMs(row.avg_latency_ms || 0)}</td>
       <td class="tiny">${esc(row.providers || '—')}</td>
     </tr>
-  `).join('') : tableEmpty(9, 'No successful requests matched this scope yet', 'Clear filters or switch to All traffic.');
+  `).join('') : tableEmpty(9, 'No client traffic in this scope', 'Clear filters or switch to All traffic.');
 
   $('#routes-kpis').innerHTML = [
-    {kicker:'Active routes', value:String(routing.length), detail:'Routing rows in current scope', tone:'blue'},
-    {kicker:'Request-ready', value:(readiness.providers_ready || 0) + '/' + (readiness.providers_total || providers.length), detail:'Provider readiness behind current routes', tone:'green'},
-    {kicker:'Under cooldown', value:String(laneFamilies.reduce((sum, row) => sum + (row.cooldown_requests || 0), 0)), detail:'Requests under cooldown pressure', tone:'orange'},
-    {kicker:'Premium routes', value:String(premiumRoutes.length), detail:'Premium or subscription-backed transports', tone:'orange'},
-    {kicker:'Fallback-active', value:fmtPct(fallbackShare), detail:'Traffic that needed fallback selection', tone:fallbackShare > 10 ? 'danger' : 'blue'},
-    {kicker:'Recovery events', value:String(laneFamilies.reduce((sum, row) => sum + (row.recovered_requests || 0), 0)), detail:'Recovered requests across lane families', tone:'lime'},
+    {kicker:'Active routes', value:String(routing.length), detail:'Routing rows in scope', tone:'blue'},
+    {kicker:'Request-ready', value:(readiness.providers_ready || 0) + '/' + (readiness.providers_total || providers.length), detail:'Ready providers behind current routes', tone:'green'},
+    {kicker:'Under cooldown', value:String(laneFamilies.reduce((sum, row) => sum + (row.cooldown_requests || 0), 0)), detail:'Requests under cooldown', tone:'orange'},
+    {kicker:'Premium routes', value:String(premiumRoutes.length), detail:'Premium or subscription-backed', tone:'orange'},
+    {kicker:'Fallback-active', value:fmtPct(fallbackShare), detail:'Traffic routed through fallback', tone:fallbackShare > 10 ? 'danger' : 'blue'},
+    {kicker:'Recovery events', value:String(laneFamilies.reduce((sum, row) => sum + (row.recovered_requests || 0), 0)), detail:'Recovered requests', tone:'lime'},
   ].map(metricCard).join('');
   $('#routes-selection').innerHTML = barList(selectionPaths.slice(0, 6), {
     label: row => row.selection_path || 'unclassified',
@@ -2035,7 +2809,7 @@ function render(bundle) {
     value: row => row.requests || 0,
     format: value => fmtTok(value),
     tone: 'lime',
-    empty: 'No successful requests matched this scope yet',
+    empty: 'No selected path data in this scope',
   });
   $('#routes-pressure').innerHTML = barList((laneFamilies || []).slice(0, 6), {
     label: row => row.lane_family || 'unclassified',
@@ -2043,7 +2817,7 @@ function render(bundle) {
     value: row => (row.cooldown_requests || 0) + (row.degraded_requests || 0) + (row.recovered_requests || 0),
     format: value => fmtTok(value),
     tone: 'orange',
-    empty: 'No route pressure detected for this scope yet',
+    empty: 'No route pressure in this scope',
   });
   $('#routes-table tbody').innerHTML = sortedRouting.length ? sortedRouting.map(row => `
     <tr>
@@ -2056,34 +2830,34 @@ function render(bundle) {
       <td class="mono">${fmtUsd(row.cost_usd || 0)}</td>
       <td class="mono">${fmtMs(row.avg_latency_ms || 0)}</td>
     </tr>
-  `).join('') : tableEmpty(8, 'No successful requests matched this scope yet', 'Clear filters or switch to All traffic.');
+  `).join('') : tableEmpty(8, 'No routing rows in this scope', 'Clear filters or switch to All traffic.');
 
   const analyticsDailyLabels = (bundle.stats.daily || []).map(row => row.day || '');
   const analyticsHourlyLabels = (bundle.stats.hourly || []).map(row => row.hour_offset || '');
   $('#analytics-kpis').innerHTML = [
-    {kicker:'Requests', value:fmtTok(totals.total_requests || 0), detail:'Current filtered request volume', tone:'blue'},
-    {kicker:'Input tokens', value:fmtTok(totals.total_prompt_tokens || 0), detail:'Prompt-side token volume', tone:'blue'},
-    {kicker:'Output tokens', value:fmtTok(totals.total_compl_tokens || 0), detail:'Completion-side token volume', tone:'lime'},
-    {kicker:'Est. cost', value:fmtUsd(totals.total_cost_usd || 0), detail:'Estimated current-scope spend', tone:'orange'},
+    {kicker:'Requests', value:fmtTok(totals.total_requests || 0), detail:'Filtered volume', tone:'blue'},
+    {kicker:'Input tokens', value:fmtTok(totals.total_prompt_tokens || 0), detail:'Prompt-side tokens', tone:'blue'},
+    {kicker:'Output tokens', value:fmtTok(totals.total_compl_tokens || 0), detail:'Completion-side tokens', tone:'lime'},
+    {kicker:'Est. cost', value:fmtUsd(totals.total_cost_usd || 0), detail:'Estimated scoped spend', tone:'orange'},
     {kicker:'Avg latency', value:fmtMs(totals.avg_latency_ms || 0), detail:'Observed request latency', tone:'green'},
-    {kicker:'Cache hit rate', value:fmtPct(totals.cache_hit_pct || 0), detail:'Repeated requests served from cache', tone:'lime'},
+    {kicker:'Cache hit rate', value:fmtPct(totals.cache_hit_pct || 0), detail:'Requests served from cache', tone:'lime'},
   ].map(metricCard).join('');
   $('#analytics-daily').innerHTML = trendCard('analytics-requests-plot', (bundle.stats.daily || []).map(row => row.requests || 0), {
     title:'Requests by day',
-    subtitle:'30 day traffic volume',
+    subtitle:'30 day request flow',
     tone:'#54ABEE',
     format:value => fmt(value, 0),
     labels:analyticsDailyLabels,
   }) + trendCard('analytics-cost-plot', (bundle.stats.daily || []).map(row => row.cost_usd || 0), {
     title:'Cost by day',
-    subtitle:'30 day spend cadence',
+    subtitle:'30 day spend',
     tone:'#FFAA19',
     format:fmtUsd,
     labels:analyticsDailyLabels,
   });
   $('#analytics-hourly').innerHTML = trendCard('analytics-hourly-plot', (bundle.stats.hourly || []).map(row => (row.tokens || 0)), {
     title:'Tokens by hour',
-    subtitle:'24h token pulse',
+    subtitle:'24 hour token pulse',
     tone:'#C4D900',
     format:fmtTok,
     labels:analyticsHourlyLabels,
@@ -2121,7 +2895,7 @@ function render(bundle) {
       <td class="mono">${fmtUsd(row.cost_usd || 0)}</td>
       <td class="mono">${fmtMs(row.avg_latency_ms || 0)}</td>
     </tr>
-  `).join('') : tableEmpty(6, 'No modality rows for the current scope');
+  `).join('') : tableEmpty(6, 'No modality data in this scope', 'Widen the scope or wait for requests with provider and layer coverage.');
   $('#analytics-operators tbody').innerHTML = operatorRows.length ? operatorRows.map(row => `
     <tr>
       <td>${pill(row.event_type || 'update', 'subtle')}</td>
@@ -2131,27 +2905,27 @@ function render(bundle) {
       <td>${row.eligible ? pill('eligible', 'ready') : pill('blocked', 'degraded')}</td>
       <td class="mono">${fmtTok(row.events || 0)}</td>
     </tr>
-  `).join('') : tableEmpty(6, 'No operator actions have been recorded');
+  `).join('') : tableEmpty(6, 'No operator actions in this scope', 'Expected if no updates or local operator events were recorded.');
 
   $('#catalog-kpis').innerHTML = [
-    {kicker:'Tracked providers', value:String(bundle.catalog.tracked_providers || 0), detail:'Providers currently covered by the catalog', tone:'blue'},
-    {kicker:'Refresh due', value:String(sourceCatalog.due_sources || 0), detail:'Source reviews that should happen next', tone:(sourceCatalog.due_sources || 0) ? 'orange' : 'green'},
-    {kicker:'Evidence issues', value:String(sourceCatalog.error_sources || 0), detail:'Sources with refresh or parsing errors', tone:(sourceCatalog.error_sources || 0) ? 'danger' : 'green'},
+    {kicker:'Tracked providers', value:String(bundle.catalog.tracked_providers || 0), detail:'Providers covered by the catalog', tone:'blue'},
+    {kicker:'Refresh due', value:String(sourceCatalog.due_sources || 0), detail:'Source reviews due next', tone:(sourceCatalog.due_sources || 0) ? 'orange' : 'green'},
+    {kicker:'Evidence issues', value:String(sourceCatalog.error_sources || 0), detail:'Refresh or parsing errors', tone:(sourceCatalog.error_sources || 0) ? 'danger' : 'green'},
     {kicker:'Volatile offers', value:String(catalogItems.filter(row => String(row.volatility || '').toLowerCase().includes('high')).length), detail:'Offers flagged as highly volatile', tone:'orange'},
-    {kicker:'Untracked providers', value:String(Math.max(0, (bundle.catalog.total_providers || providers.length) - (bundle.catalog.tracked_providers || 0))), detail:'Configured providers missing curated coverage', tone:'blue'},
-    {kicker:'Recent changes', value:String(sourceCatalog.recent_changes || 0), detail:'Source updates in the current review window', tone:'lime'},
+    {kicker:'Untracked providers', value:String(Math.max(0, (bundle.catalog.total_providers || providers.length) - (bundle.catalog.tracked_providers || 0))), detail:'Configured providers outside coverage', tone:'blue'},
+    {kicker:'Recent changes', value:String(sourceCatalog.recent_changes || 0), detail:'Source updates in the review window', tone:'lime'},
   ].map(metricCard).join('');
   $('#catalog-summary').innerHTML = [
-    {title:'Tracked providers', body:String(bundle.catalog.tracked_providers || 0) + ' of ' + String(bundle.catalog.total_providers || providers.length) + ' configured routes are in the curated catalog.'},
-    {title:'Source refresh due', body:String(sourceCatalog.due_sources || 0) + ' sources are due for refresh and ' + String(sourceCatalog.error_sources || 0) + ' currently have refresh errors.'},
-    {title:'Alert count', body:String(catalogAlerts.length) + ' catalog or source alerts are currently active.'},
+    {title:'Tracked providers', body:String(bundle.catalog.tracked_providers || 0) + ' of ' + String(bundle.catalog.total_providers || providers.length) + ' configured routes are covered.'},
+    {title:'Source freshness', body:String(sourceCatalog.due_sources || 0) + ' reviews are due and ' + String(sourceCatalog.error_sources || 0) + ' sources have evidence issues.'},
+    {title:'Alert count', body:String(catalogAlerts.length) + ' catalog or source alerts are active.'},
   ].map(card => `<div class="catalog-card"><strong>${esc(card.title)}</strong><p>${esc(card.body)}</p></div>`).join('');
   $('#catalog-alerts').innerHTML = catalogAlerts.length ? catalogAlerts.slice(0, 5).map(alert => alertCard({
     level: alert.severity || 'notice',
     headline: alert.provider ? alert.provider + ': ' + (alert.code || 'catalog alert') : (alert.code || 'source alert'),
     detail: alert.message || alert.headline || 'Catalog drift alert',
     suggestion: alert.recommended_model ? 'Check ' + alert.recommended_model + ' and refresh evidence.' : 'Review the relevant source and refresh the catalog trail.',
-  })).join('') : empty('No provider-catalog alerts right now');
+  })).join('') : empty('No catalog alerts in this scope', 'No freshness, evidence, or model-mismatch issues are visible.');
   const sourceItems = sourceCatalog.items || [];
   $('#catalog-guidance').innerHTML = barList(sourceItems.slice(0, 6), {
     label: row => row.provider_id || row.provider || 'source',
@@ -2159,7 +2933,7 @@ function render(bundle) {
     value: row => (row.models_count || 0) + (row.pricing_count || 0),
     format: value => fmt(value, 0),
     tone: 'green',
-    empty: 'No source-catalog guidance is available for this scope',
+    empty: 'No refresh guidance in this scope',
   });
   $('#catalog-table tbody').innerHTML = catalogItems.length ? catalogItems.map(row => `
     <tr>
@@ -2172,20 +2946,20 @@ function render(bundle) {
       <td class="mono">${esc(row.last_reviewed || '—')}</td>
       <td class="tiny">${esc(row.notes || ((row.model_matches_recommendation === false) ? 'Configured model differs from the curated recommendation.' : 'Catalog guidance is aligned.')).slice(0, 180)}</td>
     </tr>
-  `).join('') : tableEmpty(8, 'No provider catalog items are available', 'Review catalog tracking or widen the current scope.');
+  `).join('') : tableEmpty(8, 'No tracked provider assumptions in this scope', 'Widen the scope or check whether provider catalog coverage is enabled.');
 
   $('#integrations-kpis').innerHTML = [
-    {kicker:'Claude-ready', value:(readiness.providers_ready || 0) ? 'Yes' : 'No', detail:'Anthropic-compatible entry surface is reachable', tone:(readiness.providers_ready || 0) ? 'green' : 'orange'},
-    {kicker:'OpenAI-ready', value:providers.length ? 'Yes' : 'No', detail:'OpenAI-compatible endpoint is exposed locally', tone:providers.length ? 'green' : 'orange'},
+    {kicker:'Claude-ready', value:(readiness.providers_ready || 0) ? 'Yes' : 'No', detail:'Anthropic endpoint reachable', tone:(readiness.providers_ready || 0) ? 'green' : 'orange'},
+    {kicker:'OpenAI-ready', value:providers.length ? 'Yes' : 'No', detail:'OpenAI endpoint reachable locally', tone:providers.length ? 'green' : 'orange'},
     {kicker:'Agent-native modes', value:'3', detail:'coding-auto, coding-fast, coding-premium', tone:'blue'},
-    {kicker:'Saved views', value:String(Object.keys(SAVED_VIEWS).length), detail:'Operator shortcuts for common scopes', tone:'lime'},
-    {kicker:'Providers visible', value:String(providers.length), detail:'Visible in current runtime inventory', tone:'blue'},
-    {kicker:'Validation posture', value:unhealthyProviders.length ? 'Review' : 'Clear', detail:unhealthyProviders.length ? 'Provider health should be checked before wider rollout' : 'No immediate integration blocker visible', tone:unhealthyProviders.length ? 'orange' : 'green'},
+    {kicker:'Saved views', value:String(Object.keys(SAVED_VIEWS).length), detail:'Scope shortcuts', tone:'lime'},
+    {kicker:'Providers visible', value:String(providers.length), detail:'Visible in runtime inventory', tone:'blue'},
+    {kicker:'Validation posture', value:unhealthyProviders.length ? 'Review' : 'Clear', detail:unhealthyProviders.length ? 'Check provider health before rollout' : 'No blocker visible', tone:unhealthyProviders.length ? 'orange' : 'green'},
   ].map(metricCard).join('');
   $('#integration-alerts').innerHTML = [
-    integrationAlert('Model not found', 'Usually means the client entered through the wrong model id or the alias mapping still points at a raw provider instead of a Gate intent surface.'),
-    integrationAlert('Provider unhealthy', 'Check Providers first, then Routes. Cooldown and quota-domain coupling should be visible before you chase client config.'),
-    integrationAlert('Unexpected premium spend', 'If Sonnet or Opus spend spikes, confirm that the client is using coding-auto or eco where appropriate and that explicit model ids are not bypassing your cheapest-capable posture.'),
+    integrationAlert('Model not found', 'Usually means the client used the wrong model id or an alias still points at a raw provider instead of a Gate mode.'),
+    integrationAlert('Provider unhealthy', 'Check Providers first, then Routes. Cooldown and quota coupling should be visible before you chase client config.'),
+    integrationAlert('Unexpected premium spend', 'If Sonnet or Opus spend spikes, confirm the client is using coding-auto or eco where appropriate and not bypassing route intent.'),
   ].join('');
 }
 
@@ -2225,6 +2999,7 @@ $$('[data-target-view]').forEach(button => {
   button.addEventListener('click', () => setView(button.dataset.targetView || 'overview'));
 });
 $('#refresh-btn').addEventListener('click', load);
+$('#apply-btn').addEventListener('click', applyFilters);
 $('#clear-btn').addEventListener('click', clearFilters);
 $('#saved-view').addEventListener('change', event => {
   const value = event.target.value;
@@ -2259,5 +3034,6 @@ window.addEventListener('resize', () => {
 DASHBOARD_HTML = (
     DASHBOARD_HTML.replace("/*__UPLOT_CSS__*/", _read_vendor_asset("uPlot.min.css"))
     .replace("/*__UPLOT_JS__*/", _read_vendor_asset("uplot.iife.min.js"))
-    .replace("__BRAND_LOGO_WHITE__", _inline_svg("fusionaize-logo-white.svg"))
+    .replace("__BRAND_LOGO__", _inline_svg("fusionaize-logo.svg"))
+    .replace("__FAIGATE_VERSION__", __version__)
 )

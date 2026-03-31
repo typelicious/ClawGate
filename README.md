@@ -432,6 +432,7 @@ Start here for the deeper deployment details:
 - [Publishing](./docs/PUBLISHING.md)
 - [Troubleshooting](./docs/TROUBLESHOOTING.md)
 - [Adaptive model orchestration](./docs/ADAPTIVE-ORCHESTRATION.md)
+- [Dashboard IA](./docs/DASHBOARD-IA.md)
 - [Roadmap](./docs/FAIGATE-ROADMAP.md)
 - [Implementation plan](./docs/IMPLEMENTATION-PLAN.md)
 - [Claude Desktop feasibility](./docs/CLAUDE-DESKTOP-FEASIBILITY.md)

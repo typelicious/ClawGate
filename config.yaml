@@ -52,21 +52,9 @@ client_profiles:
       - default
       routing_mode: eco
     claude:
-      prefer_tiers:
-      - default
-      - mid
-      - high
-      - reasoning
-      routing_mode: auto
+      routing_mode: coding-auto
     codex:
-      prefer_providers:
-      - deepseek-chat
-      - anthropic-haiku
-      - gemini-flash
-      prefer_tiers:
-      - default
-      - mid
-      routing_mode: auto
+      routing_mode: coding-auto
     deepseek-cli:
       prefer_providers:
       - deepseek-chat
@@ -87,35 +75,14 @@ client_profiles:
       - mid
       routing_mode: auto
     kilocode:
-      prefer_tiers:
-      - default
-      - mid
-      - high
-      - reasoning
-      routing_mode: auto
+      routing_mode: coding-fast
     openclaw:
-      prefer_tiers:
-      - default
-      - reasoning
-      routing_mode: auto
+      routing_mode: coding-auto
     opencode:
-      prefer_tiers:
-      - default
-      - mid
-      - high
-      - reasoning
-      routing_mode: auto
+      routing_mode: coding-auto
     # ── opencode named profiles (selectable as model in opencode UI) ─────────
     coding:
-      prefer_providers:
-      - deepseek-reasoner
-      - deepseek-chat
-      - anthropic-haiku
-      prefer_tiers:
-      - reasoning
-      - default
-      - mid
-      routing_mode: auto
+      routing_mode: coding-auto
     coding-free:
       prefer_providers:
       - kilocode
@@ -126,15 +93,7 @@ client_profiles:
       - cheap
       routing_mode: free
     research:
-      prefer_providers:
-      - gemini-pro-high
-      - anthropic-sonnet
-      - anthropic-claude
-      prefer_tiers:
-      - high
-      - premium
-      - mid
-      routing_mode: auto
+      routing_mode: premium
   rules:
   - match:
       any:
@@ -929,6 +888,14 @@ anthropic_bridge:
     claude-code: auto
     claude-code-fast: eco
     claude-code-premium: premium
+    claude-sonnet-4-6: auto
+    claude-sonnet-4-6-20251001: auto
+    claude-sonnet-4-6[1m]: auto
+    claude-opus-4-6: premium
+    claude-opus-4-6-20251001: premium
+    claude-opus-4-6[1m]: premium
+    claude-haiku-4-5: eco
+    claude-haiku-4-5-20251001: eco
 routing_modes:
   default: auto
   enabled: true
@@ -943,6 +910,63 @@ routing_modes:
         - default
         - reasoning
         - mid
+    coding-auto:
+      aliases:
+      - code-auto
+      - dev-auto
+      best_for: Daily coding with strong cost control
+      description: Cheapest capable coding route
+      savings: High savings
+      select:
+        capability_values:
+          cost_tier:
+          - free
+          - cheap
+          - standard
+        prefer_tiers:
+        - default
+        - cheap
+        - fallback
+        - reasoning
+        - mid
+        routing_mode: eco
+    coding-fast:
+      aliases:
+      - code-fast
+      - dev-fast
+      best_for: Fast iterative coding loops
+      description: Speed-first coding workhorse
+      savings: High savings
+      select:
+        capability_values:
+          cost_tier:
+          - free
+          - cheap
+          - standard
+        prefer_tiers:
+        - cheap
+        - default
+        - fallback
+        prefer_providers:
+        - gemini-flash-lite
+        - gemini-flash
+        - anthropic-haiku
+        - deepseek-chat
+        routing_mode: eco
+    coding-premium:
+      aliases:
+      - code-premium
+      - dev-premium
+      best_for: Architecture, review, and high-risk coding changes
+      description: Strongest coding lanes with cost still visible
+      savings: Lowest savings
+      select:
+        prefer_tiers:
+        - reasoning
+        - default
+        - mid
+        - high
+        routing_mode: premium
     eco:
       aliases: []
       best_for: Maximum savings

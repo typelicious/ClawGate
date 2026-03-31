@@ -12,6 +12,7 @@ import argparse
 import asyncio
 import json
 import logging
+import mimetypes
 import os
 import re
 import time
@@ -21,10 +22,11 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from dataclasses import asdict, dataclass
 from hashlib import sha256
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from starlette.datastructures import UploadFile
 
 from . import __version__
@@ -73,6 +75,7 @@ from .updates import (
 
 logger = logging.getLogger("faigate")
 _SAFE_TOKEN_RE = re.compile(r"[^a-z0-9._-]+")
+_DASHBOARD_ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 
 # ── Globals (initialized in lifespan) ──────────────────────────
 _config: Config
@@ -3121,6 +3124,23 @@ async def dashboard():
     return _DASHBOARD_HTML
 
 
+@app.get("/dashboard/assets/{asset_kind}/{asset_name:path}")
+async def dashboard_asset(asset_kind: str, asset_name: str):
+    """Serve packaged dashboard assets such as fonts."""
+    safe_kind = asset_kind.strip()
+    if safe_kind not in {"brand", "fonts"}:
+        return JSONResponse({"error": {"message": "Asset kind not found"}}, status_code=404)
+    asset_path = (_DASHBOARD_ASSETS_DIR / safe_kind / asset_name).resolve()
+    try:
+        asset_path.relative_to((_DASHBOARD_ASSETS_DIR / safe_kind).resolve())
+    except ValueError:
+        return JSONResponse({"error": {"message": "Asset path is invalid"}}, status_code=404)
+    if not asset_path.is_file():
+        return JSONResponse({"error": {"message": "Asset not found"}}, status_code=404)
+    media_type, _ = mimetypes.guess_type(str(asset_path))
+    return FileResponse(asset_path, media_type=media_type)
+
+
 # ── Main completion endpoint ───────────────────────────────────
 
 
@@ -3407,7 +3427,7 @@ def _dashboard_csp() -> str:
         "default-src 'self'; "
         f"style-src 'self' {style_hash}; "
         f"script-src 'self' {script_hash}; "
-        "img-src 'self' data:; connect-src 'self'; object-src 'none'; "
+        "img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; "
         "base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
     )
 

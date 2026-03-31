@@ -115,15 +115,17 @@ _DEFAULT_ANTHROPIC_BRIDGE_MODEL_ALIASES = {
     "claude-code-fast": "eco",
     "claude-code-premium": "premium",
     # Claude Code currently sends its own Anthropic model ids. These built-ins
-    # let the bridge accept them without per-machine operator tuning.
-    "claude-sonnet-4-6": "anthropic-sonnet",
-    "claude-sonnet-4-6-20251001": "anthropic-sonnet",
-    "claude-sonnet-4-6[1m]": "anthropic-sonnet",
-    "claude-opus-4-6": "anthropic-claude",
-    "claude-opus-4-6-20251001": "anthropic-claude",
-    "claude-opus-4-6[1m]": "anthropic-claude",
-    "claude-haiku-4-5": "anthropic-haiku",
-    "claude-haiku-4-5-20251001": "anthropic-haiku",
+    # let the bridge accept them without per-machine operator tuning. They map
+    # to routing intents, not direct frontier providers, so Gate can still
+    # score the cheapest capable route for the current request shape.
+    "claude-sonnet-4-6": "auto",
+    "claude-sonnet-4-6-20251001": "auto",
+    "claude-sonnet-4-6[1m]": "auto",
+    "claude-opus-4-6": "premium",
+    "claude-opus-4-6-20251001": "premium",
+    "claude-opus-4-6[1m]": "premium",
+    "claude-haiku-4-5": "eco",
+    "claude-haiku-4-5-20251001": "eco",
 }
 
 _CLIENT_PROFILE_PRESET_SPECS: dict[str, dict[str, Any]] = {
@@ -1271,6 +1273,7 @@ def _normalize_routing_modes(data: dict[str, Any]) -> dict[str, Any]:
                 f"routing mode '{normalized_name}'",
                 dict(spec.get("select", {}) or {}),
                 provider_names,
+                extra_keys={"routing_mode"},
             ),
         }
 
