@@ -1,5 +1,11 @@
 # fusionAIze Gate Changelog
 
+## v1.14.0 - 2026-03-31
+
+### Added
+
+- (New release baseline)
+
 ## Unreleased
 
 ### Changed
