@@ -1549,46 +1549,55 @@ button:hover{transform:translateY(-1px)}
 #view-overview .table-wrap{
   border-radius:16px;
 }
-#view-overview > .columns:first-of-type > .panel:last-child .table-wrap{
-  overflow-x:hidden;
+#view-overview .recent-log{
+  display:grid;
+  gap:10px;
 }
-#view-overview #overview-recent{
-  width:100%;
+#view-overview .recent-log .empty{
+  padding:18px 16px;
+}
+#view-overview .recent-item{
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) auto;
+  gap:10px 14px;
+  align-items:start;
+  padding:13px 14px;
+  border-radius:14px;
+  border:1px solid rgba(84,171,238,.08);
+  background:rgba(7,16,29,.34);
+}
+#view-overview .recent-main{
   min-width:0;
-  table-layout:fixed;
+  display:grid;
+  gap:5px;
 }
-#view-overview #overview-recent th,
-#view-overview #overview-recent td{
-  padding:10px 11px;
-  box-sizing:border-box;
+#view-overview .recent-title{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
 }
-#view-overview #overview-recent th:nth-child(1),
-#view-overview #overview-recent td:nth-child(1){
-  width:14%;
+#view-overview .recent-title strong{
+  font:600 .9rem/1.2 var(--display);
+  letter-spacing:-.01em;
 }
-#view-overview #overview-recent th:nth-child(2),
-#view-overview #overview-recent td:nth-child(2){
-  width:19%;
+#view-overview .recent-meta{
+  color:var(--muted);
+  font-size:.82rem;
+  line-height:1.4;
+  word-break:break-word;
 }
-#view-overview #overview-recent th:nth-child(3),
-#view-overview #overview-recent td:nth-child(3){
-  width:17%;
+#view-overview .recent-side{
+  display:grid;
+  gap:5px;
+  justify-items:end;
+  text-align:right;
 }
-#view-overview #overview-recent th:nth-child(4),
-#view-overview #overview-recent td:nth-child(4){
-  width:18%;
+#view-overview .recent-side .mono{
+  font-size:.8rem;
 }
-#view-overview #overview-recent th:nth-child(5),
-#view-overview #overview-recent td:nth-child(5){
-  width:12%;
-}
-#view-overview #overview-recent th:nth-child(6),
-#view-overview #overview-recent td:nth-child(6){
-  width:10%;
-}
-#view-overview #overview-recent th:nth-child(7),
-#view-overview #overview-recent td:nth-child(7){
-  width:10%;
+#view-overview .recent-side .tiny{
+  font-size:.77rem;
 }
 #view-overview .focus-card,
 #view-overview .alert-card{
@@ -1938,7 +1947,7 @@ tr:hover td{background:rgba(84,171,238,.045)}
               <p>Recent requests with route, client, latency, and cost.</p>
             </div>
           </div>
-          <div class="table-wrap"><table id="overview-recent"><thead><tr><th>Time</th><th>Provider</th><th>Lane</th><th>Client</th><th>Latency</th><th>Cost</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+          <div id="overview-recent" class="recent-log"></div>
         </div>
       </div>
       <div class="columns">
@@ -2611,6 +2620,27 @@ function recentRows(rows, limit = 8) {
   `).join('');
 }
 
+function recentLogItems(rows, limit = 8) {
+  if (!rows.length) {
+    return '<div class="empty"><strong>No requests for the current scope</strong><span>Clear filters or switch to All traffic.</span></div>';
+  }
+  return rows.slice(0, limit).map(row => `
+    <div class="recent-item">
+      <div class="recent-main">
+        <div class="recent-title">
+          <strong>${esc(row.provider || '—')}</strong>
+          ${row.success ? pill('success', 'ready') : pill('failure', 'fail')}
+        </div>
+        <div class="recent-meta">${esc(row.canonical_model || row.rule_name || '—')} · ${esc(row.client_tag || row.client_profile || 'generic')}</div>
+      </div>
+      <div class="recent-side">
+        <div class="mono">${esc(ago(row.timestamp))}</div>
+        <div class="tiny">${fmtMs(row.latency_ms || 0)} · ${fmtUsd(row.cost_usd || 0)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
 function render(bundle) {
   latestBundle = bundle;
   const totals = bundle.stats.totals || {};
@@ -2736,7 +2766,7 @@ function render(bundle) {
     tone: 'blue',
     empty: 'No lane family data in this scope',
   });
-  $('#overview-recent tbody').innerHTML = recentRows(recent);
+  $('#overview-recent').innerHTML = recentLogItems(recent);
 
   $('#providers-kpis').innerHTML = [
     {kicker:'Healthy vs total', value:(bundle.health.summary ? bundle.health.summary.providers_healthy : providers.filter(row => row.healthy).length) + '/' + providers.length, detail:String(unhealthyProviders.length) + ' unhealthy', tone:unhealthyProviders.length ? 'orange' : 'green'},
