@@ -52,9 +52,7 @@ def anthropic_request_to_canonical(
 ) -> CanonicalChatRequest:
     """Map an Anthropic messages request to the internal gateway model."""
 
-    normalized_headers = {
-        str(key): str(value) for key, value in (headers or {}).items()
-    }
+    normalized_headers = {str(key): str(value) for key, value in (headers or {}).items()}
     source = (
         normalized_headers.get("x-faigate-client")
         or normalized_headers.get("anthropic-client")
@@ -229,8 +227,7 @@ def _message_to_canonical(message: AnthropicMessage) -> list[CanonicalMessage]:
         return _user_message_to_canonical(message)
     if any(block.type != "text" for block in message.content):
         raise AnthropicBridgeError(
-            "Anthropic bridge v1 does not support "
-            f"'{message.role}' messages with non-text blocks"
+            f"Anthropic bridge v1 does not support '{message.role}' messages with non-text blocks"
         )
     return [
         CanonicalMessage(
@@ -745,9 +742,7 @@ async def openai_sse_to_anthropic(
         {
             "type": "message_delta",
             "delta": {
-                "stop_reason": (
-                    stop_reason or ("tool_use" if tool_states else "end_turn")
-                ),
+                "stop_reason": (stop_reason or ("tool_use" if tool_states else "end_turn")),
                 "stop_sequence": None,
             },
             "usage": dict(usage),

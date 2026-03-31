@@ -923,9 +923,7 @@ async def test_openai_sse_to_anthropic_closes_open_text_block_before_error():
             b'"content":"Hello"},"finish_reason":null}]}\n'
         )
         yield b"\n"
-        yield (
-            b'data: {"error":{"type":"api_error","message":"upstream broke"}}\n'
-        )
+        yield (b'data: {"error":{"type":"api_error","message":"upstream broke"}}\n')
         yield b"\n"
 
     chunks: list[str] = []
@@ -939,9 +937,9 @@ async def test_openai_sse_to_anthropic_closes_open_text_block_before_error():
     body = "".join(chunks)
     assert "event: content_block_start" in body
     assert '"type":"text_delta","text":"Hello"' in body
-    assert 'event: content_block_stop' in body
-    assert 'event: error' in body
-    assert body.index('event: content_block_stop') < body.index('event: error')
+    assert "event: content_block_stop" in body
+    assert "event: error" in body
+    assert body.index("event: content_block_stop") < body.index("event: error")
     assert '"message":"upstream broke"' in body
 
 

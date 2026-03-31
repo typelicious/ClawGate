@@ -54,7 +54,8 @@ def _inline_svg(name: str) -> str:
     svg = re.sub(r"<!--.*?-->", "", svg, flags=re.DOTALL).strip()
     return svg
 
-DASHBOARD_HTML = '''<!DOCTYPE html>
+
+DASHBOARD_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -3059,7 +3060,7 @@ window.addEventListener('resize', () => {
 </script>
 </body>
 </html>
-'''
+"""
 
 DASHBOARD_HTML = (
     DASHBOARD_HTML.replace("/*__UPLOT_CSS__*/", _read_vendor_asset("uPlot.min.css"))
