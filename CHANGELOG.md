@@ -23,14 +23,25 @@
 
 - (New release baseline)
 
-## Unreleased
+## v1.15.0 - 2026-04-01
+
+### Added
+
+- Enhanced provider catalog system with cost truth reporting, priority clusters, and actionable recommendations similar to llmairouter.com
+- Integrated external `fusionaize-metadata` repository for centralized provider metadata management
+- Added numeric pricing rates lookup from external catalog, overlay, and built-in registry
+- Added dashboard metric cards for cost truth and priority cluster visualizations
+- Added provider discovery recommendations with actionable improvement suggestions
 
 ### Changed
 
+- Increased line length to 120 characters (modern standard) across codebase
 - Reframed Claude-native bridge model aliases around routing intent instead of direct frontier spend: built-in Claude Code model ids now resolve to `auto`, `premium`, or `eco` so Gate can still choose the cheapest capable route for the request
 - Tightened the shipped config and integration examples around coding auto modes, so `claude`, `opencode`, `openclaw`, and related coding clients can share clearer `coding-auto`, `coding-fast`, and `coding-premium` entry points instead of muddled provider-first defaults
 - Updated the roadmap and implementation plan to prioritize cost-aware coding auto modes first, then stronger product surfaces and licensing-aware stack boundaries for Gate as a standalone product
 - Added a dedicated dashboard IA document so the next web and shell dashboard work is grouped around operator jobs such as overview, providers, clients, routes, analytics, request log, integrations, and troubleshooting instead of one long admin surface
+
+## Unreleased
 
 ## v1.13.0 - 2026-03-30
 
