@@ -234,9 +234,7 @@ metrics:
     assert view["providers"][0]["resolved_url"].startswith("https://")
 
 
-def test_provider_discovery_view_supports_link_source_and_offer_track_filters(
-    tmp_path: Path, monkeypatch
-):
+def test_provider_discovery_view_supports_link_source_and_offer_track_filters(tmp_path: Path, monkeypatch):
     monkeypatch.setenv(
         "FAIGATE_PROVIDER_LINK_OPENROUTER_FALLBACK_URL",
         "https://go.example.test/openrouter",
@@ -304,9 +302,7 @@ def test_build_provider_refresh_guidance_prefers_stale_entries():
     assert guidance[1]["action"] == "review-soon"
 
 
-def test_provider_catalog_report_can_track_provider_from_external_snapshot(
-    tmp_path: Path, monkeypatch
-):
+def test_provider_catalog_report_can_track_provider_from_external_snapshot(tmp_path: Path, monkeypatch):
     snapshot = tmp_path / "provider-catalog.json"
     snapshot.write_text(
         """
@@ -364,9 +360,7 @@ metrics:
     assert report["items"][0]["recommended_model"] == "claude-3-5-haiku-latest"
 
 
-def test_provider_catalog_external_snapshot_can_override_embedded_entry(
-    tmp_path: Path, monkeypatch
-):
+def test_provider_catalog_external_snapshot_can_override_embedded_entry(tmp_path: Path, monkeypatch):
     snapshot = tmp_path / "provider-catalog.json"
     snapshot.write_text(
         """
@@ -495,3 +489,46 @@ def test_materialize_provider_metadata_snapshot_writes_effective_catalog(tmp_pat
     assert written["providers"]["deepseek-chat"]["notes"] == "Gate note"
     assert output_path.exists() is True
     assert "Gate note" in output_path.read_text(encoding="utf-8")
+
+
+def test_provider_catalog_report_includes_recommendations(tmp_path):
+    from faigate.config import load_config
+    from faigate.provider_catalog import build_provider_catalog_report
+
+    cfg = load_config(
+        _write_config(
+            tmp_path,
+            """
+server:
+  host: "127.0.0.1"
+  port: 8090
+providers:
+  deepseek-chat:
+    backend: openai-compat
+    base_url: "https://api.deepseek.com/v1"
+    api_key: "secret"
+    model: "deepseek-chat"
+fallback_chain: []
+metrics:
+  enabled: false
+""",
+        )
+    )
+
+    report = build_provider_catalog_report(cfg)
+
+    # Recommendations field should be present
+    assert "recommendations" in report
+    assert isinstance(report["recommendations"], list)
+
+    # If there are priority clusters with items, there should be recommendations
+    if any(cluster["item_count"] > 0 for cluster in report["priority_clusters"]):
+        assert len(report["recommendations"]) > 0
+        # Each recommendation should have required fields
+        for rec in report["recommendations"]:
+            assert "id" in rec
+            assert "title" in rec
+            assert "description" in rec
+            assert "priority" in rec
+            assert "action" in rec
+            assert "cluster_id" in rec
