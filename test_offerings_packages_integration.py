@@ -8,13 +8,13 @@ from pathlib import Path
 # Add current directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+from faigate.lane_registry import get_active_model_id
 from faigate.provider_catalog import (
-    _get_pricing_for_provider_and_model,
     _get_packages_for_provider,
+    _get_pricing_for_provider_and_model,
     get_offerings_catalog,
     get_packages_catalog,
 )
-from faigate.lane_registry import get_active_model_id
 
 
 def test_catalog_loading():

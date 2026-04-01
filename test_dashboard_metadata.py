@@ -27,14 +27,14 @@ def main():
     # Get summary
     summary = _metadata_catalogs_summary()
 
-    print(f"\nOfferings summary:")
+    print("\nOfferings summary:")
     print(f"  Total: {summary['offerings']['total']}")
     print(f"  Fresh: {summary['offerings']['freshness']['fresh']}")
     print(f"  Aging: {summary['offerings']['freshness']['aging']}")
     print(f"  Stale: {summary['offerings']['freshness']['stale']}")
     print(f"  Unknown: {summary['offerings']['freshness']['unknown']}")
 
-    print(f"\nPackages summary:")
+    print("\nPackages summary:")
     print(f"  Total: {summary['packages']['total']}")
     print(f"  Expiring soon (≤7 days): {summary['packages']['expiring_soon']}")
     print(f"  Types: {summary['packages']['types']}")
@@ -57,7 +57,7 @@ def main():
     if summary["packages"]["expiring_soon"] > 0:
         print(f"\n⚠️  {summary['packages']['expiring_soon']} package(s) expiring soon")
     else:
-        print(f"\n✓ No packages expiring soon")
+        print("\n✓ No packages expiring soon")
 
     print("\n" + "=" * 60)
     print("Test completed")
