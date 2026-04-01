@@ -16,6 +16,20 @@
 - Improved provider dimension scoring with package score integration
 - Extended dashboard metadata catalogs summary with package details
 - No breaking changes; existing routing behavior remains compatible
+## v1.18.0 - 2026-04-01
+
+### Added
+
+- Added cost projection wizard CLI (`faigate-stats --project`) for estimating costs across providers based on token usage patterns (Phase 2c)
+- Added package management UI with enhanced dashboard views for packages, expiry alerts, and credit tracking
+- Added analytics integration with `--trends` flag showing daily cost trends and projected monthly spend
+- Added `faigate.cost` module with provider cost estimation and cross-provider comparison utilities
+
+### Changed
+
+- Extended dashboard alerts view with packages block showing credits, expiry, and expiring-soon warnings
+- Enhanced CLI with `--trends` flag for historical cost/performance trend analysis
+- No breaking changes; existing routing behavior remains compatible
 
 ## v1.16.0 - 2026-04-01
 
