@@ -348,6 +348,48 @@ def cmd_project(
         print()
 
 
+def cmd_trends(metrics: MetricsStore, days: int):
+    """Show cost trends over time."""
+    daily = metrics.get_daily_totals(days)
+    if not daily:
+        print(_c("  No data for the selected period.", DIM))
+        return
+
+    print()
+    print(_c(f"  ── Cost Trends (last {days}d) ──", DIM))
+
+    # Find max cost for scaling
+    max_cost = max((d.get("cost_usd", 0) or 0) for d in daily) if daily else 1
+    total_cost = sum((d.get("cost_usd", 0) or 0) for d in daily)
+    avg_daily = total_cost / len(daily) if daily else 0
+
+    rows = []
+    for d in daily:
+        day = d.get("day", "")
+        cost = d.get("cost_usd", 0) or 0
+        requests = d.get("requests", 0) or 0
+        tokens = d.get("tokens", 0) or 0
+        ratio = cost / max_cost if max_cost else 0
+        rows.append(
+            [
+                day,
+                str(requests),
+                _tok(tokens),
+                _usd(cost),
+                _bar(ratio, 20),
+            ]
+        )
+    _table(["Day", "Reqs", "Tokens", "Cost", "Cost Bar"], rows, [14, 8, 10, 12, 24])
+
+    print()
+    print(
+        f"  {_c('Total:', DIM)} {_usd(total_cost)}   "
+        f"{_c('Avg/day:', DIM)} {_usd(avg_daily)}   "
+        f"{_c('Projected/month:', DIM)} {_usd(avg_daily * 30)}"
+    )
+    print()
+
+
 # ── Main ───────────────────────────────────────────────────────
 
 
@@ -372,6 +414,8 @@ def main():
         "--model", type=str, default="deepseek/chat", help="Model ID for projection (e.g., 'deepseek/chat')"
     )
     parser.add_argument("--no-credits", action="store_true", help="Exclude package credits from projection")
+    parser.add_argument("--trends", action="store_true", help="Show cost trends over time")
+    parser.add_argument("--trend-days", type=int, default=30, help="Days for --trends (default: 30)")
     args = parser.parse_args()
 
     # Handle projection mode
@@ -421,6 +465,8 @@ def main():
         cmd_recent(metrics, args.recent)
     elif args.daily:
         cmd_daily(metrics, args.days)
+    elif args.trends:
+        cmd_trends(metrics, args.trend_days)
     else:
         cmd_overview(metrics)
 
