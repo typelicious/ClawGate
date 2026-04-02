@@ -2146,7 +2146,7 @@ tr:hover td{background:rgba(84,171,238,.045)}
             <p>Configured vs recommended model, freshness, volatility, and notes.</p>
           </div>
         </div>
-        <div class="table-wrap"><table id="catalog-table"><thead><tr><th>Provider</th><th>Status</th><th>Configured</th><th>Recommended</th><th>Offer track</th><th>Volatility</th><th>Reviewed</th><th>Why it matters</th></tr></thead><tbody></tbody></table></div>
+        <div class="table-wrap"><table id="catalog-table"><thead><tr><th>Provider</th><th>Status</th><th>Configured</th><th>Recommended</th><th>Offer track</th><th>Volatility</th><th>Source</th><th>Reviewed</th><th>Why it matters</th></tr></thead><tbody></tbody></table></div>
       </div>
     </section>
 
@@ -3013,10 +3013,11 @@ function render(bundle) {
       <td class="mono">${esc(row.recommended_model || '—')}</td>
       <td>${esc(row.offer_track || '—')}</td>
       <td>${esc(row.volatility || '—')}</td>
+      <td>${esc(row.pricing?.source_type || '—')}</td>
       <td class="mono">${esc(row.last_reviewed || '—')}</td>
       <td class="tiny">${esc(row.notes || ((row.model_matches_recommendation === false) ? 'Configured model differs from the curated recommendation.' : 'Catalog guidance is aligned.')).slice(0, 180)}</td>
     </tr>
-  `).join('') : tableEmpty(8, 'No tracked provider assumptions in this scope', 'Widen the scope or check whether provider catalog coverage is enabled.');
+  `).join('') : tableEmpty(9, 'No tracked provider assumptions in this scope', 'Widen the scope or check whether provider catalog coverage is enabled.');
 
   $('#integrations-kpis').innerHTML = [
     {kicker:'Claude-ready', value:(readiness.providers_ready || 0) ? 'Yes' : 'No', detail:'Anthropic endpoint reachable', tone:(readiness.providers_ready || 0) ? 'green' : 'orange'},
