@@ -1,5 +1,23 @@
 # fusionAIze Gate Changelog
 
+## v1.21.0 - 2026-04-02
+
+### Added
+
+- Lane family decision factors table in dashboard Routes view with selection path breakdown per family
+- Selection path categorization (same‑lane fallback, downgrade, primary) with colored pills
+- Routes KPIs extended with same‑lane fallback and downgrade traffic percentages
+- Enhanced route explainability for operator trust (v1.21.x roadmap)
+
+### Changed
+
+- Updated dashboard HTML and JavaScript to include new panel and aggregation logic
+- Bumped version to 1.21.0
+
+### Fixed
+
+- No breaking changes; existing routing behavior remains compatible
+
 ## v1.20.0 - 2026-04-02
 
 ### Added
