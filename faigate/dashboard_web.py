@@ -2046,6 +2046,15 @@ tr:hover td{background:rgba(84,171,238,.045)}
       <div class="panel">
         <div class="panel-header">
           <div>
+            <h3>Lane family decision factors</h3>
+            <p>Selection path breakdown, cost, latency, and cooldown pressure per lane family.</p>
+          </div>
+        </div>
+        <div class="table-wrap"><table id="lane-family-factors-table"><thead><tr><th>Lane family</th><th>Selection path breakdown</th><th>Requests</th><th>Cost</th><th>Latency</th><th>Cooldown</th><th>Recovered</th></tr></thead><tbody></tbody></table></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div>
               <h3>Routing breakdown</h3>
             <p>Layer, rule, provider, family, and selected path.</p>
           </div>
@@ -2363,6 +2372,68 @@ function clearFilters() {
 
 function pill(label, kind = 'subtle') {
   return '<span class="pill ' + kind + '">' + esc(label) + '</span>';
+}
+
+function categorizeSelectionPath(path) {
+  const p = String(path || '').toLowerCase();
+  if (p.includes('same-lane') || p.includes('same-cluster') || p.includes('same-benchmark')) {
+    return 'same-lane-fallback';
+  }
+  if (p.includes('degrade') || p.includes('fallback')) {
+    return 'downgrade';
+  }
+  if (p.includes('primary')) {
+    return 'primary';
+  }
+  return 'other';
+}
+
+function selectionPathCategoryLabel(category) {
+  const labels = {
+    'same-lane-fallback': 'Same-lane fallback',
+    'downgrade': 'Downgrade',
+    'primary': 'Primary selection',
+    'other': 'Other'
+  };
+  return labels[category] || category;
+}
+
+function selectionPathCategoryTone(category) {
+  const tones = {
+    'same-lane-fallback': 'lime',
+    'downgrade': 'orange',
+    'primary': 'blue',
+    'other': 'subtle'
+  };
+  return tones[category] || 'subtle';
+}
+
+function aggregateSelectionPathsByCategory(selectionPaths) {
+  const categories = {};
+  selectionPaths.forEach(row => {
+    const category = categorizeSelectionPath(row.selection_path);
+    const key = category;
+    if (!categories[key]) {
+      categories[key] = {
+        category: key,
+        requests: 0,
+        cost_usd: 0,
+        avg_latency_ms: 0,
+        count: 0
+      };
+    }
+    categories[key].requests += Number(row.requests) || 0;
+    categories[key].cost_usd += Number(row.cost_usd) || 0;
+    // weighted average latency
+    const rowRequests = Number(row.requests) || 0;
+    const currentTotalLatency = categories[key].avg_latency_ms * categories[key].count;
+    const newTotalLatency = currentTotalLatency + (Number(row.avg_latency_ms) || 0) * rowRequests;
+    categories[key].count += rowRequests;
+    if (categories[key].count > 0) {
+      categories[key].avg_latency_ms = newTotalLatency / categories[key].count;
+    }
+  });
+  return Object.values(categories).sort((a, b) => b.requests - a.requests);
 }
 
 function empty(label, suggestion = 'Try All traffic or clear filters.') {
@@ -2888,20 +2959,44 @@ function render(bundle) {
     </tr>
   `).join('') : tableEmpty(9, 'No client traffic in this scope', 'Clear filters or switch to All traffic.');
 
+  // Compute selection path category totals
+  let totalRequests = Number(totals.total_requests) || 0;
+  let sameLaneRequests = 0;
+  let downgradeRequests = 0;
+  let primaryRequests = 0;
+  selectionPaths.forEach(row => {
+    const cat = categorizeSelectionPath(row.selection_path);
+    const req = Number(row.requests) || 0;
+    if (cat === 'same-lane-fallback') sameLaneRequests += req;
+    else if (cat === 'downgrade') downgradeRequests += req;
+    else if (cat === 'primary') primaryRequests += req;
+  });
+  const sameLanePct = totalRequests > 0 ? (sameLaneRequests / totalRequests * 100) : 0;
+  const downgradePct = totalRequests > 0 ? (downgradeRequests / totalRequests * 100) : 0;
+
   $('#routes-kpis').innerHTML = [
     {kicker:'Active routes', value:String(routing.length), detail:'Routing rows in scope', tone:'blue'},
     {kicker:'Request-ready', value:(readiness.providers_ready || 0) + '/' + (readiness.providers_total || providers.length), detail:'Ready providers behind current routes', tone:'green'},
     {kicker:'Under cooldown', value:String(laneFamilies.reduce((sum, row) => sum + (row.cooldown_requests || 0), 0)), detail:'Requests under cooldown', tone:'orange'},
     {kicker:'Premium routes', value:String(premiumRoutes.length), detail:'Premium or subscription-backed', tone:'orange'},
+    {kicker:'Same-lane fallback', value:fmtPct(sameLanePct), detail:'Traffic staying within lane family', tone:'lime'},
+    {kicker:'Downgrade traffic', value:fmtPct(downgradePct), detail:'Traffic downgrading across families', tone:downgradePct > 20 ? 'orange' : 'blue'},
     {kicker:'Fallback-active', value:fmtPct(fallbackShare), detail:'Traffic routed through fallback', tone:fallbackShare > 10 ? 'danger' : 'blue'},
     {kicker:'Recovery events', value:String(laneFamilies.reduce((sum, row) => sum + (row.recovered_requests || 0), 0)), detail:'Recovered requests', tone:'lime'},
   ].map(metricCard).join('');
-  $('#routes-selection').innerHTML = barList(selectionPaths.slice(0, 6), {
-    label: row => row.selection_path || 'unclassified',
+  // Categorize selection paths for visual indicators
+  const categorizedSelectionPaths = selectionPaths.map(row => ({
+    ...row,
+    _category: categorizeSelectionPath(row.selection_path),
+    _categoryLabel: selectionPathCategoryLabel(categorizeSelectionPath(row.selection_path)),
+    _categoryTone: selectionPathCategoryTone(categorizeSelectionPath(row.selection_path))
+  }));
+  $('#routes-selection').innerHTML = barList(categorizedSelectionPaths.slice(0, 6), {
+    label: row => pill(row._categoryLabel, row._categoryTone) + ' ' + esc(row.selection_path || 'unclassified'),
     detail: row => (row.lane_family || 'no family') + ' · ' + (row.runtime_window_state || 'clear'),
     value: row => row.requests || 0,
     format: value => fmtTok(value),
-    tone: 'lime',
+    tone: row => row._categoryTone,
     empty: 'No selected path data in this scope',
   });
   $('#routes-pressure').innerHTML = barList((laneFamilies || []).slice(0, 6), {
@@ -2912,6 +3007,64 @@ function render(bundle) {
     tone: 'orange',
     empty: 'No route pressure in this scope',
   });
+  // Lane family decision factors table
+  const laneFamilyMap = {};
+  selectionPaths.forEach(row => {
+    const fam = row.lane_family || 'unclassified';
+    const cat = categorizeSelectionPath(row.selection_path);
+    const entry = laneFamilyMap[fam] = laneFamilyMap[fam] || {
+      lane_family: fam,
+      requests: 0,
+      cost_usd: 0,
+      latency_sum: 0,
+      cooldown_requests: 0,
+      degraded_requests: 0,
+      recovered_requests: 0,
+      primary: 0,
+      sameLaneFallback: 0,
+      downgrade: 0,
+      other: 0
+    };
+    entry.requests += row.requests || 0;
+    entry.cost_usd += row.cost_usd || 0;
+    entry.latency_sum += (row.avg_latency_ms || 0) * (row.requests || 0);
+    if (row.runtime_window_state === 'cooldown') entry.cooldown_requests += row.requests || 0;
+    if (row.runtime_window_state === 'degraded') entry.degraded_requests += row.requests || 0;
+    if (row.recovered_recently) entry.recovered_requests += row.requests || 0;
+    if (cat === 'primary') entry.primary += row.requests || 0;
+    else if (cat === 'same-lane-fallback') entry.sameLaneFallback += row.requests || 0;
+    else if (cat === 'downgrade') entry.downgrade += row.requests || 0;
+    else entry.other += row.requests || 0;
+  });
+  // Merge with laneFamilies for cooldown/degraded/recovered totals (already aggregated)
+  laneFamilies.forEach(lf => {
+    const fam = lf.lane_family || 'unclassified';
+    const entry = laneFamilyMap[fam];
+    if (entry) {
+      // ensure cooldown/degraded/recovered counts are max of both sources
+      entry.cooldown_requests = Math.max(entry.cooldown_requests, lf.cooldown_requests || 0);
+      entry.degraded_requests = Math.max(entry.degraded_requests, lf.degraded_requests || 0);
+      entry.recovered_requests = Math.max(entry.recovered_requests, lf.recovered_requests || 0);
+    }
+  });
+  const laneFamilyFactors = Object.values(laneFamilyMap);
+  laneFamilyFactors.sort((a, b) => b.requests - a.requests);
+  $('#lane-family-factors-table tbody').innerHTML = laneFamilyFactors.length ? laneFamilyFactors.map(row => `
+    <tr>
+      <td>${esc(row.lane_family)}</td>
+      <td>
+        ${row.primary > 0 ? pill('primary', 'green') + ' ' + fmtTok(row.primary) : ''}
+        ${row.sameLaneFallback > 0 ? pill('same-lane', 'lime') + ' ' + fmtTok(row.sameLaneFallback) : ''}
+        ${row.downgrade > 0 ? pill('downgrade', 'orange') + ' ' + fmtTok(row.downgrade) : ''}
+        ${row.other > 0 ? pill('other', 'subtle') + ' ' + fmtTok(row.other) : ''}
+      </td>
+      <td class="mono">${fmtTok(row.requests)}</td>
+      <td class="mono">${fmtUsd(row.cost_usd)}</td>
+      <td class="mono">${fmtMs(row.requests > 0 ? row.latency_sum / row.requests : 0)}</td>
+      <td class="mono">${fmtTok(row.cooldown_requests)}</td>
+      <td class="mono">${fmtTok(row.recovered_requests)}</td>
+    </tr>
+  `).join('') : tableEmpty(7, 'No lane family data in this scope', 'Clear filters or wait for requests.');
   $('#routes-table tbody').innerHTML = sortedRouting.length ? sortedRouting.map(row => `
     <tr>
       <td>${pill(row.layer || 'n/a', 'subtle')}</td>
