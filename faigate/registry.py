@@ -561,6 +561,18 @@ OAUTH: dict[str, ProviderDef] = {
             "Run: faigate-auth google-antigravity  or sign in to the Antigravity IDE."
         ),
     ),
+    # ── Claude Code (OAuth via Anthropic) ──────────────────────────────────
+    "claude-code": ProviderDef(
+        backend="anthropic-compat",
+        base_url="https://api.anthropic.com/v1",
+        base_url_env="ANTHROPIC_BASE_URL",
+        api_key_env="ANTHROPIC_CODEX_TOKEN",
+        auth_optional=True,
+        tier="default",
+        example_model="claude-code",
+        pricing={"input": 0.0, "output": 0.0},
+        notes="Claude Code – special coding model via Anthropic OAuth",
+    ),
 }
 
 
