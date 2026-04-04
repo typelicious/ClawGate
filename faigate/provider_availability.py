@@ -92,9 +92,7 @@ def _parse_models_payload(payload: dict[str, Any]) -> list[str]:
         if isinstance(row, str):
             token = row.strip()
         elif isinstance(row, dict):
-            token = str(
-                row.get("id") or row.get("name") or row.get("model") or ""
-            ).strip()
+            token = str(row.get("id") or row.get("name") or row.get("model") or "").strip()
         else:
             token = ""
         if not token or token in seen:
@@ -136,9 +134,7 @@ def record_availability_from_config(
                 "base_url": str(provider.get("base_url") or ""),
                 "backend": str(provider.get("backend") or ""),
                 "catalog_provider_id": provider_id,
-                "supports_models_endpoint": bool(
-                    (source.get("availability") or {}).get("supports_models_endpoint")
-                ),
+                "supports_models_endpoint": bool((source.get("availability") or {}).get("supports_models_endpoint")),
             },
         )
         rows.append(
@@ -259,9 +255,7 @@ def refresh_local_model_availability(
             except Exception as exc:  # pragma: no cover - defensive runtime path
                 last_error = str(exc)
 
-        available_for_key = bool(
-            configured_model and configured_model in visible_models
-        )
+        available_for_key = bool(configured_model and configured_model in visible_models)
         last_issue_type = ""
         if configured_model and visible_models and not available_for_key:
             last_issue_type = "model-unavailable"
@@ -322,17 +316,11 @@ def build_provider_availability_overlay(
     for row in endpoint_rows:
         metadata = dict(row.get("metadata") or {})
         route_visible_models = {
-            str(item).strip()
-            for item in list(metadata.get("visible_models") or [])
-            if str(item).strip()
+            str(item).strip() for item in list(metadata.get("visible_models") or []) if str(item).strip()
         }
         visible_models.update(route_visible_models)
         configured_model = str(row.get("model_id") or "")
-        if (
-            configured_model
-            and route_visible_models
-            and configured_model not in route_visible_models
-        ):
+        if configured_model and route_visible_models and configured_model not in route_visible_models:
             key_model_mismatches.append(
                 {
                     "route_name": str(row.get("route_name") or ""),
@@ -342,27 +330,19 @@ def build_provider_availability_overlay(
             )
 
     configured_models = {
-        str(row.get("model_id") or "").strip()
-        for row in route_rows
-        if str(row.get("model_id") or "").strip()
+        str(row.get("model_id") or "").strip() for row in route_rows if str(row.get("model_id") or "").strip()
     }
     global_models = set(global_model_ids or set())
     global_free_models = set(global_free_model_ids or set())
 
     configured_models_missing_globally = sorted(
-        model_id
-        for model_id in configured_models
-        if global_models and model_id not in global_models
+        model_id for model_id in configured_models if global_models and model_id not in global_models
     )
     local_only_models = sorted(
-        model_id
-        for model_id in visible_models
-        if global_models and model_id not in global_models
+        model_id for model_id in visible_models if global_models and model_id not in global_models
     )
     free_models_missing_locally = sorted(
-        model_id
-        for model_id in global_free_models
-        if visible_models and model_id not in visible_models
+        model_id for model_id in global_free_models if visible_models and model_id not in visible_models
     )
 
     status = "clear"
@@ -384,12 +364,8 @@ def build_provider_availability_overlay(
                 "model_id": str(row.get("model_id") or ""),
                 "request_ready": bool(row.get("request_ready")),
                 "status": str(route_meta.get("status") or ""),
-                "available_for_key": bool(
-                    (endpoint_row or {}).get("available_for_key")
-                ),
-                "visible_model_count": int(
-                    endpoint_meta.get("visible_model_count") or 0
-                ),
+                "available_for_key": bool((endpoint_row or {}).get("available_for_key")),
+                "visible_model_count": int(endpoint_meta.get("visible_model_count") or 0),
                 "models_endpoint_error": str(endpoint_meta.get("last_error") or ""),
             }
         )
@@ -397,9 +373,7 @@ def build_provider_availability_overlay(
     return {
         "status": status,
         "local_routes": len(route_rows),
-        "request_ready_routes": sum(
-            1 for row in route_rows if row.get("request_ready")
-        ),
+        "request_ready_routes": sum(1 for row in route_rows if row.get("request_ready")),
         "models_endpoint_routes": len(endpoint_rows),
         "visible_model_count": len(visible_models),
         "visible_models": sorted(visible_models),
@@ -426,7 +400,5 @@ def configured_provider_families(config_path: str) -> dict[str, list[str]]:
     """Return configured provider names grouped by source-catalog family."""
     rows: dict[str, list[str]] = {}
     for target in _configured_provider_targets(config_path):
-        rows.setdefault(str(target["provider_id"] or "unknown"), []).append(
-            str(target["provider_name"])
-        )
+        rows.setdefault(str(target["provider_id"] or "unknown"), []).append(str(target["provider_name"]))
     return rows
