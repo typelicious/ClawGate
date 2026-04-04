@@ -9,9 +9,7 @@ Usage:
 """
 
 import asyncio
-import json
 import sys
-from typing import Any
 
 import httpx
 
@@ -82,7 +80,7 @@ async def test_messages_non_streaming() -> bool:
                     print("  ✗ Bridge endpoint reports disabled")
                     return False
             elif resp.status_code == 404:
-                print(f"✗ Non-streaming messages failed: 404 (Bridge likely disabled)")
+                print("✗ Non-streaming messages failed: 404 (Bridge likely disabled)")
                 print(f"  Response: {resp.text[:200]}")
                 return False
             else:
@@ -137,7 +135,7 @@ async def test_messages_streaming() -> bool:
                     print("  This is expected with dummy API keys")
                     return True
                 elif response.status_code == 404:
-                    print(f"✗ Streaming messages failed: 404 (Bridge likely disabled)")
+                    print("✗ Streaming messages failed: 404 (Bridge likely disabled)")
                     return False
                 else:
                     print(f"✗ Streaming messages failed: {response.status_code}")
@@ -183,7 +181,7 @@ async def test_count_tokens() -> bool:
                 print("  This is expected with dummy API keys")
                 return True
             elif resp.status_code == 404:
-                print(f"✗ Count tokens failed: 404 (Bridge likely disabled)")
+                print("✗ Count tokens failed: 404 (Bridge likely disabled)")
                 print(f"  Response: {resp.text[:200]}")
                 return False
             else:
@@ -286,7 +284,7 @@ async def test_desktop_headers() -> bool:
                 print("  This is expected with dummy API keys")
                 return True
             elif resp.status_code == 404:
-                print(f"✗ Desktop headers test failed: 404 (Bridge likely disabled)")
+                print("✗ Desktop headers test failed: 404 (Bridge likely disabled)")
                 return False
             else:
                 print(f"✗ Desktop headers test failed: {resp.status_code}")
