@@ -605,7 +605,7 @@ _CATALOG: dict[str, dict[str, Any]] = {
         "last_reviewed": "2026-04-03",
     },
     "google-antigravity": {
-        "recommended_model": "ag/claude-opus-4-6",
+        "recommended_model": "gemini-2.5-pro",
         "aliases": ["google-antigravity", "antigravity", "agy"],
         "track": "stable",
         "offer_track": "oauth",
@@ -620,8 +620,10 @@ _CATALOG: dict[str, dict[str, Any]] = {
             "Google Antigravity (VS Code AI fork) – Google OAuth via Authorization Code + PKCE. "
             "client_id: 1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com. "
             "Token: ~/.gemini/oauth_creds.json. "
-            "Inference base_url requires network discovery (set ANTIGRAVITY_BASE_URL). "
-            "Auth: faigate-auth google-antigravity  or sign in to Antigravity IDE."
+            "Antigravity's local interface is a gRPC language server (127.0.0.1:<ephemeral-port>/"
+            "exa.language_server_pb.LanguageServerService/…) – faigate bypasses it and calls "
+            "the Google Generative Language API (generativelanguage.googleapis.com/v1beta/openai) "
+            "directly with the OAuth token. Auth: faigate-auth google-antigravity  or sign in to Antigravity IDE."
         ),
         "last_reviewed": "2026-04-04",
     },

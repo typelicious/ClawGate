@@ -35,8 +35,12 @@ _ANTIGRAVITY_AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 _ANTIGRAVITY_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 _ANTIGRAVITY_CREDS_PATH = "~/.gemini/oauth_creds.json"
 _ANTIGRAVITY_CALLBACK_PORT = 8080
-# Base URL: set ANTIGRAVITY_BASE_URL env var once discovered from network traffic.
-# Known candidate: https://gateway-a2a-tp-pa.sandbox.googleapis.com/v1
+# Base URL: Antigravity's client-facing interface is a local ephemeral gRPC language server
+# (127.0.0.1:<port>/exa.language_server_pb.LanguageServerService/…) that proxies to Google
+# internally. faigate uses the OAuth token to call the Google Generative Language API directly.
+# Default: https://generativelanguage.googleapis.com/v1beta/openai (matches registry.py)
+# Override with ANTIGRAVITY_BASE_URL if a different Google endpoint is needed.
+_ANTIGRAVITY_BASE_URL_DEFAULT = "https://generativelanguage.googleapis.com/v1beta/openai"
 _ANTIGRAVITY_BASE_URL_ENV = "ANTIGRAVITY_BASE_URL"
 
 # ── Qwen constants (from qwen-code source) ───────────────────────────────────
@@ -299,14 +303,7 @@ def antigravity_oauth() -> dict[str, Any]:
             "Run: faigate-auth google-antigravity --refresh  or sign in to Antigravity."
         )
 
-    base_url = os.environ.get(_ANTIGRAVITY_BASE_URL_ENV)
-    if not base_url:
-        logger.warning(
-            "ANTIGRAVITY_BASE_URL not set. Inference endpoint unknown.\n"
-            "To discover it: inspect Antigravity network traffic (DevTools → Network)\n"
-            "and look for POST requests to a googleapis.com or antigravity endpoint.\n"
-            "Then: export ANTIGRAVITY_BASE_URL=https://<discovered-host>/v1"
-        )
+    base_url = os.environ.get(_ANTIGRAVITY_BASE_URL_ENV, _ANTIGRAVITY_BASE_URL_DEFAULT)
 
     return {
         "access_token": access_token,
@@ -315,8 +312,8 @@ def antigravity_oauth() -> dict[str, Any]:
         "id_token": creds.get("id_token"),
         "expiry_date": expiry_ms,
         "scope": creds.get("scope", _ANTIGRAVITY_SCOPE),
-        "base_url": base_url or "",
-        "base_url_discovered": bool(base_url),
+        "base_url": base_url,
+        "base_url_discovered": True,
     }
 
 
@@ -371,7 +368,7 @@ def antigravity_refresh(refresh_token: str) -> dict[str, Any]:
 
     return {
         **new_creds,
-        "base_url": os.environ.get(_ANTIGRAVITY_BASE_URL_ENV, ""),
+        "base_url": os.environ.get(_ANTIGRAVITY_BASE_URL_ENV, _ANTIGRAVITY_BASE_URL_DEFAULT),
     }
 
 
@@ -486,8 +483,8 @@ def antigravity_login() -> dict[str, Any]:
 
     return {
         **new_creds,
-        "base_url": os.environ.get(_ANTIGRAVITY_BASE_URL_ENV, ""),
-        "base_url_discovered": bool(os.environ.get(_ANTIGRAVITY_BASE_URL_ENV)),
+        "base_url": os.environ.get(_ANTIGRAVITY_BASE_URL_ENV, _ANTIGRAVITY_BASE_URL_DEFAULT),
+        "base_url_discovered": True,
     }
 
 

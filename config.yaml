@@ -1025,13 +1025,16 @@ providers:
   #     connect_s: 10
   #     read_s: 60
 
-  # Antigravity (Google OAuth – Authorization Code + PKCE)
+  # Antigravity (Google OAuth – Authorization Code + PKCE → Google Generative Language API)
+  # Network discovery: Antigravity's client interface is a LOCAL ephemeral gRPC language
+  # server (127.0.0.1:<port>/exa.language_server_pb.LanguageServerService/…) that proxies
+  # to Google internally. faigate uses the Google token to call the upstream API directly.
+  #
   # Prerequisites:
   #   1. Sign in to the Antigravity IDE  -OR-  run: faigate-auth google-antigravity
   #      Token is stored at ~/.gemini/oauth_creds.json
-  #   2. Discover the inference base_url by inspecting Antigravity network traffic
-  #      (DevTools → Network, filter for POST requests with Authorization: Bearer ya29.*)
-  #      Then: export ANTIGRAVITY_BASE_URL=https://<discovered-host>/v1
+  #   2. Set ANTIGRAVITY_TOKEN to the access_token from that file
+  #      (Optional: override ANTIGRAVITY_BASE_URL to use a different Google endpoint)
   #
   # OAuth details:
   #   client_id:  1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com
@@ -1040,9 +1043,10 @@ providers:
   #
   antigravity:
     backend: openai-compat
-    base_url_env: ANTIGRAVITY_BASE_URL   # set after network discovery
-    api_key_env: ANTIGRAVITY_TOKEN       # set to access_token from ~/.gemini/oauth_creds.json
-    model: ag/claude-opus-4-6-thinking
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai
+    base_url_env: ANTIGRAVITY_BASE_URL   # optional override
+    api_key_env: ANTIGRAVITY_TOKEN       # access_token from ~/.gemini/oauth_creds.json
+    model: gemini-2.5-pro
     tier: default
     timeout:
       connect_s: 10
