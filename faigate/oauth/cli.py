@@ -662,10 +662,12 @@ def main() -> None:
             print("Supported: qwen-portal, claude-code, google-gemini-cli, google-antigravity", file=sys.stderr)
             sys.exit(1)
 
-        _SENSITIVE = {"access_token", "refresh_token", "id_token"}
-        safe = {k: ("[REDACTED]" if k in _SENSITIVE else v) for k, v in token_data.items()}
-        print(json.dumps(safe, indent=2))
-        print("\nToken written to credentials file (use it from there).", file=sys.stderr)
+        # Only surface non-sensitive metadata; tokens are written to the creds file.
+        _META_KEYS = ("base_url", "base_url_discovered", "token_type", "scope",
+                      "expiry_date", "expires_in", "provider")
+        meta: dict[str, Any] = {k: token_data[k] for k in _META_KEYS if k in token_data}
+        meta["tokens"] = "REDACTED (stored in credentials file)"
+        print(json.dumps(meta, indent=2))
 
     except Exception as e:
         logger.error("Failed to obtain token: %s", e)
