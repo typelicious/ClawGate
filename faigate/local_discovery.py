@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from typing import Any, TypedDict
 
 import httpx
@@ -18,14 +19,27 @@ from .registry import LOCAL
 logger = logging.getLogger(__name__)
 
 
+class GpuInfo(TypedDict, total=False):
+    """GPU metrics from a local worker."""
+
+    gpu_name: str
+    vram_total_mb: int
+    vram_used_mb: int
+    vram_free_mb: int
+    utilization_pct: float
+    queue_depth: int
+
+
 class DiscoveredWorker(TypedDict):
     """A discovered local worker instance."""
 
     name: str  # Canonical name (e.g., "ollama", "vllm")
     base_url: str  # Full base URL including port and /v1 path
     healthy: bool  # Whether the worker responds to health check
-    models: list[str]  # List of available model IDs (if discoverable)
+    models: list[str]  # List of available model IDs (dynamically enumerated)
+    dynamic_models: bool  # Whether models were fetched from /v1/models at discovery time
     capabilities: dict[str, Any]  # Capabilities inferred from worker type
+    gpu_info: GpuInfo | None  # GPU/VRAM metrics if available
 
 
 # Default ports for known local workers
@@ -44,6 +58,15 @@ HEALTH_CHECKS = {
     "litellm": ("/v1/models", {"object": "list"}),
 }
 
+# GPU/metrics endpoints per worker type
+# These are best-effort — failure is silently ignored
+GPU_ENDPOINTS = {
+    "ollama": "/api/ps",          # Ollama process info including GPU usage
+    "vllm": "/metrics",           # Prometheus text metrics
+    "lmstudio": None,
+    "litellm": None,
+}
+
 
 async def check_port_open(host: str, port: int, timeout: float = 1.0) -> bool:
     """Check if a TCP port is open."""
@@ -57,7 +80,7 @@ async def check_port_open(host: str, port: int, timeout: float = 1.0) -> bool:
 
 
 async def probe_worker(base_url: str, worker_type: str, timeout: float = 5.0) -> tuple[bool, list[str]]:
-    """Probe a worker endpoint to check health and discover models."""
+    """Probe a worker endpoint to check health and discover models dynamically."""
     endpoint, expected_key = HEALTH_CHECKS.get(worker_type, ("/v1/models", {"object": "list"}))
     url = f"{base_url.rstrip('/')}{endpoint}"
 
@@ -66,9 +89,7 @@ async def probe_worker(base_url: str, worker_type: str, timeout: float = 5.0) ->
             response = await client.get(url)
             if response.status_code == 200:
                 data = response.json()
-                # Check if response matches expected pattern
                 if expected_key.items() <= data.items():
-                    # Extract model IDs if available
                     models = []
                     if "data" in data and isinstance(data["data"], list):
                         models = [model.get("id", "") for model in data["data"] if model.get("id")]
@@ -78,6 +99,56 @@ async def probe_worker(base_url: str, worker_type: str, timeout: float = 5.0) ->
     except Exception as e:
         logger.debug("Worker probe failed for %s: %s", url, e)
         return False, []
+
+
+async def probe_gpu_info(base_url: str, worker_type: str, timeout: float = 3.0) -> GpuInfo | None:
+    """Probe GPU/VRAM metrics from a worker. Returns None on any failure."""
+    gpu_endpoint = GPU_ENDPOINTS.get(worker_type)
+    if not gpu_endpoint:
+        return None
+
+    url = f"{base_url.rstrip('/')}{gpu_endpoint}"
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.get(url)
+            if response.status_code != 200:
+                return None
+
+            if worker_type == "ollama":
+                # Ollama /api/ps returns running models with size_vram field
+                data = response.json()
+                models_running = data.get("models", [])
+                if not models_running:
+                    return None
+                total_vram = sum(m.get("size_vram", 0) for m in models_running) // (1024 * 1024)
+                queue = len(models_running)
+                info: GpuInfo = {"vram_used_mb": total_vram, "queue_depth": queue}
+                return info
+
+            if worker_type == "vllm":
+                # vLLM /metrics returns Prometheus text format
+                text = response.text
+                gpu_info: GpuInfo = {}
+                for line in text.splitlines():
+                    if line.startswith("#"):
+                        continue
+                    if "vllm:gpu_cache_usage_perc" in line:
+                        try:
+                            val = float(line.split()[-1])
+                            gpu_info["utilization_pct"] = round(val * 100, 1)
+                        except (ValueError, IndexError):
+                            pass
+                    if "vllm:num_requests_running" in line:
+                        try:
+                            gpu_info["queue_depth"] = int(float(line.split()[-1]))
+                        except (ValueError, IndexError):
+                            pass
+                return gpu_info if gpu_info else None
+
+    except Exception as e:
+        logger.debug("GPU probe failed for %s: %s", url, e)
+
+    return None
 
 
 async def discover_local_workers(
@@ -91,7 +162,8 @@ async def discover_local_workers(
         timeout_per_worker: Timeout for each worker probe in seconds
 
     Returns:
-        List of discovered workers with health status and available models
+        List of discovered workers with health status, dynamically enumerated models,
+        and GPU metrics where available.
     """
     discovered: list[DiscoveredWorker] = []
 
@@ -101,18 +173,18 @@ async def discover_local_workers(
             base_url = f"http://127.0.0.1:{port}/v1"
             logger.debug("Checking %s at %s", worker_name, base_url)
 
-            # First check if port is open
             if not await check_port_open("127.0.0.1", port, timeout=1.0):
                 continue
 
-            # Probe the worker
             healthy, models = await probe_worker(base_url, worker_name, timeout_per_worker)
+            gpu_info = await probe_gpu_info(base_url, worker_name, timeout=2.0) if healthy else None
 
             worker: DiscoveredWorker = {
                 "name": worker_name,
                 "base_url": base_url,
                 "healthy": healthy,
                 "models": models,
+                "dynamic_models": len(models) > 0,
                 "capabilities": {
                     "local": True,
                     "cloud": False,
@@ -120,11 +192,17 @@ async def discover_local_workers(
                     "cost_tier": "local",
                     "latency_tier": "local",
                 },
+                "gpu_info": gpu_info,
             }
             discovered.append(worker)
 
             if healthy:
-                logger.info("Discovered healthy %s worker at %s", worker_name, base_url)
+                model_count = len(models)
+                gpu_note = f", GPU: {gpu_info}" if gpu_info else ""
+                logger.info(
+                    "Discovered healthy %s worker at %s (%d model(s)%s)",
+                    worker_name, base_url, model_count, gpu_note,
+                )
             else:
                 logger.debug("Found %s worker at %s but health check failed", worker_name, base_url)
 
@@ -139,66 +217,107 @@ async def discover_local_workers(
 async def discover_grid_workers(timeout: float = 5.0) -> list[DiscoveredWorker]:
     """Discover workers configured via fusionAIze Grid.
 
-    Checks for Grid configuration files and extracts worker endpoints.
+    Reads Grid configuration from:
+    - ~/.faigrid/config.json  (primary JSON config)
+    - ~/.faigrid/state/worker.state  (key=value state file, legacy)
     """
-    # TODO: Implement Grid configuration reading
-    # For now, check common Grid worker patterns
-    grid_workers = []
+    grid_workers: list[DiscoveredWorker] = []
 
-    # Check for Grid state files
-    import os
-
-    grid_state_path = os.path.expanduser("~/.faigrid/state/worker.state")
-    if os.path.exists(grid_state_path):
+    # Primary: ~/.faigrid/config.json
+    config_path = os.path.expanduser("~/.faigrid/config.json")
+    if os.path.exists(config_path):
         try:
-            with open(grid_state_path) as f:
-                # Parse Grid state format (key=value pairs)
-                state = {}
+            with open(config_path) as f:
+                config = json.load(f)
+
+            for entry in config.get("workers", []):
+                worker_type = entry.get("type", "openai-compat")
+                host = entry.get("host", "127.0.0.1")
+                port = entry.get("port")
+                name = entry.get("name", f"grid-{worker_type}")
+
+                if not port:
+                    logger.debug("Grid config entry '%s' missing port, skipping", name)
+                    continue
+
+                base_url = entry.get("base_url") or f"http://{host}:{port}/v1"
+                healthy, models = await probe_worker(base_url, worker_type, timeout)
+                gpu_info = await probe_gpu_info(base_url, worker_type, timeout=2.0) if healthy else None
+
+                worker: DiscoveredWorker = {
+                    "name": name,
+                    "base_url": base_url,
+                    "healthy": healthy,
+                    "models": models or entry.get("models", []),
+                    "dynamic_models": len(models) > 0,
+                    "capabilities": {
+                        "local": True,
+                        "cloud": False,
+                        "network_zone": entry.get("network_zone", "local"),
+                        "cost_tier": entry.get("cost_tier", "local"),
+                        "latency_tier": "local",
+                    },
+                    "gpu_info": gpu_info,
+                }
+                grid_workers.append(worker)
+
+            if grid_workers:
+                logger.info("Grid config: found %d worker(s) in %s", len(grid_workers), config_path)
+        except Exception as e:
+            logger.debug("Failed to read Grid config %s: %s", config_path, e)
+
+    # Fallback: ~/.faigrid/state/worker.state (key=value format)
+    state_path = os.path.expanduser("~/.faigrid/state/worker.state")
+    if os.path.exists(state_path) and not grid_workers:
+        try:
+            with open(state_path) as f:
+                state: dict[str, str] = {}
                 for line in f:
                     line = line.strip()
                     if line and "=" in line:
                         key, value = line.split("=", 1)
                         state[key.strip()] = value.strip()
 
-                # Extract worker endpoints from Grid state
-                # This is a placeholder - actual implementation depends on Grid's state format
-                if "WORKER_ENDPOINTS" in state:
-                    endpoints = state["WORKER_ENDPOINTS"].split(",")
-                    for endpoint in endpoints:
-                        if endpoint:
-                            # Assume endpoint includes worker type and port
-                            # Format: worker_type:host:port
-                            parts = endpoint.split(":")
-                            if len(parts) >= 3:
-                                worker_type, host, port = parts[0], parts[1], parts[2]
-                                base_url = f"http://{host}:{port}/v1"
-                                healthy, models = await probe_worker(base_url, worker_type, timeout)
-                                worker: DiscoveredWorker = {
-                                    "name": f"grid-{worker_type}",
-                                    "base_url": base_url,
-                                    "healthy": healthy,
-                                    "models": models,
-                                    "capabilities": {
-                                        "local": True,
-                                        "cloud": False,
-                                        "network_zone": "local",
-                                        "cost_tier": "local",
-                                        "latency_tier": "local",
-                                    },
-                                }
-                                grid_workers.append(worker)
+            if "WORKER_ENDPOINTS" in state:
+                for endpoint in state["WORKER_ENDPOINTS"].split(","):
+                    endpoint = endpoint.strip()
+                    if not endpoint:
+                        continue
+                    # Format: worker_type:host:port
+                    parts = endpoint.split(":")
+                    if len(parts) >= 3:
+                        worker_type, host, port_str = parts[0], parts[1], parts[2]
+                        base_url = f"http://{host}:{port_str}/v1"
+                        healthy, models = await probe_worker(base_url, worker_type, timeout)
+                        gpu_info = await probe_gpu_info(base_url, worker_type, timeout=2.0) if healthy else None
+
+                        worker = {
+                            "name": f"grid-{worker_type}",
+                            "base_url": base_url,
+                            "healthy": healthy,
+                            "models": models,
+                            "dynamic_models": len(models) > 0,
+                            "capabilities": {
+                                "local": True,
+                                "cloud": False,
+                                "network_zone": "local",
+                                "cost_tier": "local",
+                                "latency_tier": "local",
+                            },
+                            "gpu_info": gpu_info,
+                        }
+                        grid_workers.append(worker)
         except Exception as e:
-            logger.debug("Failed to read Grid state: %s", e)
+            logger.debug("Failed to read Grid state %s: %s", state_path, e)
 
     return grid_workers
 
 
 def generate_provider_config(worker: DiscoveredWorker) -> dict[str, Any]:
     """Generate a provider configuration entry for a discovered worker."""
-    # Get base definition from registry
     base_def = LOCAL.get(worker["name"])
 
-    config = {
+    config: dict[str, Any] = {
         "contract": "local-worker",
         "backend": "openai-compat",
         "base_url": worker["base_url"],
@@ -206,11 +325,16 @@ def generate_provider_config(worker: DiscoveredWorker) -> dict[str, Any]:
         "capabilities": worker["capabilities"],
     }
 
-    # Add model if available
+    # Prefer dynamically enumerated model over static default
     if worker["models"]:
         config["model"] = worker["models"][0]
+        if len(worker["models"]) > 1:
+            config["available_models"] = worker["models"]
     elif base_def and "example_model" in base_def:
         config["model"] = base_def["example_model"]
+
+    if worker.get("gpu_info"):
+        config["gpu_info"] = worker["gpu_info"]
 
     return config
 
@@ -241,13 +365,27 @@ async def main() -> None:
         print(f"Discovered {len(workers)} local worker(s):")
         for worker in workers:
             status = "✓" if worker["healthy"] else "✗"
-            models = f", {len(worker['models'])} models" if worker["models"] else ""
-            print(f"  {status} {worker['name']}: {worker['base_url']}{models}")
+            model_note = f", {len(worker['models'])} models (dynamic)" if worker["dynamic_models"] else (
+                f", {len(worker['models'])} models" if worker["models"] else ""
+            )
+            print(f"  {status} {worker['name']}: {worker['base_url']}{model_note}")
 
             if worker["models"]:
                 print(f"    Models: {', '.join(worker['models'][:5])}")
                 if len(worker["models"]) > 5:
                     print(f"    ... and {len(worker['models']) - 5} more")
+
+            if worker.get("gpu_info"):
+                gpu = worker["gpu_info"]
+                parts = []
+                if "vram_used_mb" in gpu:
+                    parts.append(f"VRAM used: {gpu['vram_used_mb']}MB")
+                if "utilization_pct" in gpu:
+                    parts.append(f"GPU: {gpu['utilization_pct']}%")
+                if "queue_depth" in gpu:
+                    parts.append(f"queue: {gpu['queue_depth']}")
+                if parts:
+                    print(f"    GPU: {', '.join(parts)}")
 
 
 if __name__ == "__main__":

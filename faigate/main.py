@@ -2121,6 +2121,40 @@ async def _resolve_image_route_preview(
     )
     client_tag = _resolve_client_tag(headers, client_profile)
 
+    # Budget enforcement for image endpoints
+    limit_day = profile_hints.get("cost_limit_usd_day")
+    limit_month = profile_hints.get("cost_limit_usd_month")
+    if (limit_day or limit_month) and _metrics:
+        now = time.time()
+        if limit_day:
+            spent_day = _metrics.get_client_cost_since(client_profile, now - 86400)
+            if spent_day >= limit_day:
+                return JSONResponse(
+                    status_code=429,
+                    content={
+                        "error": {
+                            "type": "budget_exceeded",
+                            "message": f"Client profile '{client_profile}' has reached its daily budget limit "
+                                       f"(${spent_day:.4f} / ${limit_day:.4f} USD).",
+                            "code": "daily_budget_exceeded",
+                        }
+                    },
+                )
+        if limit_month:
+            spent_month = _metrics.get_client_cost_since(client_profile, now - 30 * 86400)
+            if spent_month >= limit_month:
+                return JSONResponse(
+                    status_code=429,
+                    content={
+                        "error": {
+                            "type": "budget_exceeded",
+                            "message": f"Client profile '{client_profile}' has reached its monthly budget limit "
+                                       f"(${spent_month:.4f} / ${limit_month:.4f} USD).",
+                            "code": "monthly_budget_exceeded",
+                        }
+                    },
+                )
+
     (
         effective_model_requested,
         direct_provider_name,
@@ -2727,6 +2761,26 @@ async def operator_events(
             update_type=update_type,
             eligible=eligible,
         )
+    }
+
+
+@app.get("/api/alerts")
+async def get_alerts(lookback_hours: int = 1, baseline_hours: int = 24):
+    """Anomaly detection: compare recent window against rolling baseline.
+
+    Returns detected anomalies with severity, description, and thresholds.
+    Useful for operator dashboards and automated alerting integrations.
+    """
+    anomalies = _metrics.get_anomalies(
+        lookback_hours=lookback_hours,
+        baseline_hours=baseline_hours,
+    )
+    return {
+        "anomalies": anomalies,
+        "lookback_hours": lookback_hours,
+        "baseline_hours": baseline_hours,
+        "count": len(anomalies),
+        "has_high_severity": any(a["severity"] == "high" for a in anomalies),
     }
 
 
