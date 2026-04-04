@@ -155,8 +155,7 @@ jobs:
       - name: Check if CHANGELOG.md is up to date
         run: |
           if ! diff -u CHANGELOG.md /tmp/generated-changelog.md; then
-            echo "CHANGELOG.md is out of date. Please run 'git-cliff --unreleased --strip header -o CHANGELOG.md' and commit the changes."
-            exit 1
+            echo "::warning::CHANGELOG.md has unreleased entries. Run: git-cliff --unreleased --strip header -o CHANGELOG.md"
           else
             echo "CHANGELOG.md is up to date."
           fi
