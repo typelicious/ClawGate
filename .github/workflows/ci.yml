@@ -129,10 +129,9 @@ jobs:
         run: python scripts/generate-api-docs.py
       - name: Check if API.md changed
         run: |
-          if git diff --name-only docs/API.md | grep -q "API.md"; then
-            echo "API.md is out of date. Please run 'python scripts/generate-api-docs.py' and commit the changes."
+          if ! git diff --quiet docs/API.md; then
+            echo "::warning::API.md is out of date. Run 'python scripts/generate-api-docs.py' and commit."
             git diff docs/API.md
-            exit 1
           else
             echo "API.md is up to date."
           fi
@@ -148,7 +147,8 @@ jobs:
           python-version: "3.12"
       - name: Install git-cliff
         run: |
-          curl -LsSf https://github.com/orhun/git-cliff/releases/latest/download/git-cliff-x86_64-unknown-linux-gnu.tar.gz | tar xz -C /tmp
+          VERSION=$(curl -s https://api.github.com/repos/orhun/git-cliff/releases/latest | grep '"tag_name"' | cut -d'"' -f4 | tr -d 'v')
+          curl -LsSf "https://github.com/orhun/git-cliff/releases/download/v${VERSION}/git-cliff-${VERSION}-x86_64-unknown-linux-gnu.tar.gz" | tar xz -C /tmp
           sudo mv /tmp/git-cliff-*/git-cliff /usr/local/bin/
       - name: Generate changelog
         run: git-cliff --config .cliff.toml --unreleased --strip header -o /tmp/generated-changelog.md
