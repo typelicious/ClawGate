@@ -653,50 +653,57 @@ class MetricsStore:
             b_reqs = b.get("reqs") or 1
             b_error_rate = b_failures / b_reqs
             if r_error_rate > 0.2 and r_error_rate > b_error_rate * 2:
-                anomalies.append({
-                    "type": "error_rate_spike",
-                    "severity": "high" if r_error_rate > 0.5 else "medium",
-                    "description": (
-                        f"Error rate {r_error_rate:.0%} in last {lookback_hours}h"
-                        f" (baseline: {b_error_rate:.0%})"
-                    ),
-                    "current_value": round(r_error_rate, 4),
-                    "baseline_value": round(b_error_rate, 4),
-                    "threshold": 0.2,
-                })
+                anomalies.append(
+                    {
+                        "type": "error_rate_spike",
+                        "severity": "high" if r_error_rate > 0.5 else "medium",
+                        "description": (
+                            f"Error rate {r_error_rate:.0%} in last {lookback_hours}h (baseline: {b_error_rate:.0%})"
+                        ),
+                        "current_value": round(r_error_rate, 4),
+                        "baseline_value": round(b_error_rate, 4),
+                        "threshold": 0.2,
+                    }
+                )
 
         # Latency spike (>2x baseline, and >500ms)
         if b_latency > 0 and r_latency > 500 and r_latency > b_latency * 2:
-            anomalies.append({
-                "type": "latency_spike",
-                "severity": "medium",
-                "description": f"Avg latency {r_latency:.0f}ms in last {lookback_hours}h (baseline: {b_latency:.0f}ms)",
-                "current_value": r_latency,
-                "baseline_value": b_latency,
-                "threshold": b_latency * 2,
-            })
+            anomalies.append(
+                {
+                    "type": "latency_spike",
+                    "severity": "medium",
+                    "description": f"Avg latency {r_latency:.0f}ms in last {lookback_hours}h (baseline: {b_latency:.0f}ms)",
+                    "current_value": r_latency,
+                    "baseline_value": b_latency,
+                    "threshold": b_latency * 2,
+                }
+            )
 
         # Cost spike (>3x normalized baseline, and >$0.01 absolute)
         if b_cost_norm > 0 and r_cost > 0.01 and r_cost > b_cost_norm * 3:
-            anomalies.append({
-                "type": "cost_spike",
-                "severity": "high",
-                "description": f"Cost ${r_cost:.4f} in last {lookback_hours}h (baseline rate: ${b_cost_norm:.4f}/h)",
-                "current_value": r_cost,
-                "baseline_value": b_cost_norm,
-                "threshold": b_cost_norm * 3,
-            })
+            anomalies.append(
+                {
+                    "type": "cost_spike",
+                    "severity": "high",
+                    "description": f"Cost ${r_cost:.4f} in last {lookback_hours}h (baseline rate: ${b_cost_norm:.4f}/h)",
+                    "current_value": r_cost,
+                    "baseline_value": b_cost_norm,
+                    "threshold": b_cost_norm * 3,
+                }
+            )
 
         # Traffic spike (>5x normalized baseline)
         if b_reqs_norm > 0 and r_reqs > b_reqs_norm * 5:
-            anomalies.append({
-                "type": "traffic_spike",
-                "severity": "low",
-                "description": f"{r_reqs} requests in last {lookback_hours}h (baseline: ~{b_reqs_norm:.0f}/h)",
-                "current_value": r_reqs,
-                "baseline_value": b_reqs_norm,
-                "threshold": b_reqs_norm * 5,
-            })
+            anomalies.append(
+                {
+                    "type": "traffic_spike",
+                    "severity": "low",
+                    "description": f"{r_reqs} requests in last {lookback_hours}h (baseline: ~{b_reqs_norm:.0f}/h)",
+                    "current_value": r_reqs,
+                    "baseline_value": b_reqs_norm,
+                    "threshold": b_reqs_norm * 5,
+                }
+            )
 
         return anomalies
 
