@@ -96,30 +96,18 @@ def _source_refresh_suggestion(item: dict[str, Any]) -> str:
             f"--provider {provider_id} and verify the source URL, parser, or "
             "auth assumptions before trusting catalog data here."
         )
-    return (
-        f"Refresh {provider_id} before relying on older model, pricing, "
-        "or free-tier assumptions."
-    )
+    return f"Refresh {provider_id} before relying on older model, pricing, or free-tier assumptions."
 
 
 def _catalog_change_suggestion(event: dict[str, Any]) -> str:
     change_type = str(event.get("change_type") or "")
     provider_id = str(event.get("provider_id") or "provider")
     if change_type == "model-removed":
-        return (
-            f"Review configured model ids and fallback mirrors for {provider_id}; "
-            "one catalog entry disappeared."
-        )
+        return f"Review configured model ids and fallback mirrors for {provider_id}; one catalog entry disappeared."
     if change_type == "field-changed":
-        return (
-            f"Recheck pricing, context, and routing weights for {provider_id}; "
-            "a tracked field changed."
-        )
+        return f"Recheck pricing, context, and routing weights for {provider_id}; a tracked field changed."
     if change_type == "model-added":
-        return (
-            f"Review whether the newly listed {provider_id} model belongs in "
-            "route additions or scenarios."
-        )
+        return f"Review whether the newly listed {provider_id} model belongs in route additions or scenarios."
     return f"Review recent provider catalog changes for {provider_id}."
 
 
@@ -189,10 +177,7 @@ def build_catalog_alerts(
                     "severity": "warning",
                     "action": "fix-now",
                     "provider_id": provider_id,
-                    "headline": (
-                        f"Configured route model not visible for local "
-                        f"{provider_id} key"
-                    ),
+                    "headline": (f"Configured route model not visible for local {provider_id} key"),
                     "detail": (
                         f"{mismatch.get('route_name')} expects "
                         f"{mismatch.get('model_id')}, but the latest local "
@@ -208,19 +193,14 @@ def build_catalog_alerts(
                 }
             )
         if list(local_availability.get("configured_models_missing_globally") or []):
-            missing_model = str(
-                local_availability["configured_models_missing_globally"][0]
-            )
+            missing_model = str(local_availability["configured_models_missing_globally"][0])
             alerts.append(
                 {
                     "kind": "catalog-route-mismatch",
                     "severity": "warning",
                     "action": "review-now",
                     "provider_id": provider_id,
-                    "headline": (
-                        f"Configured {provider_id} model missing from mirrored "
-                        "global catalog"
-                    ),
+                    "headline": (f"Configured {provider_id} model missing from mirrored global catalog"),
                     "detail": (
                         f"The configured model '{missing_model}' is not present "
                         "in the latest "
@@ -242,10 +222,7 @@ def build_catalog_alerts(
                     "severity": "notice",
                     "action": "inspect",
                     "provider_id": provider_id,
-                    "headline": (
-                        f"Local {provider_id} key exposes models missing from "
-                        "mirrored docs"
-                    ),
+                    "headline": (f"Local {provider_id} key exposes models missing from mirrored docs"),
                     "detail": (
                         f"The local models endpoint exposed '{local_only}', "
                         "which is not in the "
@@ -271,10 +248,7 @@ def build_catalog_alerts(
                     "severity": "notice",
                     "action": "review-now",
                     "provider_id": provider_id,
-                    "headline": (
-                        f"Free {provider_id} catalog entries are not visible "
-                        "for this key"
-                    ),
+                    "headline": (f"Free {provider_id} catalog entries are not visible for this key"),
                     "detail": (
                         f"The mirrored global catalog still lists '{free_model}' "
                         "as free, but the latest local models endpoint did not "
@@ -301,12 +275,8 @@ def build_catalog_alerts(
                     change_type=change_type,
                 ),
                 "provider_id": str(event.get("provider_id") or ""),
-                "headline": (
-                    f"Catalog change detected for {event.get('provider_id')}: "
-                    f"{event.get('change_type')}"
-                ),
-                "detail": str(event.get("message") or "").strip()
-                or "A provider catalog change was detected.",
+                "headline": (f"Catalog change detected for {event.get('provider_id')}: {event.get('change_type')}"),
+                "detail": str(event.get("message") or "").strip() or "A provider catalog change was detected.",
                 "suggestion": _catalog_change_suggestion(event),
                 "source_kind": str(event.get("source_kind") or ""),
                 "change_type": change_type,
@@ -420,19 +390,14 @@ def build_catalog_summary(
                 "models_count": len(latest_models),
                 "pricing_count": len(latest_pricing),
                 "docs_index_count": len(latest_docs_index),
-                "sample_models": [
-                    str(item.get("model_id") or "")
-                    for item in (latest_pricing or latest_models)[:5]
-                ],
+                "sample_models": [str(item.get("model_id") or "") for item in (latest_pricing or latest_models)[:5]],
                 "local_availability": local_availability,
                 "billing_notes": str(source.get("billing_notes") or ""),
                 "account_profile": store.get_account_profile(provider_id),
             }
         )
 
-    selected_provider_id = (
-        provider_ids[0] if provider_ids and len(provider_ids) == 1 else None
-    )
+    selected_provider_id = provider_ids[0] if provider_ids and len(provider_ids) == 1 else None
     recent_events = store.get_recent_change_events(
         provider_id=selected_provider_id,
         limit=20,
@@ -461,10 +426,7 @@ def build_catalog_summary(
     elif recent_events:
         priority_next = {
             "path": "Provider Catalog Review",
-            "why": (
-                "recent provider catalog changes were detected and should "
-                "be reviewed."
-            ),
+            "why": ("recent provider catalog changes were detected and should be reviewed."),
         }
 
     alerts = build_catalog_alerts(
@@ -504,10 +466,7 @@ def render_catalog_summary_text(
         + f"due={int(summary.get('due_sources') or 0)} | "
         + f"recent changes={int(summary.get('recent_changes') or 0)}"
     )
-    alert_summary = dict(
-        summary.get("alert_summary")
-        or build_catalog_alert_summary(list(summary.get("alerts") or []))
-    )
+    alert_summary = dict(summary.get("alert_summary") or build_catalog_alert_summary(list(summary.get("alerts") or [])))
     lines.append(
         "  alert summary: "
         + f"status={alert_summary.get('status') or 'clear'} | "
@@ -528,14 +487,9 @@ def render_catalog_summary_text(
         if item.get("billing_notes"):
             lines.append(f"    billing: {item['billing_notes']}")
         if item.get("refresh_interval_seconds"):
-            lines.append(
-                f"    refresh interval: {int(item['refresh_interval_seconds'])}s"
-            )
+            lines.append(f"    refresh interval: {int(item['refresh_interval_seconds'])}s")
         if item.get("seconds_since_success") is not None:
-            lines.append(
-                f"    age: {int(float(item['seconds_since_success']))}s "
-                "since last success"
-            )
+            lines.append(f"    age: {int(float(item['seconds_since_success']))}s since last success")
         profile = dict(item.get("account_profile") or {})
         if profile:
             profile_bits = [str(profile.get("billing_mode") or "")]
@@ -545,10 +499,7 @@ def render_catalog_summary_text(
                 profile_bits.append(f"window={profile['quota_window']}")
             if profile.get("quota_remaining") is not None:
                 profile_bits.append(f"remaining={profile['quota_remaining']}")
-            lines.append(
-                "    local account: "
-                + " | ".join(bit for bit in profile_bits if bit)
-            )
+            lines.append("    local account: " + " | ".join(bit for bit in profile_bits if bit))
         local_availability = dict(item.get("local_availability") or {})
         if local_availability:
             lines.append(
@@ -562,10 +513,7 @@ def render_catalog_summary_text(
             )
             if local_availability.get("configured_models_missing_globally"):
                 lines.append(
-                    "    catalog mismatch: "
-                    + ", ".join(
-                        local_availability["configured_models_missing_globally"][:3]
-                    )
+                    "    catalog mismatch: " + ", ".join(local_availability["configured_models_missing_globally"][:3])
                 )
             if local_availability.get("key_model_mismatches"):
                 lines.append(
@@ -576,10 +524,7 @@ def render_catalog_summary_text(
                     )
                 )
             if local_availability.get("local_only_models"):
-                lines.append(
-                    "    local-only models: "
-                    + ", ".join(local_availability["local_only_models"][:3])
-                )
+                lines.append("    local-only models: " + ", ".join(local_availability["local_only_models"][:3]))
         if item.get("last_error"):
             lines.append(f"    last error: {item['last_error']}")
     events = list(summary.get("recent_events") or [])
@@ -624,9 +569,7 @@ def due_provider_ids(
         stored = dict(source_rows.get(provider_id) or {})
         last_success_at = float(stored.get("last_success_at") or 0)
         refresh_interval_seconds = int(
-            stored.get("refresh_interval_seconds")
-            or source.get("refresh_interval_seconds")
-            or 21600
+            stored.get("refresh_interval_seconds") or source.get("refresh_interval_seconds") or 21600
         )
         if not last_success_at or refresh_interval_seconds <= 0:
             due.append(provider_id)
@@ -724,9 +667,7 @@ def parse_regex_model_refs(
     """Extract model ids from docs text using prefixes and regex patterns."""
     found: set[str] = set()
     rows: list[dict[str, Any]] = []
-    prefix_patterns = [
-        re.escape(prefix) + r"[a-zA-Z0-9.\-:\/]+" for prefix in (model_prefixes or [])
-    ]
+    prefix_patterns = [re.escape(prefix) + r"[a-zA-Z0-9.\-:\/]+" for prefix in (model_prefixes or [])]
     for pattern in prefix_patterns + list(model_patterns or []):
         for match in re.findall(pattern, text):
             token = str(match).strip("`*.,)('\"")
@@ -806,9 +747,7 @@ def _diff_model_sets(
                 "field_name": "model_id",
                 "old_value": "",
                 "new_value": model_id,
-                "message": (
-                    f"{provider_id}: model '{model_id}' appeared in {source_kind}."
-                ),
+                "message": (f"{provider_id}: model '{model_id}' appeared in {source_kind}."),
             }
         )
     for model_id in sorted(previous_by_id.keys() - current_by_id.keys()):
@@ -823,9 +762,7 @@ def _diff_model_sets(
                 "field_name": "model_id",
                 "old_value": model_id,
                 "new_value": "",
-                "message": (
-                    f"{provider_id}: model '{model_id}' disappeared from {source_kind}."
-                ),
+                "message": (f"{provider_id}: model '{model_id}' disappeared from {source_kind}."),
             }
         )
     for model_id in sorted(current_by_id.keys() & previous_by_id.keys()):
