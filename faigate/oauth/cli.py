@@ -662,12 +662,10 @@ def main() -> None:
             print("Supported: qwen-portal, claude-code, google-gemini-cli, google-antigravity", file=sys.stderr)
             sys.exit(1)
 
-        # Only surface non-sensitive metadata; tokens are written to the creds file.
-        _META_KEYS = ("base_url", "base_url_discovered", "token_type", "scope",
-                      "expiry_date", "expires_in", "provider")
-        meta: dict[str, Any] = {k: token_data[k] for k in _META_KEYS if k in token_data}
-        meta["tokens"] = "REDACTED (stored in credentials file)"
-        print(json.dumps(meta, indent=2))
+        # Tokens are written to the provider credentials file by each auth function.
+        # Do not print any value derived from token_data to stdout.
+        print(f"Authentication successful for {args.provider}.")
+        print("Token stored in credentials file.")
 
     except Exception as e:
         logger.error("Failed to obtain token: %s", e)
