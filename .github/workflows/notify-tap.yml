@@ -8,6 +8,18 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
+      - name: Validate release title convention
+        # Required: "fusionAIze Gate vX.Y.Z" or "fusionAIze Gate vX.Y.Z – <subtitle>"
+        run: |
+          TITLE="${{ github.event.release.name }}"
+          if echo "$TITLE" | grep -qE '^fusionAIze Gate v[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "Release title OK: $TITLE"
+          else
+            echo "::error::Release title must start with 'fusionAIze Gate vX.Y.Z'. Got: $TITLE"
+            echo "::error::Fix: gh release edit ${{ github.event.release.tag_name }} --repo fusionAIze/faigate --title 'fusionAIze Gate ${{ github.event.release.tag_name }} – <subtitle>'"
+            exit 1
+          fi
+
       - name: Compute SHA256
         id: sha
         run: |
