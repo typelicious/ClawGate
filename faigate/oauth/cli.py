@@ -96,7 +96,7 @@ def qwen_oauth() -> dict[str, Any]:
     try:
         with open(creds_path) as f:
             creds = json.load(f)
-    except (json.JSONDecodeError, IOError) as e:
+    except (OSError, json.JSONDecodeError) as e:
         raise RuntimeError(f"Failed to read Qwen credentials from {creds_path}: {e}")
 
     access_token = creds.get("access_token")
@@ -286,7 +286,7 @@ def antigravity_oauth() -> dict[str, Any]:
     try:
         with open(creds_path) as f:
             creds = json.load(f)
-    except (json.JSONDecodeError, IOError) as e:
+    except (OSError, json.JSONDecodeError) as e:
         raise RuntimeError(f"Failed to read Antigravity credentials from {creds_path}: {e}")
 
     access_token = creds.get("access_token")
@@ -507,7 +507,7 @@ def claude_code_oauth() -> dict[str, Any]:
                     "expires_in": 3600 * 24 * 365,
                     "scope": "claude-code",
                 }
-        except (json.JSONDecodeError, IOError) as e:
+        except (OSError, json.JSONDecodeError) as e:
             logger.warning("Failed to read claude settings: %s", e)
 
     print("Claude Code token not found.")
