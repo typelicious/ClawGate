@@ -25,6 +25,8 @@ def _write_config(tmp_path: Path, body: str) -> Path:
 
 @pytest.fixture
 def provider_catalog_api_state(tmp_path: Path, monkeypatch):
+    # Clear any FAIGATE_CONFIG_FILE leaked from test_main_uses_explicit_config_arg
+    monkeypatch.delenv("FAIGATE_CONFIG_FILE", raising=False)
     db_path = tmp_path / "faigate.db"
     cfg = load_config(
         _write_config(
