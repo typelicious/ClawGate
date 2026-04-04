@@ -595,7 +595,7 @@ class MetricsStore:
             "SELECT ROUND(SUM(cost_usd),6) AS cost FROM requests WHERE client_profile=? AND timestamp>=?",
             (client_profile, since_ts),
         )
-        return float((rows[0].get("cost") or 0.0)) if rows else 0.0
+        return float(rows[0].get("cost") or 0.0) if rows else 0.0
 
     def get_anomalies(self, lookback_hours: int = 1, baseline_hours: int = 24) -> list[dict]:
         """Detect anomalies by comparing recent window to a rolling baseline.
@@ -656,7 +656,10 @@ class MetricsStore:
                 anomalies.append({
                     "type": "error_rate_spike",
                     "severity": "high" if r_error_rate > 0.5 else "medium",
-                    "description": f"Error rate {r_error_rate:.0%} in last {lookback_hours}h (baseline: {b_error_rate:.0%})",
+                    "description": (
+                        f"Error rate {r_error_rate:.0%} in last {lookback_hours}h"
+                        f" (baseline: {b_error_rate:.0%})"
+                    ),
                     "current_value": round(r_error_rate, 4),
                     "baseline_value": round(b_error_rate, 4),
                     "threshold": 0.2,
