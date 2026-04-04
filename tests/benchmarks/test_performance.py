@@ -29,67 +29,16 @@ sys.modules["httpx"] = _httpx
 
 # Import faigate modules after mocking
 from faigate import config
-from faigate.providers import ProviderCatalog
-from faigate.routing import Router
 
 
-@pytest.fixture
-def sample_catalog():
-    """Create a sample provider catalog for benchmarking."""
-    catalog = ProviderCatalog()
-    # Add mock providers
-    catalog._providers = {
-        "openai": {
-            "id": "openai",
-            "name": "OpenAI",
-            "enabled": True,
-            "capabilities": ["chat", "completions"],
-            "cost_per_token": 0.000001,
-        },
-        "anthropic": {
-            "id": "anthropic",
-            "name": "Anthropic",
-            "enabled": True,
-            "capabilities": ["chat", "claude"],
-            "cost_per_token": 0.0000015,
-        },
-        "local": {
-            "id": "local",
-            "name": "Local",
-            "enabled": True,
-            "capabilities": ["chat"],
-            "cost_per_token": 0.0,
-        },
-    }
-    return catalog
-
-
-@pytest.fixture
-def sample_router(sample_catalog):
-    """Create a router with sample catalog."""
-    return Router(catalog=sample_catalog)
-
-
+@pytest.mark.skip("ProviderCatalog/Router removed in v2.x refactor")
 def test_router_initialization(benchmark):
-    """Benchmark router initialization time."""
-
-    def init_router():
-        catalog = ProviderCatalog()
-        catalog._providers = {"test": {"id": "test", "enabled": True}}
-        return Router(catalog=catalog)
-
-    result = benchmark(init_router)
-    assert result is not None
+    pass
 
 
-def test_provider_selection(benchmark, sample_router):
-    """Benchmark provider selection algorithm."""
-
-    def select_provider():
-        return sample_router.select_provider(model="gpt-4", capabilities=["chat"], max_cost=0.01)
-
-    result = benchmark(select_provider)
-    assert result in ("openai", "anthropic", "local", None)
+@pytest.mark.skip("ProviderCatalog/Router removed in v2.x refactor")
+def test_provider_selection(benchmark):
+    pass
 
 
 def test_config_loading(benchmark):
