@@ -672,7 +672,9 @@ class MetricsStore:
                 {
                     "type": "latency_spike",
                     "severity": "medium",
-                    "description": f"Avg latency {r_latency:.0f}ms in last {lookback_hours}h (baseline: {b_latency:.0f}ms)",
+                    "description": (
+                        f"Avg latency {r_latency:.0f}ms in last {lookback_hours}h (baseline: {b_latency:.0f}ms)"
+                    ),
                     "current_value": r_latency,
                     "baseline_value": b_latency,
                     "threshold": b_latency * 2,
@@ -685,7 +687,9 @@ class MetricsStore:
                 {
                     "type": "cost_spike",
                     "severity": "high",
-                    "description": f"Cost ${r_cost:.4f} in last {lookback_hours}h (baseline rate: ${b_cost_norm:.4f}/h)",
+                    "description": (
+                        f"Cost ${r_cost:.4f} in last {lookback_hours}h (baseline rate: ${b_cost_norm:.4f}/h)"
+                    ),
                     "current_value": r_cost,
                     "baseline_value": b_cost_norm,
                     "threshold": b_cost_norm * 3,
