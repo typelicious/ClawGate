@@ -24,13 +24,15 @@ logger = logging.getLogger("faigate.oauth.cli")
 
 # ── Antigravity constants (from LLM AI Router OAuth URL) ─────────────────────
 _ANTIGRAVITY_CLIENT_ID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
-_ANTIGRAVITY_SCOPE = " ".join([
-    "https://www.googleapis.com/auth/cloud-platform",
-    "https://www.googleapis.com/auth/userinfo.email",
-    "https://www.googleapis.com/auth/userinfo.profile",
-    "https://www.googleapis.com/auth/cclog",
-    "https://www.googleapis.com/auth/experimentsandconfigs",
-])
+_ANTIGRAVITY_SCOPE = " ".join(
+    [
+        "https://www.googleapis.com/auth/cloud-platform",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/userinfo.profile",
+        "https://www.googleapis.com/auth/cclog",
+        "https://www.googleapis.com/auth/experimentsandconfigs",
+    ]
+)
 _ANTIGRAVITY_AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 _ANTIGRAVITY_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 _ANTIGRAVITY_CREDS_PATH = "~/.gemini/oauth_creds.json"
@@ -102,16 +104,14 @@ def qwen_oauth() -> dict[str, Any]:
     access_token = creds.get("access_token")
     if not access_token:
         raise RuntimeError(
-            f"Qwen credentials at {creds_path} have no access_token. "
-            "Please re-authenticate: qwen auth login"
+            f"Qwen credentials at {creds_path} have no access_token. Please re-authenticate: qwen auth login"
         )
 
     # Check expiry (expiry_date is in milliseconds)
     expiry_ms = creds.get("expiry_date")
     if expiry_ms and expiry_ms < time.time() * 1000:
         logger.warning(
-            "Qwen token appears expired (expiry: %s). "
-            "Consider refreshing: qwen auth login",
+            "Qwen token appears expired (expiry: %s). Consider refreshing: qwen auth login",
             expiry_ms,
         )
 
@@ -393,9 +393,7 @@ def antigravity_login() -> dict[str, Any]:
 
     # Generate PKCE code_verifier + code_challenge (S256)
     code_verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b"=").decode()
-    code_challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(code_verifier.encode()).digest()
-    ).rstrip(b"=").decode()
+    code_challenge = base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode()).digest()).rstrip(b"=").decode()
 
     state = secrets.token_urlsafe(24)
     redirect_uri = f"http://localhost:{_ANTIGRAVITY_CALLBACK_PORT}/callback"
@@ -527,7 +525,9 @@ def google_vertex_adc() -> dict[str, Any]:
     try:
         result = subprocess.run(
             ["gcloud", "auth", "print-access-token"],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         )
         access_token = result.stdout.strip()
         if not access_token:
@@ -539,10 +539,7 @@ def google_vertex_adc() -> dict[str, Any]:
             "scope": "https://www.googleapis.com/auth/cloud-platform",
         }
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        raise RuntimeError(
-            f"Failed to obtain Google ADC token: {e}. "
-            "Ensure gcloud is installed and authenticated."
-        )
+        raise RuntimeError(f"Failed to obtain Google ADC token: {e}. Ensure gcloud is installed and authenticated.")
 
 
 def google_oauth_device_flow(
