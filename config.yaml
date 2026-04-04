@@ -976,22 +976,22 @@ providers:
   #     connect_s: 10
   #     read_s: 90
 
-  # ── OAuth‑managed providers (v2.1.0+) ─────────────────────────────────────
-  # qwen‑portal:
-  #   backend: oauth
-  #   oauth:
-  #     helper: "faigate‑auth qwen‑portal"
-  #     client_id: "qwen‑portal‑client"
-  #     token_endpoint: "https://qwen.example.com/oauth/token"
-  #     refresh_endpoint: "https://qwen.example.com/oauth/refresh"
-  #     scope: "openid email"
-  #   underlying_backend: openai‑compat
-  #   base_url: "https://qwen‑portal.example.com/v1"
-  #   model: qwen‑portal/coder‑model
+  # ── OAuth‑managed providers ────────────────────────────────────────────────
+  #
+  # qwen-portal (Qwen OAuth free tier via qwen-code CLI)
+  # Prerequisites: npm install -g @qwen-code/cli && qwen auth login
+  # Token is read from ~/.qwen/oauth_creds.json; base_url from resource_url field.
+  # Set QWEN_PORTAL_TOKEN to the access_token value, or let faigate-auth resolve it.
+  #
+  # qwen-portal:
+  #   backend: openai-compat
+  #   base_url: "https://portal.qwen.ai/compatible-mode/v1"  # or use $QWEN_PORTAL_BASE_URL
+  #   api_key_env: QWEN_PORTAL_TOKEN
+  #   model: coder-model
   #   tier: default
   #   timeout:
   #     connect_s: 10
-  #     read_s: 60
+  #     read_s: 90
 
   # claude‑code:
   #   backend: oauth

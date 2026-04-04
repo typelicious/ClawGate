@@ -416,16 +416,17 @@ OAUTH: dict[str, ProviderDef] = {
         pricing={"input": 0.0, "output": 0.0},
         notes="Google Gemini via Vertex AI – uses gcloud ADC; requires: gcloud auth login",
     ),
-    # ── Qwen OAuth (free tier) ────────────────────────────────────────────
+    # ── Qwen OAuth (free tier via qwen-code CLI) ──────────────────────────
     "qwen-portal": ProviderDef(
         backend="openai-compat",
-        base_url="https://qwen-portal.example.com/v1",  # placeholder; set via oauth
+        base_url="https://portal.qwen.ai/compatible-mode/v1",
+        base_url_env="QWEN_PORTAL_BASE_URL",
         api_key_env="QWEN_PORTAL_TOKEN",
         auth_optional=True,
         tier="default",
-        example_model="qwen-portal/coder-model",
+        example_model="coder-model",
         pricing={"input": 0.0, "output": 0.0},
-        notes=("Qwen OAuth (free tier) – device-code flow; requires: openclaw plugins enable qwen-portal-auth"),
+        notes="Qwen OAuth (free tier) – reads token from ~/.qwen/oauth_creds.json; run: qwen auth login",
     ),
     # ── Claude Code (OAuth via Anthropic) ──────────────────────────────────
     "claude-code": ProviderDef(
