@@ -114,12 +114,8 @@ def test_local_models_endpoint_overlay_detects_key_specific_mismatch(tmp_path: P
         config_path=str(config_path),
         fetcher=FakeJsonFetcher(
             {
-                "https://api.blackbox.ai/v1/models": {
-                    "data": [{"id": "x-ai/grok-code-fast-1"}]
-                },
-                "https://api.deepseek.com/v1/models": {
-                    "data": [{"id": "deepseek-chat"}, {"id": "deepseek-reasoner"}]
-                },
+                "https://api.blackbox.ai/v1/models": {"data": [{"id": "x-ai/grok-code-fast-1"}]},
+                "https://api.deepseek.com/v1/models": {"data": [{"id": "deepseek-chat"}, {"id": "deepseek-reasoner"}]},
             }
         ),
     )
