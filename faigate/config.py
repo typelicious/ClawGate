@@ -994,9 +994,7 @@ def _normalize_policy_select(
             elif isinstance(raw_limit, (int, float)) and raw_limit > 0:
                 normalized[limit_field] = float(raw_limit)
             else:
-                raise ConfigError(
-                    f"Policy '{name}' field '{limit_field}' must be a positive number (USD)"
-                )
+                raise ConfigError(f"Policy '{name}' field '{limit_field}' must be a positive number (USD)")
 
     return normalized
 
