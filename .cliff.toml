@@ -26,7 +26,7 @@ trim = true
 postprocessors = [
     # Remove trailing whitespace
     { pattern = "\n{3,}", replace = "\n\n" },
-    { pattern = r"\r", replace = "" },
+    { pattern = "\\r", replace = "" },
 ]
 # sort the commits inside sections
 sort_commits = "newest"
