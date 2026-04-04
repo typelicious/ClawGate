@@ -31,10 +31,9 @@ refreshes tokens once they are obtained.
 
 import json
 import logging
-import os
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger("faigate.oauth")
 
@@ -42,7 +41,7 @@ logger = logging.getLogger("faigate.oauth")
 class TokenStore:
     """Manages OAuth2 tokens for managed providers."""
 
-    def __init__(self, config_dir: Optional[str] = None):
+    def __init__(self, config_dir: str | None = None):
         """Initialize token store.
 
         Args:
@@ -66,7 +65,7 @@ class TokenStore:
             self._tokens = {}
             return
         try:
-            with open(self.token_path, "r", encoding="utf-8") as f:
+            with open(self.token_path, encoding="utf-8") as f:
                 self._tokens = json.load(f)
             logger.debug("Loaded tokens for %d providers", len(self._tokens))
         except (json.JSONDecodeError, OSError) as e:
@@ -86,7 +85,7 @@ class TokenStore:
             logger.error("Failed to save tokens to %s: %s", self.token_path, e)
             raise
 
-    def get(self, provider: str) -> Optional[dict[str, Any]]:
+    def get(self, provider: str) -> dict[str, Any] | None:
         """Get token data for a provider.
 
         Returns None if the provider has no stored token.
