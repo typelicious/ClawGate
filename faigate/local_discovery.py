@@ -61,8 +61,8 @@ HEALTH_CHECKS = {
 # GPU/metrics endpoints per worker type
 # These are best-effort — failure is silently ignored
 GPU_ENDPOINTS = {
-    "ollama": "/api/ps",          # Ollama process info including GPU usage
-    "vllm": "/metrics",           # Prometheus text metrics
+    "ollama": "/api/ps",  # Ollama process info including GPU usage
+    "vllm": "/metrics",  # Prometheus text metrics
     "lmstudio": None,
     "litellm": None,
 }
@@ -201,7 +201,10 @@ async def discover_local_workers(
                 gpu_note = f", GPU: {gpu_info}" if gpu_info else ""
                 logger.info(
                     "Discovered healthy %s worker at %s (%d model(s)%s)",
-                    worker_name, base_url, model_count, gpu_note,
+                    worker_name,
+                    base_url,
+                    model_count,
+                    gpu_note,
                 )
             else:
                 logger.debug("Found %s worker at %s but health check failed", worker_name, base_url)
@@ -365,8 +368,10 @@ async def main() -> None:
         print(f"Discovered {len(workers)} local worker(s):")
         for worker in workers:
             status = "✓" if worker["healthy"] else "✗"
-            model_note = f", {len(worker['models'])} models (dynamic)" if worker["dynamic_models"] else (
-                f", {len(worker['models'])} models" if worker["models"] else ""
+            model_note = (
+                f", {len(worker['models'])} models (dynamic)"
+                if worker["dynamic_models"]
+                else (f", {len(worker['models'])} models" if worker["models"] else "")
             )
             print(f"  {status} {worker['name']}: {worker['base_url']}{model_note}")
 
