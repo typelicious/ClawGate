@@ -525,7 +525,9 @@ def google_vertex_adc() -> dict[str, Any]:
     try:
         result = subprocess.run(
             ["gcloud", "auth", "print-access-token"],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         )
         access_token = result.stdout.strip()
         if not access_token:
@@ -537,10 +539,7 @@ def google_vertex_adc() -> dict[str, Any]:
             "scope": "https://www.googleapis.com/auth/cloud-platform",
         }
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        raise RuntimeError(
-            f"Failed to obtain Google ADC token: {e}. "
-            "Ensure gcloud is installed and authenticated."
-        )
+        raise RuntimeError(f"Failed to obtain Google ADC token: {e}. Ensure gcloud is installed and authenticated.")
 
 
 def google_oauth_device_flow(
