@@ -1,5 +1,23 @@
 # fusionAIze Gate Changelog
 
+## v2.1.2 - 2026-04-07
+
+### Fixed
+
+- **Codex `chat_path` bug**: `openai-compat` backend appended `/chat/completions` to the Codex endpoint URL. Codex base_url IS the full endpoint; per-provider transport bindings now set `chat_path: ""` for all `openai-codex*` providers
+- **`faigate-auth` JSON output**: `OAuthBackend._run_helper()` expects JSON on stdout; CLI was printing human-readable text → `json.JSONDecodeError` on every Codex request. Fixed: token data now printed as JSON to stdout; status messages go to stderr
+- **`max_tokens` limit**: OpenCode model limit was 32768, Codex endpoint maximum is 8192 → `invalid_request_error`. All Codex models now capped at 8192
+- **Fallback to paid providers**: Removed Sonnet/GPT-4o from Codex `degrade_to` chains
+- **`oauth` backend validation**: Added `oauth` to `_SUPPORTED_BACKENDS` in `config.py`
+
+### Added
+
+- **GPT-5.4 reasoning effort control**: `default_extra_body` mechanism in `providers.py` injects provider-configured fields into every request. New providers: `openai-codex-5.4-xhigh` (`extra_high`), `openai-codex-5.4-high` (`high`), `openai-codex-5.4-medium` (`medium`), `openai-codex-5.4-low` (`low`)
+- **Codex 5.3 reasoning variants**: `openai-codex-xhigh` → `gpt-5.3-codex-xhigh`, `openai-codex-low` → `gpt-5.3-codex-low`
+- **All 20 Codex model variants** in `_CANONICAL_MODEL_LANES` (gpt-5.4, gpt-5.3-codex family, gpt-5.2, gpt-5.1 series, gpt-4.1, gpt-4o, o4-mini)
+- **OAuth transport profile**: Default transport binding for `oauth` backend with `chat_path: ""`
+- **OpenCode model menu**: 10 Codex model entries covering all reasoning levels
+
 ## v2.1.1 - 2026-04-06
 
 ### Added
