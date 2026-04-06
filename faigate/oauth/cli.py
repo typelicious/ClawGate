@@ -863,7 +863,9 @@ def main() -> None:
     parser.add_argument("--client-id", help="OAuth client ID (for Google flows)")
     parser.add_argument("--scope", help="OAuth scope override")
     parser.add_argument("--refresh", action="store_true", help="Refresh existing token instead of new login")
-    parser.add_argument("--login", action="store_true", help="Force interactive browser login (openai-codex, google-antigravity)")
+    parser.add_argument(
+        "--login", action="store_true", help="Force interactive browser login (openai-codex, google-antigravity)"
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose logging")
     args = parser.parse_args()
 
@@ -935,7 +937,10 @@ def main() -> None:
 
         else:
             print(f"Unknown provider: {args.provider}", file=sys.stderr)
-            print("Supported: qwen-portal, claude-code, openai-codex, google-gemini-cli, google-antigravity", file=sys.stderr)
+            print(
+                "Supported: qwen-portal, claude-code, openai-codex, google-gemini-cli, google-antigravity",
+                file=sys.stderr,
+            )
             sys.exit(1)
 
         # Tokens are written to the provider credentials file by each auth function.
