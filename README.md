@@ -1,6 +1,5 @@
 # fusionAIze Gate
 
-[![repo-safety](https://github.com/fusionAIze/faigate/actions/workflows/repo-safety.yml/badge.svg)](https://github.com/fusionAIze/faigate/actions/workflows/repo-safety.yml)
 [![CI](https://github.com/fusionAIze/faigate/actions/workflows/ci.yml/badge.svg)](https://github.com/fusionAIze/faigate/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/fusionAIze/faigate/actions/workflows/codeql.yml/badge.svg)](https://github.com/fusionAIze/faigate/actions/workflows/codeql.yml)
 [![Release](https://img.shields.io/github/v/release/fusionAIze/faigate?display_name=tag)](https://github.com/fusionAIze/faigate/releases)
