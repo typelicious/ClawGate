@@ -1,5 +1,23 @@
 # fusionAIze Gate Changelog
 
+## v2.1.0 - 2026-04-05
+
+### Added
+
+- **Shell parity & complete provider coverage**: CLI deep-links, `--suggest` and `--link` flags, full LLMAIRouter and KiloCode model-level lane coverage (v2.0.0 baseline)
+- **Qwen OAuth**: production-ready integration via `qwen-code` CLI credentials; device-code flow, token refresh, `coder-model` + `qwen-code` alias
+- **Antigravity OAuth**: Authorization Code + PKCE flow; reads `~/.gemini/oauth_creds.json`; calls Google Generative Language API directly (not through local gRPC proxy)
+- **Google Antigravity provider**: full registry, catalog, and lane-registry integration for `ag/` model family (Claude Opus/Sonnet 4.6, Gemini 3.x variants)
+- **CI Gate**: single required status check consolidating test, lint, package, and forbid-artifacts; admin bypass disabled
+- **Auto-merge bot**: PRs merge automatically once CI Gate passes (`gh pr merge --auto --squash`)
+- **pre-commit enforcement**: `validate-config` step in CI; `pre-commit install` required in onboarding
+
+### Changed
+
+- Antigravity `base_url` resolved to `generativelanguage.googleapis.com/v1beta/openai` (was incorrect endpoint)
+- `forbid-artifacts` check consolidated into `ci.yml` (removed separate `repo-safety.yml`)
+- Release title convention enforced in `notify-tap` workflow (`fusionAIze Gate vX.Y.Z`)
+
 ## v2.0.1 - 2026-04-04
 
 ### Added
