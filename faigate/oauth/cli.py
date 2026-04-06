@@ -591,9 +591,7 @@ def openai_codex_oauth() -> dict[str, Any]:
 
     exp = _codex_jwt_expiry(access_token)
     if exp is not None and exp < time.time():
-        logger.warning(
-            "OpenAI Codex token expired (exp=%s). Run: faigate-auth openai-codex --refresh", exp
-        )
+        logger.warning("OpenAI Codex token expired (exp=%s). Run: faigate-auth openai-codex --refresh", exp)
 
     return {
         "access_token": access_token,
@@ -682,9 +680,7 @@ def openai_codex_login() -> dict[str, Any]:
         raise RuntimeError("requests package required. Install with: pip install faigate[oauth]")
 
     code_verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b"=").decode()
-    code_challenge = (
-        base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode()).digest()).rstrip(b"=").decode()
-    )
+    code_challenge = base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode()).digest()).rstrip(b"=").decode()
     state = secrets.token_urlsafe(24)
     redirect_uri = f"http://localhost:{_CODEX_CALLBACK_PORT}/auth/callback"
 
