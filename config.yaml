@@ -993,21 +993,33 @@ providers:
   #     connect_s: 10
   #     read_s: 90
 
-  # claude‑code:
-  #   backend: oauth
-  #   oauth:
-  #     helper: "faigate‑auth claude‑code"
-  #     client_id: "anthropic‑codex‑client"
-  #     token_endpoint: "https://api.anthropic.com/oauth/token"
-  #     refresh_endpoint: "https://api.anthropic.com/oauth/refresh"
-  #     scope: "openid email"
-  #   underlying_backend: anthropic‑compat
-  #   base_url: ${ANTHROPIC_BASE_URL:-https://api.anthropic.com/v1}
-  #   model: claude‑code
-  #   tier: default
-  #   timeout:
-  #     connect_s: 10
-  #     read_s: 90
+  claude-code:
+    # Token from macOS Keychain (Claude Code-credentials). Run: faigate-auth claude-code
+    # Inference via api.anthropic.com/v1/messages with Bearer OAuth token.
+    # Requires anthropic-beta: oauth-2025-04-20 header (injected via extra_headers).
+    # Refresh tokens are single-use; faigate rewrites keychain after every refresh.
+    backend: oauth
+    oauth:
+      helper: "faigate-auth claude-code"
+      client_id: "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+      token_endpoint: "https://platform.claude.com/v1/oauth/token"
+      refresh_endpoint: "https://platform.claude.com/v1/oauth/token"
+      scope: "user:inference user:profile"
+    underlying_backend: anthropic-compat
+    base_url: "https://api.anthropic.com/v1"
+    model: claude-sonnet-4-6
+    tier: default
+    capabilities:
+      cost_tier: free
+      latency_tier: balanced
+      streaming: true
+    extra_headers:
+      anthropic-version: "2023-06-01"
+      anthropic-beta: "oauth-2025-04-20"
+      anthropic-dangerous-direct-browser-access: "true"
+    timeout:
+      connect_s: 10
+      read_s: 120
 
   openai-codex:
     # Token from ~/.codex/auth.json (auth_mode=chatgpt). Run: faigate-auth openai-codex

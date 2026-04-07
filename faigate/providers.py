@@ -11,13 +11,11 @@ from typing import Any
 
 import httpx
 
-# OAuth backend (optional)
-try:
-    from .oauth.backend import OAuthBackend
-except ImportError:
-    OAuthBackend = None
-
 from .lane_registry import get_provider_transport_binding
+
+# OAuthBackend is imported lazily in create_provider_backend() to avoid
+# a circular import: oauth/backend.py imports ProviderBackend from this module.
+OAuthBackend = None
 
 logger = logging.getLogger("faigate.providers")
 _UNRESOLVED_ENV_RE = re.compile(r"\$\{[^}]+}")
@@ -59,12 +57,14 @@ def create_provider_backend(name: str, cfg: dict) -> ProviderBackend:
     """Create a provider backend instance, handling OAuth wrapping if needed."""
     backend_type = cfg.get("backend", "openai-compat")
     if backend_type == "oauth":
-        if OAuthBackend is None:
+        try:
+            from .oauth.backend import OAuthBackend as _OAuthBackend
+        except ImportError as exc:
             raise ImportError(
                 "OAuth backend requested but faigate.oauth.backend could not be imported. "
                 "Make sure optional OAuth dependencies are installed."
-            )
-        return OAuthBackend(name, cfg)
+            ) from exc
+        return _OAuthBackend(name, cfg)
     return ProviderBackend(name, cfg)
 
 
@@ -118,6 +118,7 @@ class ProviderBackend:
 
     def __init__(self, name: str, cfg: dict):
         self.name = name
+        self.cfg = cfg  # stored for OAuthBackend._create_wrapped_backend()
         self.contract = cfg.get("contract", "generic")
         self.backend_type = cfg.get("backend", "openai-compat")
         self.base_url = cfg["base_url"].rstrip("/")
@@ -132,6 +133,7 @@ class ProviderBackend:
         self.image = dict(cfg.get("image", {}))
         self.lane = dict(cfg.get("lane", {}))
         self.default_extra_body = dict(cfg.get("extra_body", {}) or {})
+        self.default_extra_headers = dict(cfg.get("extra_headers", {}) or {})
         self.transport = {
             **get_provider_transport_binding(
                 name,
@@ -173,6 +175,8 @@ class ProviderBackend:
         if "openrouter" in self.base_url:
             headers["HTTP-Referer"] = "https://faigate.local"
             headers["X-Title"] = "fusionAIze Gate"
+        if self.default_extra_headers:
+            headers.update(self.default_extra_headers)
         return headers
 
     def _classify_request_readiness_issue(self, detail: str) -> tuple[str, str]:

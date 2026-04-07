@@ -58,7 +58,10 @@ class OAuthBackend(ProviderBackend):
         super().__init__(name, cfg)
         self.oauth_cfg = cfg.get("oauth", {})
         self.helper_cmd = self.oauth_cfg.get("helper", "")
-        self.underlying_backend_type = self.oauth_cfg.get("underlying_backend", "openai‑compat")
+        # underlying_backend may be at top-level cfg or nested in the oauth sub-dict
+        self.underlying_backend_type = (
+            cfg.get("underlying_backend") or self.oauth_cfg.get("underlying_backend", "openai-compat")
+        )
         self.token_store = TokenStore()
         self._wrapped_backend = self._create_wrapped_backend()
 
@@ -151,7 +154,7 @@ class OAuthBackend(ProviderBackend):
             logger.info("Obtained OAuth token for %s", self.name)
             return token_data
 
-        except (OSError, asyncio.SubprocessError) as e:
+        except (OSError, Exception) as e:
             logger.error("Failed to run OAuth helper %s: %s", self.helper_cmd, e)
             raise RuntimeError(f"OAuth helper execution failed: {e}")
 
@@ -211,8 +214,18 @@ class OAuthBackend(ProviderBackend):
         logger.info("Token refreshed for %s", self.name)
         return merged
 
+    async def _inject_token(self) -> None:
+        """Obtain a fresh token and inject it into the wrapped backend's api_key."""
+        token = await self._ensure_token()
+        self._wrapped_backend.api_key = token
+
+    async def complete(self, messages: list, **kwargs):  # type: ignore[override]
+        """Inject OAuth token, then delegate to wrapped backend."""
+        await self._inject_token()
+        return await self._wrapped_backend.complete(messages, **kwargs)
+
     async def _request(self, client: AsyncClient, req: Request) -> Response:
-        """Override _request to inject OAuth bearer token."""
+        """Override _request to inject OAuth bearer token (legacy path)."""
         token = await self._ensure_token()
         req.headers["Authorization"] = f"Bearer {token}"
         return await self._wrapped_backend._request(client, req)
