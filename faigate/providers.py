@@ -247,10 +247,30 @@ class ProviderBackend:
         for msg in messages:
             role = str(msg.get("role", "user") or "user")
             text = self._flatten_text_content(msg.get("content"))
+            tool_calls = list(msg.get("tool_calls") or [])
             if role == "system":
                 if text:
                     instructions_parts.append(text)
                 continue
+            if role == "assistant" and not text and tool_calls:
+                rendered_calls: list[str] = []
+                for call in tool_calls:
+                    fn = dict(call.get("function") or {})
+                    name = str(fn.get("name") or call.get("name") or "tool")
+                    arguments = str(fn.get("arguments") or call.get("arguments") or "").strip()
+                    rendered_calls.append(f"{name}({arguments})" if arguments else name)
+                if rendered_calls:
+                    text = "Tool calls: " + "; ".join(rendered_calls)
+            if role == "tool":
+                tool_name = str(msg.get("name") or "tool")
+                tool_call_id = str(msg.get("tool_call_id") or "").strip()
+                label = f"Tool result ({tool_name})"
+                if tool_call_id:
+                    label = f"{label} [{tool_call_id}]"
+                text = f"{label}:\n{text}" if text else label
+                role = "user"
+            elif role not in {"assistant", "developer", "user"}:
+                role = "user"
             if not text:
                 continue
             input_messages.append({"role": role, "content": text})
