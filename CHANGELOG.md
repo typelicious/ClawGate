@@ -1,5 +1,11 @@
 # fusionAIze Gate Changelog
 
+## v2.1.5 - 2026-04-08
+
+### Fixed
+
+- **Codex tool transcript handling**: assistant tool-call turns and `role: "tool"` follow-up messages are now normalized before they are sent to the ChatGPT Codex responses endpoint, so Codex-backed clients such as Codenomad no longer fall back just because a tool result appears in the message history
+
 ## v2.1.4 - 2026-04-08
 
 ### Fixed

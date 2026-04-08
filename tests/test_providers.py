@@ -416,6 +416,71 @@ async def test_codex_responses_payload_maps_to_supported_model_and_openai_output
 
 
 @pytest.mark.asyncio
+async def test_codex_responses_normalizes_tool_messages():
+    backend = ProviderBackend(
+        "openai-codex-5.4-medium",
+        {
+            "backend": "openai-compat",
+            "base_url": "https://chatgpt.com/backend-api/codex/responses",
+            "api_key": "secret",
+            "model": "gpt-5.4",
+            "transport": {"profile": "oauth-codex", "chat_path": ""},
+            "extra_body": {"reasoning_effort": "medium"},
+        },
+    )
+    captured: dict = {}
+
+    class _FakeResp:
+        status_code = 200
+        text = (
+            "event: response.output_text.delta\n"
+            'data: {"type":"response.output_text.delta","delta":"ok"}\n\n'
+            "event: response.completed\n"
+            'data: {"type":"response.completed","response":{"id":"resp_test","created_at":1775616020,'
+            '"model":"gpt-5-codex","usage":{"input_tokens":19,"output_tokens":5,"total_tokens":24}}}\n\n'
+        )
+
+    async def _fake_post(url, json=None, headers=None, **_kw):
+        captured["url"] = url
+        captured["json"] = json or {}
+        captured["headers"] = headers or {}
+        return _FakeResp()
+
+    backend._client.post = _fake_post  # type: ignore[attr-defined]
+
+    await backend.complete(
+        [
+            {"role": "user", "content": "Use the read_file tool."},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "read_file", "arguments": '{"path":"README.md"}'},
+                    }
+                ],
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "name": "read_file",
+                "content": "README content",
+            },
+        ]
+    )
+
+    assert [item["role"] for item in captured["json"]["input"]] == [
+        "user",
+        "assistant",
+        "user",
+    ]
+    assert captured["json"]["input"][1]["content"].startswith("Tool calls: read_file(")
+    assert captured["json"]["input"][2]["content"] == ("Tool result (read_file) [call_1]:\nREADME content")
+
+
+@pytest.mark.asyncio
 async def test_codex_responses_stream_maps_to_openai_chunks():
     backend = ProviderBackend(
         "openai-codex-5.4-medium",
