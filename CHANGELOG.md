@@ -1,5 +1,11 @@
 # fusionAIze Gate Changelog
 
+## v2.2.3 - 2026-04-18
+
+### Fixed
+
+- **Kilo balance polling switched to tRPC**: the v2.2.0 implementation probed four REST URLs that Kilo never shipped (all 404/308). Replaced the probe-list with a single tRPC batch call to `https://app.kilo.ai/api/trpc/user.getCreditBlocks,kiloPass.getState,user.getAutoTopUpPaymentMethod?batch=1` — the same endpoint CodexBar uses. Correctly sums `amount_mUsd` across credit blocks for total, uses `totalBalance_mUsd` for remaining, and converts mUSD → USD. Live-verified against a real account: balance and block-level expiry now visible in `/dashboard/quotas`.
+
 ## v2.2.2 - 2026-04-18
 
 ### Fixed
