@@ -120,52 +120,105 @@ async def _fetch_deepseek_balance(
     return total, used
 
 
-# Kilo hasn't published a stable balance schema; probe a short list of common
-# candidates and parse the first one that returns a plausible payload.
-_KILO_CANDIDATE_ENDPOINTS = (
-    "https://kilocode.ai/api/profile/balance",
-    "https://api.kilocode.ai/v1/user/balance",
-    "https://api.kilo.ai/v1/user/balance",
-    "https://api.kilocode.ai/v1/key",
+# Kilo's balance API is a tRPC batch on app.kilo.ai — discovered via CodexBar's
+# open-source implementation (https://github.com/steipete/CodexBar). Three
+# procedures get called in one batched GET:
+#   - user.getCreditBlocks            → credit balance per block, mUSD
+#   - kiloPass.getState               → subscription state (unused here)
+#   - user.getAutoTopUpPaymentMethod  → auto top-up state (unused here)
+# Response is an array of {result: {data: {...}}} — we only parse entry 0.
+# Amounts are in milli-USD (1_000_000 mUSD = $1.00).
+_KILO_TRPC_BASE = "https://app.kilo.ai/api/trpc"
+_KILO_TRPC_PROCEDURES = (
+    "user.getCreditBlocks",
+    "kiloPass.getState",
+    "user.getAutoTopUpPaymentMethod",
 )
+_KILO_MUSD_PER_USD = 1_000_000.0
+
+
+def _kilo_trpc_url() -> str:
+    """Build the full tRPC batch URL.
+
+    Equivalent to::
+
+      {base}/proc1,proc2,proc3?batch=1&input={"0":{"json":null},"1":...,"2":...}
+    """
+    import urllib.parse
+
+    procs = ",".join(_KILO_TRPC_PROCEDURES)
+    inputs = {str(i): {"json": None} for i in range(len(_KILO_TRPC_PROCEDURES))}
+    input_json = json.dumps(inputs, separators=(",", ":"))
+    encoded = urllib.parse.quote(input_json, safe="")
+    return f"{_KILO_TRPC_BASE}/{procs}?batch=1&input={encoded}"
 
 
 async def _fetch_kilo_balance(
     client: httpx.AsyncClient,
     api_key: str,
 ) -> tuple[float, float, str]:
-    """Return ``(total, used, endpoint)`` for Kilo by probing candidates.
+    """Return ``(total, used, endpoint)`` for Kilo via tRPC.
 
-    Accepts any payload that contains *any* of these field names and is
-    numeric-parseable: ``balance``, ``remaining``, ``credits``, ``total``,
-    ``used``, ``consumed``. This is deliberately lenient — Kilo's schema is a
-    moving target. The first 2xx response wins; others raise.
+    Sums ``amount_mUsd`` across all credit blocks for total, computes used
+    as ``total - totalBalance_mUsd``. All values converted from mUSD to USD.
+    Raises ``RuntimeError`` if the endpoint returns non-2xx or the payload
+    schema has drifted.
     """
-    last_err: Exception | None = None
-    for url in _KILO_CANDIDATE_ENDPOINTS:
-        try:
-            resp = await client.get(
-                url,
-                headers={"Authorization": f"Bearer {api_key}"},
-                timeout=_HTTP_TIMEOUT,
-            )
-            if resp.status_code >= 400:
-                last_err = RuntimeError(f"{url} → HTTP {resp.status_code}")
-                continue
-            data = resp.json()
-            total, used = _extract_numeric_balance(data)
-            if total is None and used is None:
-                last_err = RuntimeError(f"{url} → no recognizable balance fields")
-                continue
-            if total is None:
-                total = used or 0.0
-            if used is None:
-                used = 0.0
-            return total, used, url
-        except (httpx.HTTPError, ValueError, RuntimeError) as exc:
-            last_err = exc
+    url = _kilo_trpc_url()
+    resp = await client.get(
+        url,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Accept": "application/json",
+        },
+        timeout=_HTTP_TIMEOUT,
+    )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"kilo tRPC returned HTTP {resp.status_code}")
+    payload = resp.json()
+
+    # The response shape CodexBar handles: either a list of 3 entries, OR a
+    # dict keyed by "0","1","2". We only need entry 0 (getCreditBlocks).
+    entry0: Any = None
+    if isinstance(payload, list) and payload:
+        entry0 = payload[0]
+    elif isinstance(payload, dict):
+        entry0 = payload.get("0") or payload
+    if not isinstance(entry0, dict):
+        raise RuntimeError("kilo tRPC: unexpected response shape for entry 0")
+
+    # Unwrap {result: {data: {...}}} and optional {json: ...} envelope
+    result = entry0.get("result")
+    if isinstance(result, dict):
+        data = result.get("data")
+        if isinstance(data, dict) and "json" in data:
+            data = data["json"]
+    else:
+        data = entry0.get("data")
+    if not isinstance(data, dict):
+        raise RuntimeError("kilo tRPC: missing result.data for user.getCreditBlocks")
+
+    blocks = data.get("creditBlocks") or []
+    if not isinstance(blocks, list):
+        raise RuntimeError("kilo tRPC: creditBlocks is not a list")
+
+    total_musd = 0.0
+    for block in blocks:
+        if not isinstance(block, dict):
             continue
-    raise RuntimeError(f"kilo balance probe exhausted: {last_err}")
+        try:
+            total_musd += float(block.get("amount_mUsd", 0) or 0)
+        except (TypeError, ValueError):
+            continue
+
+    try:
+        remaining_musd = float(data.get("totalBalance_mUsd", 0) or 0)
+    except (TypeError, ValueError):
+        remaining_musd = 0.0
+
+    total_usd = total_musd / _KILO_MUSD_PER_USD
+    used_usd = max(0.0, (total_musd - remaining_musd) / _KILO_MUSD_PER_USD)
+    return total_usd, used_usd, url
 
 
 def _extract_numeric_balance(payload: Any) -> tuple[float | None, float | None]:
