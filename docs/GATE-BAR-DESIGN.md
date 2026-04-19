@@ -523,9 +523,12 @@ pure HTTP client to the local gateway. That means:
   — no onboarding UI inside the dashboard.
 
 **Phase C — Gate Bar 0.1 (v2.3.0 companion release):**
-- SwiftUI project, macOS 14+ Universal.
-- Popover with brand cards, menubar icon, preferences.
-- Sparkle 2 auto-update, Homebrew cask.
+- SwiftUI project, macOS 14+ Universal. *Scaffolded at `apps/gate-bar/`
+  — SPM executable, `MenuBarExtra` + `Settings` scenes, popover with
+  brand cards, preferences, 13 Swift-Testing tests green.*
+- Popover with brand cards, menubar icon, preferences. *Shipped.*
+- Sparkle 2 auto-update, Homebrew cask. *Release-engineering pass — not
+  yet shipped; tracked in `apps/gate-bar/README.md` under "Roadmap".*
 
 **Phase D — CodexBar parity roster (v2.4+):**
 - Add Cursor, Droid, Antigravity, Copilot brands to the catalog (with
