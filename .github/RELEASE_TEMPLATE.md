@@ -5,7 +5,7 @@
 - [ ] Version number and release tag are aligned (for example `v0.5.0`)
 - [ ] Version tag is created from `main`
 - [ ] Tag is pushed to GitHub
-- [ ] GitHub Release is created from the tag
+- [ ] GitHub Release is created from the tag with title `fusionAIze Gate vX.Y.Z` (notify-tap rejects any other shape)
 - [ ] Release artifacts workflow completed for Python distributions and GHCR image
 - [ ] Release notes summarize user-visible changes
 - [ ] README and relevant docs pages match the shipped behavior

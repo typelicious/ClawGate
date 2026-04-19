@@ -13,7 +13,8 @@ This repo does not require a heavy release process. Use lightweight tags plus Gi
    - This is the trigger for the release pipeline: `.github/workflows/release-artifacts.yml` runs on `push` for tags matching `v*`.
 5. Let the release-artifacts workflow build Python distributions and the GHCR image.
 6. Create a GitHub Release from that tag.
-   - Publishing the GitHub Release is the separate trigger for `.github/workflows/notify-tap.yml`.
+   - The release title must be exactly `fusionAIze Gate vX.Y.Z` — `notify-tap` validates it and refuses to dispatch the Homebrew update otherwise. When using the `gh` CLI, always pass `--title` explicitly because some `gh` versions default the title to just the tag name (`vX.Y.Z`) when only `--notes-from-tag` is given.
+   - Publishing the GitHub Release is the separate trigger for `.github/workflows/notify-tap.yml`. The same workflow also runs on `edited`, so a `gh release edit --title` on an existing release is enough to retroactively unblock the dispatch.
 7. Use the changelog entry as the release notes, then add any short upgrade notes if needed.
 8. Confirm that README plus the relevant docs pages still match the shipped runtime behavior.
 9. If packaging or Docker changed shortly before the release, run the publish dry run first.
@@ -31,7 +32,19 @@ git tag -a v1.8.0 -m "fusionAIze Gate v1.8.0"
 git push origin v1.8.0
 ```
 
-Then open GitHub Releases and publish a release for `v1.8.0`.
+Then publish a GitHub Release for `v1.8.0`. From the CLI, always pass `--title` so the title matches the convention `notify-tap` enforces:
+
+```bash
+gh release create v1.8.0 \
+  --title "fusionAIze Gate v1.8.0" \
+  --notes-from-tag
+```
+
+If a release was already published with the wrong title, fix it in place — `notify-tap` re-runs on `edited`:
+
+```bash
+gh release edit v1.8.0 --title "fusionAIze Gate v1.8.0"
+```
 
 The tag push should trigger the release-artifacts bot automatically. Publishing the GitHub Release should then trigger the tap notification automatically. If the tap still needs a manual follow-up, use [`fusionAIze/homebrew-tap`](https://github.com/fusionAIze/homebrew-tap):
 

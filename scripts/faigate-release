@@ -149,8 +149,11 @@ def render_next_steps(new_version: str) -> list[str]:
         f'git tag -a v{new_version} -m "fusionAIze Gate v{new_version}"',
         "git push origin main --tags",
         (
-            f"Publish the GitHub Release for v{new_version}; notify-tap will dispatch "
-            f"the Homebrew update to {TAP_REPO_URL}."
+            f'gh release create v{new_version} --title "fusionAIze Gate v{new_version}" '
+            f"--notes-from-tag  # title must match exactly; notify-tap rejects bare 'v{new_version}'"
+        ),
+        (
+            f"After publishing, notify-tap will dispatch the Homebrew update to {TAP_REPO_URL}."
         ),
     ]
 

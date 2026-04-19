@@ -88,3 +88,16 @@ def test_release_script_next_steps_reference_tap_repo():
     assert 'git tag -a v1.11.3 -m "fusionAIze Gate v1.11.3"' in steps[2]
     assert "homebrew-tap" in steps[-1]
     assert "Formula/faigate.rb" not in steps[-1]
+
+
+def test_release_script_next_steps_specify_release_title():
+    """notify-tap rejects any title other than 'fusionAIze Gate vX.Y.Z',
+    so the rendered `gh release create` step must pass --title explicitly."""
+    module = _load_release_module()
+
+    steps = module.render_next_steps("1.11.3")
+    gh_step = next((s for s in steps if "gh release create" in s), None)
+
+    assert gh_step is not None, "expected a `gh release create` step"
+    assert '--title "fusionAIze Gate v1.11.3"' in gh_step
+    assert "--notes-from-tag" in gh_step

@@ -2,7 +2,10 @@ name: Notify Homebrew Tap
 
 on:
   release:
-    types: [published]
+    # `edited` lets a `gh release edit --title` retroactively unblock the
+    # title-convention check after a `published` event failed validation,
+    # without needing to delete and recreate the release.
+    types: [published, edited]
 
 jobs:
   notify:
