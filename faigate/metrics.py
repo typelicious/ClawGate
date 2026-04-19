@@ -425,33 +425,37 @@ class MetricsStore:
             params,
         )
 
-    def get_hourly_series(self, hours: int = 24) -> list[dict]:
+    def get_hourly_series(self, hours: int = 24, **filters: Any) -> list[dict]:
         cutoff = time.time() - hours * 3600
+        filters = {**filters, "since": cutoff}
+        where_sql, params = self._build_where_clause(filters)
         return self._q(
-            """
+            f"""
             SELECT CAST((timestamp-?)/3600 AS INTEGER) AS hour_offset,
                 COUNT(*)                    AS requests,
                 ROUND(SUM(cost_usd),6)      AS cost_usd,
                 SUM(prompt_tok+compl_tok)    AS tokens
-            FROM requests WHERE timestamp>=?
+            FROM requests{where_sql}
             GROUP BY hour_offset ORDER BY hour_offset
         """,
-            (cutoff, cutoff),
+            (cutoff, *params),
         )
 
-    def get_daily_totals(self, days: int = 30) -> list[dict]:
+    def get_daily_totals(self, days: int = 30, **filters: Any) -> list[dict]:
         cutoff = time.time() - days * 86400
+        filters = {**filters, "since": cutoff}
+        where_sql, params = self._build_where_clause(filters)
         return self._q(
-            """
+            f"""
             SELECT DATE(timestamp,'unixepoch','localtime') AS day,
                 COUNT(*)                                    AS requests,
                 ROUND(SUM(cost_usd),6)                      AS cost_usd,
                 SUM(prompt_tok+compl_tok)                    AS tokens,
                 SUM(CASE WHEN success=0 THEN 1 ELSE 0 END)  AS failures
-            FROM requests WHERE timestamp>=?
+            FROM requests{where_sql}
             GROUP BY day ORDER BY day
         """,
-            (cutoff,),
+            params,
         )
 
     def get_operator_events(self, limit: int = 50, **filters: Any) -> list[dict]:
@@ -551,6 +555,29 @@ class MetricsStore:
         if success not in (None, ""):
             clauses.append("success = ?")
             params.append(1 if bool(success) else 0)
+
+        # Multi-provider filter (``provider IN (...)``). Used by per-brand
+        # detail endpoints that aggregate across every runtime provider
+        # belonging to a brand. Deduped + order-preserved so query plans stay
+        # cache-friendly.
+        providers = filters.get("providers")
+        if providers:
+            unique: list[str] = []
+            seen: set[str] = set()
+            for item in providers:
+                key = str(item)
+                if key and key not in seen:
+                    seen.add(key)
+                    unique.append(key)
+            if unique:
+                placeholders = ",".join("?" * len(unique))
+                clauses.append(f"provider IN ({placeholders})")
+                params.extend(unique)
+
+        since = filters.get("since")
+        if since not in (None, ""):
+            clauses.append("timestamp >= ?")
+            params.append(float(since))
 
         if not clauses:
             return "", ()

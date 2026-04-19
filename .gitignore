@@ -43,3 +43,10 @@ venv/
 .understand-anything/
 .codenomad/
 catalog_output.json
+
+# Swift Package Manager build artifacts (apps/gate-bar)
+.build/
+.swiftpm/
+*.xcodeproj/
+xcuserdata/
+DerivedData/

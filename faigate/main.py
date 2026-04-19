@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import html as html_lib
 import json
 import logging
 import mimetypes
@@ -26,7 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from starlette.datastructures import UploadFile
 
 from . import __version__
@@ -2864,7 +2865,14 @@ def _credential_available(hint: str | None) -> bool:
 def _filter_packages_by_credentials(
     packages: dict[str, dict[str, Any]],
 ) -> tuple[dict[str, dict[str, Any]], list[dict[str, str]]]:
-    """Return (kept, skipped) after applying ``_requires_credential`` gating."""
+    """Return (kept, skipped) after applying ``_requires_credential`` gating.
+
+    Skipped entries carry the brand label so the widget can render
+    "Qwen — no OAuth token" instead of "qwen-free-daily". Falls back to the
+    provider_group-derived brand when the catalog is pre-v1.3.
+    """
+    from .quota_tracker import _derive_brand, _slugify_brand  # local import to avoid cycles
+
     kept: dict[str, dict[str, Any]] = {}
     skipped: list[dict[str, str]] = []
     for pkg_id, pkg in packages.items():
@@ -2872,10 +2880,15 @@ def _filter_packages_by_credentials(
         if _credential_available(hint):
             kept[pkg_id] = pkg
         else:
+            provider_group = str(pkg.get("provider_group") or "")
+            brand = str(pkg.get("brand") or _derive_brand(provider_group))
+            brand_slug = str(pkg.get("brand_slug") or _slugify_brand(brand))
             skipped.append(
                 {
                     "package_id": pkg_id,
-                    "provider_group": str(pkg.get("provider_group") or ""),
+                    "provider_group": provider_group,
+                    "brand": brand,
+                    "brand_slug": brand_slug,
                     "requires": str(hint or ""),
                 }
             )
@@ -2942,6 +2955,27 @@ async def quotas():
         key = str(s.get("alert") or "unknown")
         by_alert[key] = by_alert.get(key, 0) + 1
 
+    # "Available to add" — brands that exist in the shared catalog but have
+    # no active package on this machine. Filters out brands the operator
+    # already uses so the widget's mini-block doesn't nudge them toward
+    # something already wired up.
+    active_brand_slugs = {str(s.get("brand_slug") or "") for s in statuses_json}
+    catalog_suggestions: list[dict[str, str]] = []
+    seen_slugs: set[str] = set()
+    for pkg_id, pkg in raw_packages.items():
+        brand_slug = str(pkg.get("brand_slug") or "")
+        if not brand_slug or brand_slug in active_brand_slugs or brand_slug in seen_slugs:
+            continue
+        tagline = pkg.get("catalog_tagline") or pkg.get("name") or pkg_id
+        catalog_suggestions.append(
+            {
+                "brand": str(pkg.get("brand") or ""),
+                "brand_slug": brand_slug,
+                "tagline": str(tagline),
+            }
+        )
+        seen_slugs.add(brand_slug)
+
     return {
         "packages": statuses_json,
         "count": len(statuses_json),
@@ -2950,6 +2984,7 @@ async def quotas():
         "has_exhausted": any(s.get("alert") == "exhausted" for s in statuses_json),
         "header_snapshots": snapshots_out,
         "skipped_packages": skipped_packages,
+        "catalog_suggestions": catalog_suggestions,
     }
 
 
@@ -3424,60 +3459,81 @@ _QUOTAS_DASHBOARD_HTML = """<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root {
-      --bg: #0f1117; --fg: #e6e9ef; --dim: #8a93a6;
-      --card: #1a1d27; --border: #2a2f3d;
+      --bg: #0f1117; --fg: #e6e9ef; --dim: #8a93a6; --mid: #b9c1d1;
+      --card: #1a1d27; --border: #2a2f3d; --track: #262a36;
       --ok: #4ade80; --watch: #fbbf24; --topup: #fb923c;
       --uol: #ef4444; --exhausted: #7f1d1d;
+      --accent: #8b5cf6;
     }
     * { box-sizing: border-box; }
     body {
-      margin: 0; padding: 24px;
+      margin: 0; padding: 24px 28px 40px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: var(--bg); color: var(--fg); line-height: 1.45;
     }
+    a { color: #60a5fa; text-decoration: none; }
+    a:hover { text-decoration: underline; }
     h1 { font-size: 20px; margin: 0 0 4px; }
-    .sub { color: var(--dim); font-size: 13px; margin-bottom: 24px; }
-    .summary {
-      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;
-    }
+    .sub { color: var(--dim); font-size: 13px; margin-bottom: 18px; }
+    .summary { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
     .pill {
       padding: 4px 10px; border-radius: 999px; font-size: 12px;
       background: var(--card); border: 1px solid var(--border);
     }
     .pill.urgent { border-color: var(--uol); color: var(--uol); }
-    .grid { display: grid; gap: 14px; grid-template-columns: 1fr; max-width: 980px; }
-    .provider {
+
+    /* ── Brand-card overview grid ─────────────────────────────────────── */
+    .grid {
+      display: grid; gap: 14px;
+      grid-template-columns: 1fr;
+      max-width: 1400px;
+    }
+    @media (min-width: 640px) { .grid { grid-template-columns: 1fr 1fr; } }
+    @media (min-width: 1100px) { .grid { grid-template-columns: 1fr 1fr 1fr; } }
+
+    .brand {
       background: var(--card); border: 1px solid var(--border);
-      border-radius: 10px; padding: 14px 16px;
+      border-radius: 10px; padding: 14px 16px 12px;
+      display: flex; flex-direction: column; gap: 10px;
     }
-    .provider.urgent { border-left: 3px solid var(--uol); }
-    .provider.watch { border-left: 3px solid var(--watch); }
-    .provider.ok { border-left: 3px solid var(--ok); }
-    .provider.topup { border-left: 3px solid var(--topup); }
-    .provider.exhausted { border-left: 3px solid var(--exhausted); opacity: 0.85; }
-    .provider-head {
+    .brand.urgent { border-left: 3px solid var(--uol); }
+    .brand.watch { border-left: 3px solid var(--watch); }
+    .brand.ok { border-left: 3px solid var(--ok); }
+    .brand.topup { border-left: 3px solid var(--topup); }
+    .brand.exhausted { border-left: 3px solid var(--exhausted); opacity: 0.88; }
+
+    .brand-head {
       display: flex; justify-content: space-between; align-items: baseline;
-      margin-bottom: 4px;
+      gap: 8px;
     }
-    .provider-name {
-      font-weight: 700; font-size: 15px; text-transform: capitalize;
-      letter-spacing: .3px;
+    .brand-name {
+      font-weight: 700; font-size: 16px; letter-spacing: .2px;
     }
-    .provider-ids { color: var(--dim); font-size: 11px; }
-    .pkg {
-      padding: 10px 0 2px;
+    .brand-name .emoji { margin-right: 4px; }
+    .brand-identity {
+      color: var(--dim); font-size: 11px; text-align: right;
+      font-feature-settings: "tnum";
+    }
+
+    .pkg-row {
+      padding: 8px 0 2px;
       border-top: 1px dashed var(--border);
-      margin-top: 8px;
     }
-    .pkg:first-of-type { border-top: none; margin-top: 0; padding-top: 2px; }
-    .row1 { display: flex; justify-content: space-between; align-items: baseline; }
-    .title { font-weight: 500; font-size: 13px; }
-    .title .emoji { margin-right: 4px; }
-    .title .pkg-id { color: var(--dim); font-weight: 400; }
-    .type { color: var(--dim); font-size: 10px; text-transform: uppercase; letter-spacing: .5px; }
+    .pkg-row:first-of-type { border-top: none; padding-top: 0; }
+    .pkg-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      gap: 8px; margin-bottom: 4px;
+    }
+    .pkg-title { font-weight: 500; font-size: 12.5px; color: var(--mid); }
+    .pkg-pct {
+      color: var(--fg); font-size: 12px; font-weight: 600;
+      font-feature-settings: "tnum";
+    }
+
+    /* Progress bar with inline pace marker */
     .bar {
-      height: 6px; background: #262a36; border-radius: 3px;
-      margin: 6px 0 6px; overflow: hidden;
+      position: relative; height: 8px;
+      background: var(--track); border-radius: 4px; overflow: hidden;
     }
     .bar-fill { height: 100%; transition: width .3s; }
     .bar-fill.ok { background: var(--ok); }
@@ -3485,39 +3541,214 @@ _QUOTAS_DASHBOARD_HTML = """<!doctype html>
     .bar-fill.topup { background: var(--topup); }
     .bar-fill.use_or_lose { background: var(--uol); }
     .bar-fill.exhausted { background: var(--exhausted); }
-    .meta {
-      display: flex; gap: 14px; flex-wrap: wrap;
-      font-size: 11.5px; color: var(--dim);
+    .bar-pace {
+      position: absolute; top: -1px; bottom: -1px;
+      width: 2px; background: rgba(255,255,255,0.72);
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
     }
-    .meta .k { color: var(--fg); font-weight: 500; }
-    .notes { margin-top: 4px; font-size: 10.5px; color: var(--dim); font-style: italic; }
+
+    .pkg-meta {
+      display: flex; gap: 10px; flex-wrap: wrap;
+      margin-top: 5px;
+      font-size: 11px; color: var(--dim);
+    }
+    .pkg-meta .k { color: var(--fg); font-weight: 500; }
+    .pkg-meta .pace-pos { color: var(--topup); }
+    .pkg-meta .pace-neg { color: var(--ok); }
+
+    .brand-foot {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 8px; padding-top: 4px;
+      border-top: 1px solid var(--border);
+    }
+    .btn {
+      display: inline-block; padding: 4px 10px; border-radius: 6px;
+      font-size: 11.5px; font-weight: 500;
+      border: 1px solid var(--border); color: var(--fg);
+      background: transparent; cursor: pointer;
+    }
+    .btn:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+    .brand-foot .when { color: var(--dim); font-size: 11px; }
+
+    /* ── "Available to add" mini catalog block ────────────────────────── */
+    .catalog {
+      margin-top: 22px; max-width: 1400px;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px 10px;
+    }
+    .catalog-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 8px;
+    }
+    .catalog-title {
+      font-weight: 600; font-size: 13.5px; letter-spacing: .2px;
+    }
+    .catalog-sub { color: var(--dim); font-size: 11px; }
+    .cat-row {
+      display: grid; grid-template-columns: 130px 1fr auto;
+      gap: 12px; align-items: baseline;
+      padding: 7px 0;
+      border-top: 1px dashed var(--border);
+    }
+    .cat-row:first-child { border-top: none; }
+    .cat-brand { font-weight: 600; font-size: 13px; color: var(--fg); opacity: 0.8; }
+    .cat-tag { color: var(--mid); font-size: 12.5px; }
+    .cat-more {
+      padding: 8px 0 2px; color: var(--dim); font-size: 11.5px;
+    }
+
+    /* ── Skipped block ─────────────────────────────────────────────────── */
+    .skipped {
+      margin-top: 18px; max-width: 1400px;
+      padding: 10px 14px; border: 1px dashed var(--border); border-radius: 8px;
+      color: var(--dim); font-size: 12px;
+    }
+    .skipped strong { color: var(--fg); }
+    .skipped ul { margin: 6px 0 0 18px; padding: 0; }
+
     .empty { padding: 40px; text-align: center; color: var(--dim); }
-    a { color: #60a5fa; text-decoration: none; }
-    a:hover { text-decoration: underline; }
+
+    /* ── Home-pin controls ─────────────────────────────────────────────── */
+    .header-row {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 16px; max-width: 1400px;
+    }
+    .pin-status {
+      font-size: 11.5px; color: var(--dim);
+      display: flex; align-items: center; gap: 8px;
+      padding-top: 2px;
+    }
+    .pin-status .label { opacity: 0.8; }
+    .pin-status .value { color: var(--fg); font-weight: 500; }
+    .pin-status .unpin {
+      border: 1px solid var(--border); background: transparent;
+      color: var(--dim); padding: 2px 8px; border-radius: 6px;
+      font-size: 11px; cursor: pointer;
+    }
+    .pin-status .unpin:hover { border-color: var(--accent); color: var(--accent); }
+
+    .pin-btn {
+      display: inline-block; padding: 4px 8px; border-radius: 6px;
+      font-size: 11.5px; font-weight: 500; border: 1px solid var(--border);
+      color: var(--dim); background: transparent; cursor: pointer;
+      margin-right: 4px;
+    }
+    .pin-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .pin-btn.pinned {
+      border-color: var(--accent); color: var(--accent);
+      background: rgba(139, 92, 246, 0.08);
+    }
+    .brand.pinned { box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.35); }
   </style>
 </head>
 <body>
-  <h1>Quotas</h1>
-  <div class="sub">
-    Live view of all configured packages — updated every 60s. Source:
-    <a href="/api/quotas">/api/quotas</a>
+  <div class="header-row">
+    <div>
+      <h1>Quotas</h1>
+      <div class="sub">
+        Live view of every active provider — updated every 60s. Raw feed:
+        <a href="/api/quotas">/api/quotas</a>
+      </div>
+    </div>
+    <div class="pin-status" id="pinStatus"></div>
   </div>
   <div class="summary" id="summary"></div>
   <div class="grid" id="grid"><div class="empty">Loading…</div></div>
-  <div id="skipped" style="margin-top:18px;color:var(--dim);font-size:12px;"></div>
+  <div id="catalog"></div>
+  <div id="skipped"></div>
 
 <script>
+// ── Config ────────────────────────────────────────────────────────────
+const COCKPIT_URL = "__COCKPIT_URL__";
 const ALERT_ORDER = ["use_or_lose", "exhausted", "topup", "watch", "ok", "unknown"];
 const ALERT_RANK = Object.fromEntries(ALERT_ORDER.map((a, i) => [a, i]));
 const EMOJI = {ok: "🟢", watch: "🟡", topup: "🟠", use_or_lose: "⚠️", exhausted: "🔴"};
 
+// ── Dashboard settings (Home pin) ─────────────────────────────────────
+// Held here so brand-card render can tag the currently-pinned card and
+// the header can render the "pinned on …" chip. Kept in sync with the
+// server after every successful POST /api/dashboard/settings.
+let SETTINGS = {default_view: "overview", pinned_brand_slug: ""};
+
+async function loadSettings() {
+  try {
+    const r = await fetch("/api/dashboard/settings");
+    if (r.ok) SETTINGS = await r.json();
+  } catch (_) { /* keep defaults */ }
+  renderPinStatus();
+}
+
+function renderPinStatus() {
+  const el = document.getElementById("pinStatus");
+  if (!el) return;
+  const view = SETTINGS.default_view || "overview";
+  if (view === "overview") {
+    el.innerHTML = `<span class="label">Home view:</span> <span class="value">Overview</span>`;
+    return;
+  }
+  let label = "";
+  if (view === "cockpit") label = "Cockpit";
+  else if (view.startsWith("brand:")) label = view.slice(6);
+  el.innerHTML = `
+    <span class="label">Home view:</span>
+    <span class="value">${escapeHtml(label)}</span>
+    <button class="unpin" onclick="setHomeView('overview')">Reset to Overview</button>
+  `;
+}
+
+async function setHomeView(view) {
+  try {
+    const r = await fetch("/api/dashboard/settings", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({default_view: view})
+    });
+    if (r.ok) {
+      SETTINGS = await r.json();
+      renderPinStatus();
+      refresh();  // re-render brand cards to move the "pinned" chip
+    }
+  } catch (e) {
+    console.error("setHomeView failed:", e);
+  }
+}
+
+// Expose toggle for onclick handlers rendered inline in card HTML
+window.toggleBrandPin = function (slug) {
+  if (!slug) return;
+  const current = SETTINGS.default_view || "overview";
+  if (current === `brand:${slug}`) setHomeView("overview");
+  else setHomeView(`brand:${slug}`);
+};
+window.setHomeView = setHomeView;
+
+// ── Small helpers ─────────────────────────────────────────────────────
 function pct(x) { return Math.max(0, Math.min(100, Math.round(x * 100))); }
+function pctRaw(x) { return Math.max(0, x * 100); }
 function fmtNum(n) {
   if (n === null || n === undefined) return "–";
   if (Math.abs(n) >= 100) return Math.round(n).toString();
   return (Math.round(n * 100) / 100).toString();
 }
-
+function fmtPace(d) {
+  if (d === null || d === undefined) return null;
+  const pct = d * 100;
+  if (Math.abs(pct) < 0.5) return { text: "on pace", cls: "" };
+  const sign = pct > 0 ? "+" : "";
+  const cls = pct > 0 ? "pace-pos" : "pace-neg";
+  return { text: `pace ${sign}${pct.toFixed(1)}%`, cls };
+}
+function fmtResetRelative(iso) {
+  if (!iso) return "";
+  const ms = new Date(iso).getTime() - Date.now();
+  if (Number.isNaN(ms)) return "";
+  if (ms <= 0) return "resetting";
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  if (h >= 24) return `resets in ${Math.floor(h / 24)}d ${h % 24}h`;
+  if (h >= 1) return `resets in ${h}h ${m}m`;
+  return `resets in ${m}m`;
+}
 function worstAlert(statuses) {
   let worst = "ok";
   for (const s of statuses) {
@@ -3525,63 +3756,166 @@ function worstAlert(statuses) {
   }
   return worst;
 }
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
 
-function renderPackage(s) {
+// ── Per-package row inside a brand card ───────────────────────────────
+function renderPackageRow(s) {
   const ratioPct = pct(s.remaining_ratio);
   const usedPct = 100 - ratioPct;
-  const unit = s.package_type === "credits" ? "$" : "req";
-  const meta = [];
-  meta.push(`<span><span class="k">${fmtNum(s.remaining)}</span> / ${fmtNum(s.total)} ${unit} left</span>`);
-  if (s.expiry_date) {
-    const urgencyMark = s.days_until_expiry !== null && s.days_until_expiry <= 7 ? " ⚠️" : "";
-    meta.push(`<span>expires <span class="k">${s.expiry_date}</span> (${s.days_until_expiry}d${urgencyMark})</span>`);
-  }
-  if (s.window_hours) {
-    meta.push(`<span>window: <span class="k">${s.window_hours}h</span></span>`);
-  }
-  if (s.reset_at) {
-    meta.push(`<span>resets: <span class="k">${new Date(s.reset_at).toLocaleString()}</span></span>`);
-  }
-  if (s.burn_per_day) {
-    meta.push(`<span>burn/day: <span class="k">${fmtNum(s.burn_per_day)}</span></span>`);
-  }
-  if (s.projected_days_left !== null && s.projected_days_left !== undefined) {
-    meta.push(`<span>runway: <span class="k">${fmtNum(s.projected_days_left)}d</span></span>`);
-  }
-  meta.push(`<span>source: <span class="k">${s.source}</span> (${s.confidence})</span>`);
+  const unit = s.package_type === "credits" ? "" : " req";
+  const currency = s.package_type === "credits" ? "$" : "";
 
-  return `<div class="pkg">
-    <div class="row1">
-      <div class="title"><span class="emoji">${EMOJI[s.alert] || "·"}</span>${s.package_id.replace(/-/g, " ")} <span class="pkg-id">· ${s.provider_id}</span></div>
-      <div class="type">${s.package_type}</div>
+  // Concise title: strip the brand prefix from the package name if present.
+  const title = (s.package_id || "").replace(/-/g, " ");
+
+  // Meta line: remaining/total · reset (window) or expiry (credits) · pace
+  const meta = [];
+  meta.push(`<span><span class="k">${currency}${fmtNum(s.remaining)}</span> / ${currency}${fmtNum(s.total)}${unit}</span>`);
+
+  if (s.package_type === "credits") {
+    if (s.expiry_date) {
+      const urgencyMark = s.days_until_expiry !== null && s.days_until_expiry <= 7 ? " ⚠️" : "";
+      meta.push(`<span>expires <span class="k">${escapeHtml(s.expiry_date)}</span> (${s.days_until_expiry}d${urgencyMark})</span>`);
+    }
+    if (s.projected_days_left !== null && s.projected_days_left !== undefined) {
+      meta.push(`<span>runway <span class="k">${fmtNum(s.projected_days_left)}d</span></span>`);
+    }
+  } else {
+    const rel = fmtResetRelative(s.reset_at);
+    if (rel) meta.push(`<span>${rel}</span>`);
+    const p = fmtPace(s.pace_delta);
+    if (p) meta.push(`<span class="${p.cls}">${p.text}</span>`);
+  }
+
+  // Pace marker inside the bar — only for window-based packages.
+  let paceMarker = "";
+  if (s.elapsed_ratio !== null && s.elapsed_ratio !== undefined) {
+    const left = Math.max(0, Math.min(100, pctRaw(s.elapsed_ratio)));
+    paceMarker = `<div class="bar-pace" style="left:${left}%"></div>`;
+  }
+
+  return `<div class="pkg-row">
+    <div class="pkg-head">
+      <div class="pkg-title">${EMOJI[s.alert] || "·"} ${escapeHtml(title)}</div>
+      <div class="pkg-pct">${usedPct}%</div>
     </div>
-    <div class="bar"><div class="bar-fill ${s.alert}" style="width:${usedPct}%"></div></div>
-    <div class="meta">${meta.join("")}</div>
-    ${s.notes ? `<div class="notes">${s.notes}</div>` : ""}
+    <div class="bar"><div class="bar-fill ${s.alert}" style="width:${usedPct}%"></div>${paceMarker}</div>
+    <div class="pkg-meta">${meta.join("")}</div>
   </div>`;
 }
 
-function renderProvider(group, statuses) {
+// ── Brand card — one brand, stacked sub-packages ──────────────────────
+function renderBrandCard(brand, statuses) {
   const worst = worstAlert(statuses);
   const alertClass = worst === "use_or_lose" ? "urgent" : worst;
-  // Collect distinct provider IDs covered by this group
-  const pids = new Set();
-  statuses.forEach(s => {
-    pids.add(s.provider_id);
-  });
-  const idsLabel = [...pids].join(", ");
+  // Identity line: show the best-evidence identity across packages.
+  // For MVP — first non-null identity wins; OAuth before API key where
+  // both are present (OAuth = personal subscription, API = raw key).
+  let identity = null;
+  for (const s of statuses) {
+    if (s.identity) {
+      if (!identity || s.identity.login_method === "OAuth") identity = s.identity;
+    }
+  }
+  const identityHtml = identity
+    ? `<div class="brand-identity">${escapeHtml(identity.login_method)}${identity.credential ? ` · <span style="opacity:.75">${escapeHtml(identity.credential)}</span>` : ""}</div>`
+    : "";
+
+  // Sort packages by alert level so urgent ones bubble up inside the card
   const packages = [...statuses].sort(
     (a, b) => (ALERT_RANK[a.alert] ?? 99) - (ALERT_RANK[b.alert] ?? 99)
   );
-  return `<div class="provider ${alertClass}">
-    <div class="provider-head">
-      <div class="provider-name">${EMOJI[worst] || "·"} ${group}</div>
-      <div class="provider-ids">${idsLabel}</div>
+  const slug = statuses[0]?.brand_slug || "";
+  const detailHref = slug ? `/dashboard/quotas/${encodeURIComponent(slug)}` : "#";
+  const cockpitHref = slug
+    ? `${COCKPIT_URL}/providers/${encodeURIComponent(slug)}`
+    : COCKPIT_URL;
+
+  // Latest updated timestamp across packages
+  let mostRecent = null;
+  for (const s of statuses) {
+    if (s.last_updated) {
+      const t = new Date(s.last_updated).getTime();
+      if (!mostRecent || t > mostRecent) mostRecent = t;
+    }
+  }
+  const when = mostRecent
+    ? `updated ${Math.max(1, Math.round((Date.now() - mostRecent) / 1000))}s ago`
+    : "";
+
+  const isPinned = slug && SETTINGS.default_view === `brand:${slug}`;
+  const pinnedClass = isPinned ? " pinned" : "";
+  const pinLabel = isPinned ? "📌 Home" : "Pin as Home";
+  const pinBtn = slug
+    ? `<button class="pin-btn${isPinned ? " pinned" : ""}" onclick="toggleBrandPin('${escapeHtml(slug)}')" title="${isPinned ? "Open this brand as the default /dashboard/quotas view" : "Set this brand as the default /dashboard/quotas view"}">${pinLabel}</button>`
+    : "";
+
+  return `<div class="brand ${alertClass}${pinnedClass}" data-slug="${escapeHtml(slug)}">
+    <div class="brand-head">
+      <div class="brand-name"><span class="emoji">${EMOJI[worst] || "·"}</span>${escapeHtml(brand)}</div>
+      ${identityHtml}
     </div>
-    ${packages.map(renderPackage).join("")}
+    ${packages.map(renderPackageRow).join("")}
+    <div class="brand-foot">
+      <span class="when">${when}</span>
+      <span>
+        ${pinBtn}
+        <a class="btn" href="${detailHref}">Details →</a>
+        <a class="btn" href="${cockpitHref}" target="_blank" rel="noopener">Cockpit ↗</a>
+      </span>
+    </div>
   </div>`;
 }
 
+// ── "Available to add" mini catalog block ─────────────────────────────
+function renderCatalog(suggestions) {
+  const el = document.getElementById("catalog");
+  if (!suggestions || suggestions.length === 0) { el.innerHTML = ""; return; }
+  const MAX_ROWS = 6;
+  const shown = suggestions.slice(0, MAX_ROWS);
+  const rest = Math.max(0, suggestions.length - shown.length);
+  const rows = shown.map(s => {
+    const href = `${COCKPIT_URL}/providers/add?brand=${encodeURIComponent(s.brand_slug || "")}`;
+    return `<div class="cat-row">
+      <div class="cat-brand">${escapeHtml(s.brand || s.brand_slug || "")}</div>
+      <div class="cat-tag">${escapeHtml(s.tagline || "")}</div>
+      <a class="btn" href="${href}" target="_blank" rel="noopener">Add in Cockpit ↗</a>
+    </div>`;
+  }).join("");
+  const more = rest > 0
+    ? `<div class="cat-more">… ${rest} more · <a href="${COCKPIT_URL}/providers/add" target="_blank" rel="noopener">see all in Cockpit ↗</a></div>`
+    : "";
+  el.innerHTML = `<div class="catalog">
+    <div class="catalog-head">
+      <div class="catalog-title">Available to add</div>
+      <div class="catalog-sub">from catalog</div>
+    </div>
+    ${rows}
+    ${more}
+  </div>`;
+}
+
+// ── Skipped (credential missing) ──────────────────────────────────────
+function renderSkipped(skipped) {
+  const el = document.getElementById("skipped");
+  if (!skipped || skipped.length === 0) { el.innerHTML = ""; return; }
+  const lines = skipped.map(x => {
+    const brand = escapeHtml(x.brand || x.provider_group || "?");
+    const pid = escapeHtml(x.package_id || "");
+    const req = escapeHtml(x.requires || "?");
+    return `<li><strong>${brand}</strong> · <code>${pid}</code> — needs <code>${req}</code></li>`;
+  }).join("");
+  el.innerHTML = `<div class="skipped">
+    <strong>Hidden (${skipped.length})</strong> — no credential resolvable:
+    <ul>${lines}</ul>
+  </div>`;
+}
+
+// ── Main refresh loop ────────────────────────────────────────────────
 async function refresh() {
   try {
     const r = await fetch("/api/quotas");
@@ -3592,6 +3926,8 @@ async function refresh() {
     if (!data.packages || data.packages.length === 0) {
       grid.innerHTML = '<div class="empty">No packages configured. Set <code>FAIGATE_PROVIDER_METADATA_DIR</code> and drop a <code>packages/catalog.v1.json</code> to get started.</div>';
       summary.innerHTML = "";
+      renderCatalog(data.catalog_suggestions || []);
+      renderSkipped(data.skipped_packages || []);
       return;
     }
 
@@ -3601,32 +3937,451 @@ async function refresh() {
       .map(a => `<span class="pill${a === "use_or_lose" || a === "exhausted" ? " urgent" : ""}">${EMOJI[a] || "·"} ${a}: ${byAlert[a]}</span>`)
       .join("");
 
-    // Group by provider_group (fallback to provider_id when missing)
+    // Group by brand_slug (fallback to provider_group → provider_id)
     const groups = new Map();
+    const labels = new Map();
     for (const s of data.packages) {
-      const key = s.provider_group || s.provider_id || "unknown";
-      if (!groups.has(key)) groups.set(key, []);
+      const key = s.brand_slug || s.provider_group || s.provider_id || "unknown";
+      if (!groups.has(key)) {
+        groups.set(key, []);
+        labels.set(key, s.brand || s.provider_group || s.provider_id || key);
+      }
       groups.get(key).push(s);
     }
-    // Sort groups by worst alert level so urgent providers bubble up
-    const groupEntries = [...groups.entries()].sort((a, b) => {
+    // Sort groups by worst alert level so urgent brands bubble to the top.
+    const entries = [...groups.entries()].sort((a, b) => {
       return (ALERT_RANK[worstAlert(a[1])] ?? 99) - (ALERT_RANK[worstAlert(b[1])] ?? 99);
     });
-    grid.innerHTML = groupEntries.map(([g, s]) => renderProvider(g, s)).join("");
+    grid.innerHTML = entries.map(([k, s]) => renderBrandCard(labels.get(k), s)).join("");
 
-    const skippedEl = document.getElementById("skipped");
-    const skipped = data.skipped_packages || [];
-    if (skipped.length > 0) {
-      const lines = skipped.map(x => `<li><code>${x.package_id}</code> (${x.provider_group || "?"}) — needs <code>${x.requires || "?"}</code></li>`).join("");
-      skippedEl.innerHTML = `<div style="padding:10px 14px;border:1px dashed var(--border);border-radius:8px;"><strong>Hidden (${skipped.length})</strong> — no credential resolvable:<ul style="margin:6px 0 0 18px;padding:0;">${lines}</ul></div>`;
-    } else {
-      skippedEl.innerHTML = "";
-    }
+    renderCatalog(data.catalog_suggestions || []);
+    renderSkipped(data.skipped_packages || []);
   } catch (e) {
     document.getElementById("grid").innerHTML = `<div class="empty">Error: ${e.message}</div>`;
   }
 }
 
+loadSettings().then(refresh);
+setInterval(refresh, 60000);
+</script>
+</body>
+</html>
+"""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Per-brand detail view — served at ``/dashboard/quotas/<brand_slug>``. Shares
+# the visual vocabulary of the overview (same CSS variables, same bar/pace
+# look) so operators don't have to retrain their eyes when drilling in.
+#
+# Design-Thinking note (see docs/GATE-BAR-DESIGN.md §3):
+#   - Quick-view: quota card, clients, routes, small analytics chart.
+#   - Read-only: every write path links out to the Cockpit.
+#   - Glance-before-read: totals row up top, tables below.
+# ─────────────────────────────────────────────────────────────────────────────
+_QUOTAS_BRAND_DETAIL_HTML = """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>faigate · Brand detail</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0f1117; --fg: #e6e9ef; --dim: #8a93a6; --mid: #b9c1d1;
+      --card: #1a1d27; --border: #2a2f3d; --track: #262a36;
+      --ok: #4ade80; --watch: #fbbf24; --topup: #fb923c;
+      --uol: #ef4444; --exhausted: #7f1d1d;
+      --accent: #8b5cf6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 24px 28px 40px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--fg); line-height: 1.45;
+    }
+    a { color: #60a5fa; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .crumbs { font-size: 12px; color: var(--dim); margin-bottom: 10px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    .sub { color: var(--dim); font-size: 13px; margin-bottom: 18px; }
+    .head-actions { display: flex; gap: 8px; align-items: baseline;
+      justify-content: space-between; flex-wrap: wrap; }
+    .head-actions .right { display: flex; gap: 10px; }
+    .cockpit-link {
+      font-size: 12px; padding: 4px 10px; border-radius: 6px;
+      background: var(--card); border: 1px solid var(--border);
+    }
+
+    .panels {
+      display: grid; gap: 14px; grid-template-columns: 1fr;
+      max-width: 1400px;
+    }
+    @media (min-width: 1100px) {
+      .panels { grid-template-columns: minmax(320px, 1fr) 2fr; }
+    }
+
+    .panel {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px 12px;
+    }
+    .panel h2 {
+      font-size: 13px; text-transform: uppercase; letter-spacing: .6px;
+      color: var(--dim); font-weight: 600; margin: 0 0 10px;
+    }
+
+    /* Quota card (reuses overview look) */
+    .brand-identity {
+      color: var(--dim); font-size: 11px; font-feature-settings: "tnum";
+      margin-bottom: 10px;
+    }
+    .pkg-row { padding: 8px 0 2px; border-top: 1px dashed var(--border); }
+    .pkg-row:first-of-type { border-top: none; padding-top: 0; }
+    .pkg-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      gap: 8px; margin-bottom: 4px;
+    }
+    .pkg-title { font-weight: 500; font-size: 12.5px; color: var(--mid); }
+    .pkg-pct {
+      color: var(--fg); font-size: 12px; font-weight: 600;
+      font-feature-settings: "tnum";
+    }
+    .bar-wrap { position: relative; }
+    .bar {
+      height: 8px; background: var(--track); border-radius: 4px; overflow: hidden;
+    }
+    .bar-fill { height: 100%; background: var(--ok); }
+    .bar-fill.watch { background: var(--watch); }
+    .bar-fill.topup { background: var(--topup); }
+    .bar-fill.urgent { background: var(--uol); }
+    .bar-fill.exhausted { background: var(--exhausted); }
+    .bar-pace {
+      position: absolute; top: -2px; height: 12px; width: 2px;
+      background: var(--accent);
+    }
+    .meta {
+      display: flex; justify-content: space-between; gap: 8px;
+      margin-top: 4px; color: var(--dim); font-size: 11px;
+      font-feature-settings: "tnum";
+    }
+
+    /* Totals strip */
+    .totals {
+      display: grid; gap: 10px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-bottom: 0;
+    }
+    .stat {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px;
+    }
+    .stat .label {
+      color: var(--dim); font-size: 11px; text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+    .stat .value {
+      font-size: 18px; font-weight: 600; margin-top: 2px;
+      font-feature-settings: "tnum";
+    }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    th, td {
+      text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border);
+      font-feature-settings: "tnum";
+    }
+    th { color: var(--dim); font-weight: 500; font-size: 11px;
+      text-transform: uppercase; letter-spacing: .4px; }
+    td.num, th.num { text-align: right; }
+
+    /* Sparkline */
+    svg.spark { width: 100%; height: 60px; display: block; }
+    svg.spark path.line { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+    svg.spark path.area { fill: var(--accent); opacity: 0.12; stroke: none; }
+
+    .empty { color: var(--dim); font-size: 12px; font-style: italic; padding: 6px 0; }
+    .err   { color: var(--uol); font-size: 12px; padding: 6px 0; }
+  </style>
+</head>
+<body>
+
+<div class="crumbs"><a href="/dashboard/quotas">← Back to overview</a></div>
+
+<div class="head-actions">
+  <div>
+    <h1 id="title">Loading…</h1>
+    <div class="sub" id="subtitle">Fetching brand context…</div>
+  </div>
+  <div class="right">
+    <button class="cockpit-link" id="pinBtn" style="cursor:pointer" onclick="togglePin()">Pin as Home</button>
+    <a class="cockpit-link" id="cockpit" href="#" target="_blank" rel="noopener">
+      Open in Cockpit ↗
+    </a>
+  </div>
+</div>
+
+<div class="totals" id="totals">
+  <div class="stat"><div class="label">Requests (24h)</div><div class="value" id="t-req">—</div></div>
+  <div class="stat"><div class="label">Failures</div><div class="value" id="t-fail">—</div></div>
+  <div class="stat"><div class="label">Tokens</div><div class="value" id="t-tok">—</div></div>
+  <div class="stat"><div class="label">Cost</div><div class="value" id="t-cost">—</div></div>
+</div>
+
+<div style="height: 14px"></div>
+
+<div class="panels">
+  <section class="panel" id="panel-quota">
+    <h2>Quota</h2>
+    <div id="quota-body"><div class="empty">Loading…</div></div>
+  </section>
+
+  <section class="panel" id="panel-analytics">
+    <h2>Activity (last 24h)</h2>
+    <svg class="spark" id="spark" viewBox="0 0 600 60" preserveAspectRatio="none">
+      <path class="area" d="" />
+      <path class="line" d="" />
+    </svg>
+    <div class="empty" id="spark-empty" style="display:none">No requests in the last 24 hours.</div>
+  </section>
+
+  <section class="panel" id="panel-clients" style="grid-column: 1/-1">
+    <h2>Clients</h2>
+    <div id="clients-body"><div class="empty">Loading…</div></div>
+  </section>
+
+  <section class="panel" id="panel-routes" style="grid-column: 1/-1">
+    <h2>Routes &amp; lanes</h2>
+    <div id="routes-body"><div class="empty">Loading…</div></div>
+  </section>
+</div>
+
+<script>
+const BRAND_SLUG = "__BRAND_SLUG__";
+const COCKPIT_URL = "__COCKPIT_URL__";
+
+// Home-pin state mirrored from /api/dashboard/settings. The pin button
+// in the header toggles ``default_view`` between ``brand:<slug>`` and
+// ``overview`` so operators can promote / demote this view with one
+// click. See docs/GATE-BAR-DESIGN.md §Default Landing View.
+let PIN_SETTINGS = {default_view: "overview", pinned_brand_slug: ""};
+
+async function loadPinSettings() {
+  try {
+    const r = await fetch("/api/dashboard/settings");
+    if (r.ok) PIN_SETTINGS = await r.json();
+  } catch (_) { /* keep defaults */ }
+  renderPinButton();
+}
+
+function renderPinButton() {
+  const btn = document.getElementById("pinBtn");
+  if (!btn) return;
+  const pinned = PIN_SETTINGS.default_view === `brand:${BRAND_SLUG}`;
+  if (pinned) {
+    btn.textContent = "📌 Home (click to unpin)";
+    btn.style.borderColor = "var(--accent)";
+    btn.style.color = "var(--accent)";
+  } else {
+    btn.textContent = "Pin as Home";
+    btn.style.borderColor = "var(--border)";
+    btn.style.color = "var(--fg)";
+  }
+}
+
+async function togglePin() {
+  const pinned = PIN_SETTINGS.default_view === `brand:${BRAND_SLUG}`;
+  const target = pinned ? "overview" : `brand:${BRAND_SLUG}`;
+  try {
+    const r = await fetch("/api/dashboard/settings", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({default_view: target})
+    });
+    if (r.ok) {
+      PIN_SETTINGS = await r.json();
+      renderPinButton();
+    }
+  } catch (e) {
+    console.error("togglePin failed:", e);
+  }
+}
+window.togglePin = togglePin;
+
+function fmtPct(v) { return (v * 100).toFixed(1).replace(/\\.0$/, "") + "%"; }
+function fmtNum(v) { if (v === null || v === undefined) return "—";
+  if (v >= 1e6) return (v / 1e6).toFixed(1) + "M";
+  if (v >= 1e3) return (v / 1e3).toFixed(1) + "k";
+  return String(Math.round(v));
+}
+function fmtUSD(v) { if (!v) return "$0"; return "$" + v.toFixed(4).replace(/0+$/, "").replace(/\\.$/, ""); }
+
+function classify(pct) {
+  if (pct >= 1.0) return "exhausted";
+  if (pct >= 0.9) return "urgent";
+  if (pct >= 0.7) return "topup";
+  if (pct >= 0.5) return "watch";
+  return "ok";
+}
+
+function renderQuotaRow(s) {
+  const pct = Math.max(0, Math.min(1, s.used_ratio || 0));
+  const cls = classify(pct);
+  let paceHTML = "";
+  if (s.pace_delta !== null && s.pace_delta !== undefined
+      && s.elapsed_ratio !== null && s.elapsed_ratio !== undefined) {
+    const left = Math.max(0, Math.min(1, s.elapsed_ratio)) * 100;
+    paceHTML = `<div class="bar-pace" style="left:calc(${left}% - 1px)"></div>`;
+  }
+  const reset = s.reset_at
+    ? `resets ${new Date(s.reset_at).toLocaleString()}`
+    : (s.projected_days_left !== null && s.projected_days_left !== undefined
+        ? `~${s.projected_days_left}d left at current pace`
+        : "");
+  return `
+    <div class="pkg-row">
+      <div class="pkg-head">
+        <div class="pkg-title">${s.package_name || s.package_id}</div>
+        <div class="pkg-pct">${fmtPct(pct)}</div>
+      </div>
+      <div class="bar-wrap">
+        <div class="bar"><div class="bar-fill ${cls}" style="width:${pct * 100}%"></div></div>
+        ${paceHTML}
+      </div>
+      <div class="meta">
+        <span>${s.used_display || ""} / ${s.total_display || ""}</span>
+        <span>${reset}</span>
+      </div>
+    </div>`;
+}
+
+function renderQuotaPanel(brand, identity, statuses) {
+  const idLine = identity
+    ? `<div class="brand-identity">${identity.login_method}: <code>${identity.credential}</code></div>`
+    : "";
+  if (!statuses || !statuses.length) {
+    return idLine + `<div class="empty">No active packages for this brand.</div>`;
+  }
+  return idLine + statuses.map(renderQuotaRow).join("");
+}
+
+function renderClients(rows) {
+  if (!rows || !rows.length) return `<div class="empty">No client activity yet.</div>`;
+  const head = `<tr><th>Profile</th><th>Tag</th><th class="num">Requests</th>
+    <th class="num">Success</th><th class="num">Tokens</th><th class="num">Cost</th></tr>`;
+  const body = rows.map(r => `
+    <tr>
+      <td>${r.client_profile || "—"}</td>
+      <td>${r.client_tag || "—"}</td>
+      <td class="num">${fmtNum(r.requests)}</td>
+      <td class="num">${(r.success_pct ?? 0).toFixed(1)}%</td>
+      <td class="num">${fmtNum(r.total_tokens)}</td>
+      <td class="num">${fmtUSD(r.cost_usd || 0)}</td>
+    </tr>`).join("");
+  return `<table>${head}${body}</table>`;
+}
+
+function renderRoutes(lanes) {
+  if (!lanes || !lanes.length) return `<div class="empty">No routing activity yet.</div>`;
+  const head = `<tr><th>Lane family</th><th class="num">Requests</th>
+    <th class="num">Providers</th><th class="num">Cost</th>
+    <th class="num">Cooldown</th><th class="num">Degraded</th></tr>`;
+  const body = lanes.map(r => `
+    <tr>
+      <td>${r.lane_family || "—"}</td>
+      <td class="num">${fmtNum(r.requests)}</td>
+      <td class="num">${r.providers || 0}</td>
+      <td class="num">${fmtUSD(r.cost_usd || 0)}</td>
+      <td class="num">${fmtNum(r.cooldown_requests)}</td>
+      <td class="num">${fmtNum(r.degraded_requests)}</td>
+    </tr>`).join("");
+  return `<table>${head}${body}</table>`;
+}
+
+function renderSpark(hourly) {
+  const svg = document.getElementById("spark");
+  const emptyEl = document.getElementById("spark-empty");
+  const line = svg.querySelector("path.line");
+  const area = svg.querySelector("path.area");
+  if (!hourly || !hourly.length) {
+    line.setAttribute("d", ""); area.setAttribute("d", "");
+    emptyEl.style.display = "";
+    return;
+  }
+  emptyEl.style.display = "none";
+  const W = 600, H = 60, PAD = 2;
+  const xs = hourly.map(r => r.hour_offset);
+  const ys = hourly.map(r => r.requests || 0);
+  const xmin = Math.min(...xs), xmax = Math.max(...xs);
+  const ymax = Math.max(1, ...ys);
+  const sx = x => {
+    if (xmax === xmin) return W / 2;
+    return PAD + (x - xmin) * (W - 2 * PAD) / (xmax - xmin);
+  };
+  const sy = y => H - PAD - y * (H - 2 * PAD) / ymax;
+  const pts = hourly.map(r => `${sx(r.hour_offset).toFixed(1)},${sy(r.requests || 0).toFixed(1)}`);
+  line.setAttribute("d", "M " + pts.join(" L "));
+  area.setAttribute("d", "M " + pts[0]
+    + " L " + pts.slice(1).join(" L ")
+    + ` L ${sx(xmax).toFixed(1)},${H} L ${sx(xmin).toFixed(1)},${H} Z`);
+}
+
+function renderTotals(totals) {
+  document.getElementById("t-req").textContent  = fmtNum(totals.total_requests || 0);
+  document.getElementById("t-fail").textContent = fmtNum(totals.total_failures || 0);
+  const tok = (totals.total_prompt_tokens || 0) + (totals.total_compl_tokens || 0);
+  document.getElementById("t-tok").textContent  = fmtNum(tok);
+  document.getElementById("t-cost").textContent = fmtUSD(totals.total_cost_usd || 0);
+}
+
+async function refresh() {
+  const cockpit = document.getElementById("cockpit");
+  cockpit.href = `${COCKPIT_URL}/providers/${encodeURIComponent(BRAND_SLUG)}`;
+
+  try {
+    const [quotasRes, clientsRes, routesRes, analyticsRes] = await Promise.all([
+      fetch("/api/quotas"),
+      fetch(`/api/quotas/${encodeURIComponent(BRAND_SLUG)}/clients`),
+      fetch(`/api/quotas/${encodeURIComponent(BRAND_SLUG)}/routes`),
+      fetch(`/api/quotas/${encodeURIComponent(BRAND_SLUG)}/analytics`),
+    ]);
+
+    if (clientsRes.status === 404) {
+      document.getElementById("title").textContent = "Brand not found";
+      document.getElementById("subtitle").innerHTML =
+        `<code>${BRAND_SLUG}</code> has no active packages on this gate.`;
+      document.getElementById("quota-body").innerHTML = "";
+      document.getElementById("clients-body").innerHTML = "";
+      document.getElementById("routes-body").innerHTML = "";
+      return;
+    }
+
+    const quotas = await quotasRes.json();
+    const clients = await clientsRes.json();
+    const routes = await routesRes.json();
+    const analytics = await analyticsRes.json();
+
+    const statuses = (quotas.packages || []).filter(p => p.brand_slug === BRAND_SLUG);
+    const brand = clients.brand || BRAND_SLUG;
+    const identity = statuses.length ? statuses[0].identity : null;
+
+    document.getElementById("title").textContent = brand;
+    const providerList = (clients.providers || []).join(", ");
+    document.getElementById("subtitle").textContent =
+      `${statuses.length} active package${statuses.length === 1 ? "" : "s"} · providers: ${providerList || "—"}`;
+
+    document.getElementById("quota-body").innerHTML =
+      renderQuotaPanel(brand, identity, statuses);
+
+    renderTotals(analytics.totals || {});
+    renderSpark(analytics.hourly || []);
+    document.getElementById("clients-body").innerHTML = renderClients(clients.clients);
+    document.getElementById("routes-body").innerHTML = renderRoutes(routes.lane_families);
+  } catch (e) {
+    document.getElementById("subtitle").innerHTML =
+      `<span class="err">Error: ${e.message}</span>`;
+  }
+}
+
+loadPinSettings();
 refresh();
 setInterval(refresh, 60000);
 </script>
@@ -3635,10 +4390,300 @@ setInterval(refresh, 60000);
 """
 
 
+def _cockpit_base_url() -> str:
+    """Resolve the Operator Cockpit base URL the widget links out to.
+
+    Read order: ``FAIGATE_COCKPIT_URL`` env var → public default. Trailing
+    slash is stripped so deep links compose cleanly (``${base}/providers/…``).
+    """
+    url = os.environ.get("FAIGATE_COCKPIT_URL") or "https://cockpit.fusionaize.ai"
+    return url.rstrip("/")
+
+
 @app.get("/dashboard/quotas", response_class=HTMLResponse)
-async def dashboard_quotas():
-    """Self-contained quotas page. Polls /api/quotas every 60s."""
-    return _QUOTAS_DASHBOARD_HTML
+async def dashboard_quotas(request: Request):
+    """Self-contained quotas page. Polls /api/quotas every 60s.
+
+    Honors ``dashboard.quotas.default_view`` from config.yaml:
+
+      - ``"overview"`` — render the grid (default).
+      - ``"brand:<slug>"`` — 302 to ``/dashboard/quotas/<slug>``.
+      - ``"cockpit"`` — 302 to the Operator Cockpit.
+
+    ``?view=overview`` always forces the grid, so a pinned brand card
+    can link back home without the redirect fighting the user.
+    """
+    override = (request.query_params.get("view") or "").strip().lower()
+    if override == "overview":
+        return HTMLResponse(_QUOTAS_DASHBOARD_HTML.replace("__COCKPIT_URL__", _cockpit_base_url()))
+
+    from .dashboard_settings import get_settings
+
+    try:
+        settings = get_settings()
+    except Exception as exc:  # noqa: BLE001 — never break the dashboard on a settings read
+        logger.warning("dashboard_quotas: settings read failed, falling back to overview: %s", exc)
+        settings = {"default_view": "overview", "pinned_brand_slug": ""}
+
+    default_view = str(settings.get("default_view") or "overview")
+    if default_view == "cockpit":
+        return RedirectResponse(url=_cockpit_base_url(), status_code=302)
+    if default_view.startswith("brand:"):
+        slug = default_view[len("brand:") :]
+        if slug:
+            return RedirectResponse(url=f"/dashboard/quotas/{slug}", status_code=302)
+
+    return HTMLResponse(_QUOTAS_DASHBOARD_HTML.replace("__COCKPIT_URL__", _cockpit_base_url()))
+
+
+@app.get("/api/dashboard/settings")
+async def api_dashboard_settings_get():
+    """Read-only view of ``dashboard.quotas.*`` settings.
+
+    Used by the overview HTML (to show "pinned" state on a card) and by
+    the Gate Bar menubar app (to decide which page "Open Dashboard" should
+    land on — but we let the server-side redirect do the work, so the
+    Gate Bar just opens ``/dashboard/quotas`` without branching logic).
+    """
+    from .dashboard_settings import get_settings
+
+    try:
+        return get_settings()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("api_dashboard_settings_get failed: %s", exc)
+        return {"default_view": "overview", "pinned_brand_slug": ""}
+
+
+@app.post("/api/dashboard/settings")
+async def api_dashboard_settings_post(request: Request):
+    """Update ``dashboard.quotas.default_view``.
+
+    Body (JSON): ``{"default_view": "overview" | "cockpit" | "brand:<slug>"}``.
+    Returns the canonical settings dict after the write, or 400 on bad
+    input. Config file writes go through an atomic rename; comments and
+    key order in ``config.yaml`` are preserved via ruamel.yaml.
+    """
+    from .dashboard_settings import set_default_view, validate_default_view
+
+    try:
+        payload = await request.json()
+    except Exception:  # noqa: BLE001
+        return JSONResponse({"error": "invalid JSON body"}, status_code=400)
+
+    if not isinstance(payload, dict):
+        return JSONResponse({"error": "body must be a JSON object"}, status_code=400)
+
+    raw_view = payload.get("default_view")
+    if not isinstance(raw_view, str):
+        return JSONResponse({"error": "default_view must be a string"}, status_code=400)
+
+    try:
+        validate_default_view(raw_view)
+    except ValueError:
+        # Don't echo the raw exception text — it may contain user-supplied
+        # fragments that a future refactor could forward to a templated
+        # error page. Keep the surface message static; the real cause is
+        # knowable from the client (it just sent the value).
+        return JSONResponse({"error": "default_view is not a valid view identifier"}, status_code=400)
+
+    try:
+        return set_default_view(raw_view)
+    except FileNotFoundError:
+        logger.exception("api_dashboard_settings_post: config.yaml missing")
+        return JSONResponse({"error": "config.yaml not found"}, status_code=500)
+    except Exception:  # noqa: BLE001
+        logger.exception("api_dashboard_settings_post: write failed")
+        return JSONResponse({"error": "write failed"}, status_code=500)
+
+
+def _brand_context(brand_slug: str) -> dict[str, Any] | None:
+    """Resolve a ``brand_slug`` to the runtime providers feeding it.
+
+    Returns ``None`` when the brand is unknown or has no active packages on
+    this machine — the endpoints then 404 rather than silently returning
+    empty payloads, so the widget can distinguish "typo in URL" from
+    "brand exists but no traffic yet".
+
+    The returned dict has:
+      - ``brand``: display name (e.g. ``"Claude"``)
+      - ``brand_slug``: echoed back for the client
+      - ``providers``: sorted list of ``provider_id`` strings feeding this
+        brand (the ``requests.provider`` column values to filter on)
+      - ``packages``: the list of active package dicts (for the detail
+        header — package names, tiers, pace markers)
+    """
+    from .provider_catalog import get_packages_catalog
+    from .quota_tracker import _derive_brand, _slugify_brand
+
+    slug = (brand_slug or "").strip().lower()
+    if not slug:
+        return None
+
+    try:
+        raw_packages = get_packages_catalog() or {}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("get_packages_catalog failed in _brand_context: %s", exc)
+        raw_packages = {}
+
+    filtered_packages, _ = _filter_packages_by_credentials(raw_packages)
+
+    providers: set[str] = set()
+    packages: list[dict[str, Any]] = []
+    brand_name = ""
+    for pkg in filtered_packages.values():
+        pkg_brand = str(pkg.get("brand") or _derive_brand(pkg.get("provider_group") or ""))
+        pkg_slug = str(pkg.get("brand_slug") or _slugify_brand(pkg_brand))
+        if pkg_slug != slug:
+            continue
+        if not brand_name:
+            brand_name = pkg_brand
+        pid = str(pkg.get("provider_id") or "").strip()
+        if pid:
+            providers.add(pid)
+        packages.append(pkg)
+
+    if not packages:
+        return None
+
+    return {
+        "brand": brand_name or slug.title(),
+        "brand_slug": slug,
+        "providers": sorted(providers),
+        "packages": packages,
+    }
+
+
+@app.get("/api/quotas/{brand_slug}/clients")
+async def api_quota_brand_clients(brand_slug: str):
+    """Clients (profile + tag) that hit this brand's providers.
+
+    Read-only aggregation over the SQLite ``requests`` table, scoped to the
+    providers feeding the given brand. Used by the per-brand detail view
+    (``/dashboard/quotas/<slug>``). Returns ``404`` when the brand has no
+    active packages — consistent with the widget's "active-first" story.
+    """
+    ctx = _brand_context(brand_slug)
+    if ctx is None:
+        return JSONResponse({"error": {"message": "Unknown brand"}}, status_code=404)
+
+    if not ctx["providers"]:
+        return {
+            "brand": ctx["brand"],
+            "brand_slug": ctx["brand_slug"],
+            "providers": [],
+            "clients": [],
+            "client_totals": [],
+        }
+
+    filters = {"providers": ctx["providers"]}
+    return {
+        "brand": ctx["brand"],
+        "brand_slug": ctx["brand_slug"],
+        "providers": ctx["providers"],
+        "clients": _metrics.get_client_breakdown(**filters),
+        "client_totals": _metrics.get_client_totals(**filters),
+    }
+
+
+@app.get("/api/quotas/{brand_slug}/routes")
+async def api_quota_brand_routes(brand_slug: str):
+    """Lane-family + routing breakdown for a brand's providers.
+
+    Feeds the "Routes" panel in the per-brand detail view. Mirrors the shape
+    of ``/api/stats.routing`` / ``.lane_families`` but scoped to a single
+    brand so the widget can render a focused table without client-side
+    filtering.
+    """
+    ctx = _brand_context(brand_slug)
+    if ctx is None:
+        return JSONResponse({"error": {"message": "Unknown brand"}}, status_code=404)
+
+    if not ctx["providers"]:
+        return {
+            "brand": ctx["brand"],
+            "brand_slug": ctx["brand_slug"],
+            "providers": [],
+            "lane_families": [],
+            "routing": [],
+            "selection_paths": [],
+        }
+
+    filters = {"providers": ctx["providers"]}
+    return {
+        "brand": ctx["brand"],
+        "brand_slug": ctx["brand_slug"],
+        "providers": ctx["providers"],
+        "lane_families": _metrics.get_lane_family_breakdown(**filters),
+        "routing": _metrics.get_routing_breakdown(**filters),
+        "selection_paths": _metrics.get_selection_path_breakdown(**filters),
+    }
+
+
+@app.get("/api/quotas/{brand_slug}/analytics")
+async def api_quota_brand_analytics(brand_slug: str, hours: int = 24, days: int = 14):
+    """Time-series + totals for a brand's providers.
+
+    Returns ``totals``, ``providers`` (per-provider summary), ``hourly``
+    (last N hours), and ``daily`` (last N days) — enough for the detail
+    view's sparkline + the single-number summary cards. Defaults cover a
+    2-week window so most operators see a meaningful chart on first load.
+    """
+    ctx = _brand_context(brand_slug)
+    if ctx is None:
+        return JSONResponse({"error": {"message": "Unknown brand"}}, status_code=404)
+
+    # Clamp to sane ranges so a typo can't hammer the DB with a 100-year
+    # scan. These are pulled straight from the widget's controls, so the
+    # upper bounds match the UI options we expose.
+    hours = max(1, min(int(hours or 24), 24 * 7))
+    days = max(1, min(int(days or 14), 90))
+
+    if not ctx["providers"]:
+        return {
+            "brand": ctx["brand"],
+            "brand_slug": ctx["brand_slug"],
+            "providers": [],
+            "totals": {},
+            "provider_summary": [],
+            "hourly": [],
+            "daily": [],
+        }
+
+    filters = {"providers": ctx["providers"]}
+    return {
+        "brand": ctx["brand"],
+        "brand_slug": ctx["brand_slug"],
+        "providers": ctx["providers"],
+        "totals": _metrics.get_totals(**filters),
+        "provider_summary": _metrics.get_provider_summary(**filters),
+        "hourly": _metrics.get_hourly_series(hours, **filters),
+        "daily": _metrics.get_daily_totals(days, **filters),
+    }
+
+
+@app.get("/dashboard/quotas/{brand_slug}", response_class=HTMLResponse)
+async def dashboard_quota_brand(brand_slug: str):
+    """Per-brand detail view — single-brand quota card + clients + routes + analytics.
+
+    Renders the same shell for every brand; JS pulls the four data sources
+    (``/api/quotas``, ``/api/quotas/<slug>/{clients,routes,analytics}``) on
+    load and every 60s. Unknown-brand 404s are handled client-side by
+    showing the "Back to overview" link.
+    """
+    slug = (brand_slug or "").strip().lower()
+    # Strict whitelist: the slug is spliced into an HTML template below via
+    # str.replace, so anything outside this grammar would be a reflected-XSS
+    # vector. Valid catalog slugs (claude/codex/gemini/…) all fit.
+    if not slug or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", slug):
+        return JSONResponse({"error": {"message": "Unknown brand"}}, status_code=404)
+    # Belt-and-suspenders: even though the regex above already guarantees the
+    # slug is safe, run it through html.escape so CodeQL's taint tracker
+    # (which doesn't recognise arbitrary regex sanitisers) can prove it.
+    safe_slug = html_lib.escape(slug, quote=True)
+    html = _QUOTAS_BRAND_DETAIL_HTML
+    html = html.replace("__COCKPIT_URL__", _cockpit_base_url())
+    html = html.replace("__BRAND_SLUG__", safe_slug)
+    return html
 
 
 @app.get("/dashboard/assets/{asset_kind}/{asset_name:path}")
