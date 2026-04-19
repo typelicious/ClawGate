@@ -31,6 +31,10 @@ dependencies = [
     "httpx>=0.27.0,<0.29",
     "pydantic>=2.9,<2.14",
     "pyyaml>=6.0.2",
+    # ruamel.yaml powers comment-preserving round-trip writes to config.yaml
+    # from the dashboard settings endpoint. Standard yaml.safe_dump would
+    # destroy operator-authored comments (section banners, OAuth docs, …).
+    "ruamel.yaml>=0.18.6",
     "python-dotenv>=1.0.1",
     "python-multipart>=0.0.9",
 ]

@@ -398,29 +398,52 @@ The quick view is a **read-only composite**; it writes nothing, it is safe
 to reload, and it degrades gracefully if any of the three new endpoints
 fails (the section just collapses with an "unavailable" hint).
 
-### Default landing view (user-configurable)
+### Default landing view (user-configurable) — **shipped v2.3**
 
 Operators have different "home screens" — one person opens the dashboard to
 check Claude quota first, another always wants the full overview.
 
-Add a persisted setting `dashboard.quotas.default_view` with three options:
+Persisted setting `dashboard.quotas.default_view` has three options:
 
 | Value                | Behavior on `/dashboard/quotas`                             |
 |----------------------|-------------------------------------------------------------|
-| `overview` (default) | Current clustered all-brands grid.                          |
-| `brand:<slug>`       | Redirect to `/dashboard/quotas/<slug>` (per-brand detail).  |
+| `overview` (default) | Clustered all-brands grid.                                  |
+| `brand:<slug>`       | 302 to `/dashboard/quotas/<slug>` (per-brand detail).       |
 | `cockpit`            | 302 to `FAIGATE_COCKPIT_URL` in the same tab.               |
 
-- Stored in `FAIGATE_CONFIG_FILE` under `dashboard.quotas.default_view`.
-- Surfaced in the dashboard settings panel with a radio group plus a
-  dropdown of available brands (same roster the widget computes).
-- A small "Home ⤴" pin appears on every brand card and on the overview
-  header; clicking it sets that view as the default landing. One-click
-  promotion, no modal.
-- The URL bar still works — `/dashboard/quotas` respects the setting,
-  `/dashboard/quotas?view=overview` forces the overview regardless.
-- Gate Bar reuses the same setting: its popover's "Open" button honours
-  the operator's chosen default view.
+**Persistence (`faigate/dashboard_settings.py`):**
+
+- Stored in `config.yaml` under `dashboard.quotas.default_view` alongside
+  a mirrored `pinned_brand_slug` key (so UI code can render "pinned"
+  state without string-splitting `brand:<slug>`).
+- Writes go through `ruamel.yaml` round-trip → **every operator comment
+  in the 48 kB config survives a pin toggle**. Regular `yaml.safe_dump`
+  would flatten 220+ comment lines; we didn't take that trade.
+- Writes are atomic (`tempfile.mkstemp` in the same dir + `os.replace`)
+  so a crash mid-write can't leave a half-rewritten config.
+
+**HTTP surface:**
+
+- `GET /api/dashboard/settings` — `{default_view, pinned_brand_slug}`.
+- `POST /api/dashboard/settings` — body `{default_view}`; validates
+  against `overview` | `cockpit` | `brand:<slug>` (slug = `[a-z0-9-]+`).
+  Bad input → 400.
+- `GET /dashboard/quotas` — honors the setting via 302. The escape
+  hatch `GET /dashboard/quotas?view=overview` always renders the grid,
+  so a pinned brand card's "Home" link back to the overview works even
+  when the operator's default is a brand detail.
+
+**UI:**
+
+- Overview header shows the current Home view in the top-right, plus a
+  "Reset to Overview" chip when anything other than overview is pinned.
+- Every brand card has a `Pin as Home` / `📌 Home` button next to its
+  Details / Cockpit actions. Clicking toggles between
+  `default_view=brand:<slug>` and `overview`.
+- The detail page header has the same button.
+- Gate Bar's popover footer has a `Dashboard ↗` link to
+  `<gateway>/dashboard/quotas`. The server-side redirect lands the
+  operator on whichever view they pinned — no client-side branching.
 
 ---
 
@@ -514,7 +537,9 @@ pure HTTP client to the local gateway. That means:
   clients / routes / analytics blocks.
 - New read-only endpoints: `/api/quotas/<slug>/clients`, `/routes`,
   `/analytics` (all `?window=24h` by default).
-- `dashboard.quotas.default_view` setting + one-click "Home ⤴" pin.
+- `dashboard.quotas.default_view` setting + one-click pin. *Shipped —
+  ruamel.yaml round-trip keeps operator comments intact; redirect
+  honored server-side so Gate Bar doesn't need to branch.*
 - "Available to add" mini catalog block at the bottom of the overview,
   reading from the existing fusionaize-metadata catalog. New authored
   field `catalog_tagline` = `tier · price · quota shape` (e.g. "Pro ·

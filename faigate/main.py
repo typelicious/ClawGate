@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from starlette.datastructures import UploadFile
 
 from . import __version__
@@ -3606,13 +3606,50 @@ _QUOTAS_DASHBOARD_HTML = """<!doctype html>
     .skipped ul { margin: 6px 0 0 18px; padding: 0; }
 
     .empty { padding: 40px; text-align: center; color: var(--dim); }
+
+    /* ── Home-pin controls ─────────────────────────────────────────────── */
+    .header-row {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 16px; max-width: 1400px;
+    }
+    .pin-status {
+      font-size: 11.5px; color: var(--dim);
+      display: flex; align-items: center; gap: 8px;
+      padding-top: 2px;
+    }
+    .pin-status .label { opacity: 0.8; }
+    .pin-status .value { color: var(--fg); font-weight: 500; }
+    .pin-status .unpin {
+      border: 1px solid var(--border); background: transparent;
+      color: var(--dim); padding: 2px 8px; border-radius: 6px;
+      font-size: 11px; cursor: pointer;
+    }
+    .pin-status .unpin:hover { border-color: var(--accent); color: var(--accent); }
+
+    .pin-btn {
+      display: inline-block; padding: 4px 8px; border-radius: 6px;
+      font-size: 11.5px; font-weight: 500; border: 1px solid var(--border);
+      color: var(--dim); background: transparent; cursor: pointer;
+      margin-right: 4px;
+    }
+    .pin-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .pin-btn.pinned {
+      border-color: var(--accent); color: var(--accent);
+      background: rgba(139, 92, 246, 0.08);
+    }
+    .brand.pinned { box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.35); }
   </style>
 </head>
 <body>
-  <h1>Quotas</h1>
-  <div class="sub">
-    Live view of every active provider — updated every 60s. Raw feed:
-    <a href="/api/quotas">/api/quotas</a>
+  <div class="header-row">
+    <div>
+      <h1>Quotas</h1>
+      <div class="sub">
+        Live view of every active provider — updated every 60s. Raw feed:
+        <a href="/api/quotas">/api/quotas</a>
+      </div>
+    </div>
+    <div class="pin-status" id="pinStatus"></div>
   </div>
   <div class="summary" id="summary"></div>
   <div class="grid" id="grid"><div class="empty">Loading…</div></div>
@@ -3625,6 +3662,64 @@ const COCKPIT_URL = "__COCKPIT_URL__";
 const ALERT_ORDER = ["use_or_lose", "exhausted", "topup", "watch", "ok", "unknown"];
 const ALERT_RANK = Object.fromEntries(ALERT_ORDER.map((a, i) => [a, i]));
 const EMOJI = {ok: "🟢", watch: "🟡", topup: "🟠", use_or_lose: "⚠️", exhausted: "🔴"};
+
+// ── Dashboard settings (Home pin) ─────────────────────────────────────
+// Held here so brand-card render can tag the currently-pinned card and
+// the header can render the "pinned on …" chip. Kept in sync with the
+// server after every successful POST /api/dashboard/settings.
+let SETTINGS = {default_view: "overview", pinned_brand_slug: ""};
+
+async function loadSettings() {
+  try {
+    const r = await fetch("/api/dashboard/settings");
+    if (r.ok) SETTINGS = await r.json();
+  } catch (_) { /* keep defaults */ }
+  renderPinStatus();
+}
+
+function renderPinStatus() {
+  const el = document.getElementById("pinStatus");
+  if (!el) return;
+  const view = SETTINGS.default_view || "overview";
+  if (view === "overview") {
+    el.innerHTML = `<span class="label">Home view:</span> <span class="value">Overview</span>`;
+    return;
+  }
+  let label = "";
+  if (view === "cockpit") label = "Cockpit";
+  else if (view.startsWith("brand:")) label = view.slice(6);
+  el.innerHTML = `
+    <span class="label">Home view:</span>
+    <span class="value">${escapeHtml(label)}</span>
+    <button class="unpin" onclick="setHomeView('overview')">Reset to Overview</button>
+  `;
+}
+
+async function setHomeView(view) {
+  try {
+    const r = await fetch("/api/dashboard/settings", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({default_view: view})
+    });
+    if (r.ok) {
+      SETTINGS = await r.json();
+      renderPinStatus();
+      refresh();  // re-render brand cards to move the "pinned" chip
+    }
+  } catch (e) {
+    console.error("setHomeView failed:", e);
+  }
+}
+
+// Expose toggle for onclick handlers rendered inline in card HTML
+window.toggleBrandPin = function (slug) {
+  if (!slug) return;
+  const current = SETTINGS.default_view || "overview";
+  if (current === `brand:${slug}`) setHomeView("overview");
+  else setHomeView(`brand:${slug}`);
+};
+window.setHomeView = setHomeView;
 
 // ── Small helpers ─────────────────────────────────────────────────────
 function pct(x) { return Math.max(0, Math.min(100, Math.round(x * 100))); }
@@ -3751,7 +3846,14 @@ function renderBrandCard(brand, statuses) {
     ? `updated ${Math.max(1, Math.round((Date.now() - mostRecent) / 1000))}s ago`
     : "";
 
-  return `<div class="brand ${alertClass}" data-slug="${escapeHtml(slug)}">
+  const isPinned = slug && SETTINGS.default_view === `brand:${slug}`;
+  const pinnedClass = isPinned ? " pinned" : "";
+  const pinLabel = isPinned ? "📌 Home" : "Pin as Home";
+  const pinBtn = slug
+    ? `<button class="pin-btn${isPinned ? " pinned" : ""}" onclick="toggleBrandPin('${escapeHtml(slug)}')" title="${isPinned ? "Open this brand as the default /dashboard/quotas view" : "Set this brand as the default /dashboard/quotas view"}">${pinLabel}</button>`
+    : "";
+
+  return `<div class="brand ${alertClass}${pinnedClass}" data-slug="${escapeHtml(slug)}">
     <div class="brand-head">
       <div class="brand-name"><span class="emoji">${EMOJI[worst] || "·"}</span>${escapeHtml(brand)}</div>
       ${identityHtml}
@@ -3760,6 +3862,7 @@ function renderBrandCard(brand, statuses) {
     <div class="brand-foot">
       <span class="when">${when}</span>
       <span>
+        ${pinBtn}
         <a class="btn" href="${detailHref}">Details →</a>
         <a class="btn" href="${cockpitHref}" target="_blank" rel="noopener">Cockpit ↗</a>
       </span>
@@ -3857,7 +3960,7 @@ async function refresh() {
   }
 }
 
-refresh();
+loadSettings().then(refresh);
 setInterval(refresh, 60000);
 </script>
 </body>
@@ -4008,6 +4111,7 @@ _QUOTAS_BRAND_DETAIL_HTML = """<!doctype html>
     <div class="sub" id="subtitle">Fetching brand context…</div>
   </div>
   <div class="right">
+    <button class="cockpit-link" id="pinBtn" style="cursor:pointer" onclick="togglePin()">Pin as Home</button>
     <a class="cockpit-link" id="cockpit" href="#" target="_blank" rel="noopener">
       Open in Cockpit ↗
     </a>
@@ -4052,6 +4156,54 @@ _QUOTAS_BRAND_DETAIL_HTML = """<!doctype html>
 <script>
 const BRAND_SLUG = "__BRAND_SLUG__";
 const COCKPIT_URL = "__COCKPIT_URL__";
+
+// Home-pin state mirrored from /api/dashboard/settings. The pin button
+// in the header toggles ``default_view`` between ``brand:<slug>`` and
+// ``overview`` so operators can promote / demote this view with one
+// click. See docs/GATE-BAR-DESIGN.md §Default Landing View.
+let PIN_SETTINGS = {default_view: "overview", pinned_brand_slug: ""};
+
+async function loadPinSettings() {
+  try {
+    const r = await fetch("/api/dashboard/settings");
+    if (r.ok) PIN_SETTINGS = await r.json();
+  } catch (_) { /* keep defaults */ }
+  renderPinButton();
+}
+
+function renderPinButton() {
+  const btn = document.getElementById("pinBtn");
+  if (!btn) return;
+  const pinned = PIN_SETTINGS.default_view === `brand:${BRAND_SLUG}`;
+  if (pinned) {
+    btn.textContent = "📌 Home (click to unpin)";
+    btn.style.borderColor = "var(--accent)";
+    btn.style.color = "var(--accent)";
+  } else {
+    btn.textContent = "Pin as Home";
+    btn.style.borderColor = "var(--border)";
+    btn.style.color = "var(--fg)";
+  }
+}
+
+async function togglePin() {
+  const pinned = PIN_SETTINGS.default_view === `brand:${BRAND_SLUG}`;
+  const target = pinned ? "overview" : `brand:${BRAND_SLUG}`;
+  try {
+    const r = await fetch("/api/dashboard/settings", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({default_view: target})
+    });
+    if (r.ok) {
+      PIN_SETTINGS = await r.json();
+      renderPinButton();
+    }
+  } catch (e) {
+    console.error("togglePin failed:", e);
+  }
+}
+window.togglePin = togglePin;
 
 function fmtPct(v) { return (v * 100).toFixed(1).replace(/\\.0$/, "") + "%"; }
 function fmtNum(v) { if (v === null || v === undefined) return "—";
@@ -4228,6 +4380,7 @@ async function refresh() {
   }
 }
 
+loadPinSettings();
 refresh();
 setInterval(refresh, 60000);
 </script>
@@ -4247,9 +4400,94 @@ def _cockpit_base_url() -> str:
 
 
 @app.get("/dashboard/quotas", response_class=HTMLResponse)
-async def dashboard_quotas():
-    """Self-contained quotas page. Polls /api/quotas every 60s."""
-    return _QUOTAS_DASHBOARD_HTML.replace("__COCKPIT_URL__", _cockpit_base_url())
+async def dashboard_quotas(request: Request):
+    """Self-contained quotas page. Polls /api/quotas every 60s.
+
+    Honors ``dashboard.quotas.default_view`` from config.yaml:
+
+      - ``"overview"`` — render the grid (default).
+      - ``"brand:<slug>"`` — 302 to ``/dashboard/quotas/<slug>``.
+      - ``"cockpit"`` — 302 to the Operator Cockpit.
+
+    ``?view=overview`` always forces the grid, so a pinned brand card
+    can link back home without the redirect fighting the user.
+    """
+    override = (request.query_params.get("view") or "").strip().lower()
+    if override == "overview":
+        return HTMLResponse(_QUOTAS_DASHBOARD_HTML.replace("__COCKPIT_URL__", _cockpit_base_url()))
+
+    from .dashboard_settings import get_settings
+
+    try:
+        settings = get_settings()
+    except Exception as exc:  # noqa: BLE001 — never break the dashboard on a settings read
+        logger.warning("dashboard_quotas: settings read failed, falling back to overview: %s", exc)
+        settings = {"default_view": "overview", "pinned_brand_slug": ""}
+
+    default_view = str(settings.get("default_view") or "overview")
+    if default_view == "cockpit":
+        return RedirectResponse(url=_cockpit_base_url(), status_code=302)
+    if default_view.startswith("brand:"):
+        slug = default_view[len("brand:") :]
+        if slug:
+            return RedirectResponse(url=f"/dashboard/quotas/{slug}", status_code=302)
+
+    return HTMLResponse(_QUOTAS_DASHBOARD_HTML.replace("__COCKPIT_URL__", _cockpit_base_url()))
+
+
+@app.get("/api/dashboard/settings")
+async def api_dashboard_settings_get():
+    """Read-only view of ``dashboard.quotas.*`` settings.
+
+    Used by the overview HTML (to show "pinned" state on a card) and by
+    the Gate Bar menubar app (to decide which page "Open Dashboard" should
+    land on — but we let the server-side redirect do the work, so the
+    Gate Bar just opens ``/dashboard/quotas`` without branching logic).
+    """
+    from .dashboard_settings import get_settings
+
+    try:
+        return get_settings()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("api_dashboard_settings_get failed: %s", exc)
+        return {"default_view": "overview", "pinned_brand_slug": ""}
+
+
+@app.post("/api/dashboard/settings")
+async def api_dashboard_settings_post(request: Request):
+    """Update ``dashboard.quotas.default_view``.
+
+    Body (JSON): ``{"default_view": "overview" | "cockpit" | "brand:<slug>"}``.
+    Returns the canonical settings dict after the write, or 400 on bad
+    input. Config file writes go through an atomic rename; comments and
+    key order in ``config.yaml`` are preserved via ruamel.yaml.
+    """
+    from .dashboard_settings import set_default_view, validate_default_view
+
+    try:
+        payload = await request.json()
+    except Exception:  # noqa: BLE001
+        return JSONResponse({"error": "invalid JSON body"}, status_code=400)
+
+    if not isinstance(payload, dict):
+        return JSONResponse({"error": "body must be a JSON object"}, status_code=400)
+
+    raw_view = payload.get("default_view")
+    if not isinstance(raw_view, str):
+        return JSONResponse({"error": "default_view must be a string"}, status_code=400)
+
+    try:
+        validate_default_view(raw_view)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+    try:
+        return set_default_view(raw_view)
+    except FileNotFoundError as exc:
+        return JSONResponse({"error": f"config.yaml not found: {exc}"}, status_code=500)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("api_dashboard_settings_post: write failed")
+        return JSONResponse({"error": f"write failed: {exc}"}, status_code=500)
 
 
 def _brand_context(brand_slug: str) -> dict[str, Any] | None:

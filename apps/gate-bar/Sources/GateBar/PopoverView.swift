@@ -165,6 +165,16 @@ struct PopoverView: View {
 
     private var footer: some View {
         HStack(spacing: 12) {
+            // Opens the gateway's /dashboard/quotas — the server-side
+            // redirect honors `dashboard.quotas.default_view`, so if the
+            // operator pinned a brand or Cockpit this button goes straight
+            // there. No client-side branching needed.
+            Link(destination: dashboardLink()) {
+                Text("Dashboard ↗")
+                    .font(.system(size: 12))
+            }
+            .foregroundColor(Theme.link)
+
             Link(destination: cockpitLink()) {
                 Text("Cockpit ↗")
                     .font(.system(size: 12))
@@ -202,6 +212,17 @@ struct PopoverView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+    }
+
+    /// Deep-link into the gateway's dashboard. The gateway's redirect
+    /// handler decides whether to land on the overview, a pinned brand,
+    /// or Cockpit, per the operator's ``dashboard.quotas.default_view``
+    /// setting.
+    private func dashboardLink() -> URL {
+        let base = preferences.gatewayURL.hasSuffix("/")
+            ? String(preferences.gatewayURL.dropLast())
+            : preferences.gatewayURL
+        return URL(string: "\(base)/dashboard/quotas") ?? URL(string: base)!
     }
 
     private func cockpitLink(for brandSlug: String? = nil, path: String? = nil) -> URL {
