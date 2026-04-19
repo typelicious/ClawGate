@@ -3865,6 +3865,377 @@ setInterval(refresh, 60000);
 """
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Per-brand detail view — served at ``/dashboard/quotas/<brand_slug>``. Shares
+# the visual vocabulary of the overview (same CSS variables, same bar/pace
+# look) so operators don't have to retrain their eyes when drilling in.
+#
+# Design-Thinking note (see docs/GATE-BAR-DESIGN.md §3):
+#   - Quick-view: quota card, clients, routes, small analytics chart.
+#   - Read-only: every write path links out to the Cockpit.
+#   - Glance-before-read: totals row up top, tables below.
+# ─────────────────────────────────────────────────────────────────────────────
+_QUOTAS_BRAND_DETAIL_HTML = """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>faigate · Brand detail</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0f1117; --fg: #e6e9ef; --dim: #8a93a6; --mid: #b9c1d1;
+      --card: #1a1d27; --border: #2a2f3d; --track: #262a36;
+      --ok: #4ade80; --watch: #fbbf24; --topup: #fb923c;
+      --uol: #ef4444; --exhausted: #7f1d1d;
+      --accent: #8b5cf6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 24px 28px 40px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--fg); line-height: 1.45;
+    }
+    a { color: #60a5fa; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .crumbs { font-size: 12px; color: var(--dim); margin-bottom: 10px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    .sub { color: var(--dim); font-size: 13px; margin-bottom: 18px; }
+    .head-actions { display: flex; gap: 8px; align-items: baseline;
+      justify-content: space-between; flex-wrap: wrap; }
+    .head-actions .right { display: flex; gap: 10px; }
+    .cockpit-link {
+      font-size: 12px; padding: 4px 10px; border-radius: 6px;
+      background: var(--card); border: 1px solid var(--border);
+    }
+
+    .panels {
+      display: grid; gap: 14px; grid-template-columns: 1fr;
+      max-width: 1400px;
+    }
+    @media (min-width: 1100px) {
+      .panels { grid-template-columns: minmax(320px, 1fr) 2fr; }
+    }
+
+    .panel {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px 12px;
+    }
+    .panel h2 {
+      font-size: 13px; text-transform: uppercase; letter-spacing: .6px;
+      color: var(--dim); font-weight: 600; margin: 0 0 10px;
+    }
+
+    /* Quota card (reuses overview look) */
+    .brand-identity {
+      color: var(--dim); font-size: 11px; font-feature-settings: "tnum";
+      margin-bottom: 10px;
+    }
+    .pkg-row { padding: 8px 0 2px; border-top: 1px dashed var(--border); }
+    .pkg-row:first-of-type { border-top: none; padding-top: 0; }
+    .pkg-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      gap: 8px; margin-bottom: 4px;
+    }
+    .pkg-title { font-weight: 500; font-size: 12.5px; color: var(--mid); }
+    .pkg-pct {
+      color: var(--fg); font-size: 12px; font-weight: 600;
+      font-feature-settings: "tnum";
+    }
+    .bar-wrap { position: relative; }
+    .bar {
+      height: 8px; background: var(--track); border-radius: 4px; overflow: hidden;
+    }
+    .bar-fill { height: 100%; background: var(--ok); }
+    .bar-fill.watch { background: var(--watch); }
+    .bar-fill.topup { background: var(--topup); }
+    .bar-fill.urgent { background: var(--uol); }
+    .bar-fill.exhausted { background: var(--exhausted); }
+    .bar-pace {
+      position: absolute; top: -2px; height: 12px; width: 2px;
+      background: var(--accent);
+    }
+    .meta {
+      display: flex; justify-content: space-between; gap: 8px;
+      margin-top: 4px; color: var(--dim); font-size: 11px;
+      font-feature-settings: "tnum";
+    }
+
+    /* Totals strip */
+    .totals {
+      display: grid; gap: 10px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-bottom: 0;
+    }
+    .stat {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px;
+    }
+    .stat .label {
+      color: var(--dim); font-size: 11px; text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+    .stat .value {
+      font-size: 18px; font-weight: 600; margin-top: 2px;
+      font-feature-settings: "tnum";
+    }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    th, td {
+      text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border);
+      font-feature-settings: "tnum";
+    }
+    th { color: var(--dim); font-weight: 500; font-size: 11px;
+      text-transform: uppercase; letter-spacing: .4px; }
+    td.num, th.num { text-align: right; }
+
+    /* Sparkline */
+    svg.spark { width: 100%; height: 60px; display: block; }
+    svg.spark path.line { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+    svg.spark path.area { fill: var(--accent); opacity: 0.12; stroke: none; }
+
+    .empty { color: var(--dim); font-size: 12px; font-style: italic; padding: 6px 0; }
+    .err   { color: var(--uol); font-size: 12px; padding: 6px 0; }
+  </style>
+</head>
+<body>
+
+<div class="crumbs"><a href="/dashboard/quotas">← Back to overview</a></div>
+
+<div class="head-actions">
+  <div>
+    <h1 id="title">Loading…</h1>
+    <div class="sub" id="subtitle">Fetching brand context…</div>
+  </div>
+  <div class="right">
+    <a class="cockpit-link" id="cockpit" href="#" target="_blank" rel="noopener">
+      Open in Cockpit ↗
+    </a>
+  </div>
+</div>
+
+<div class="totals" id="totals">
+  <div class="stat"><div class="label">Requests (24h)</div><div class="value" id="t-req">—</div></div>
+  <div class="stat"><div class="label">Failures</div><div class="value" id="t-fail">—</div></div>
+  <div class="stat"><div class="label">Tokens</div><div class="value" id="t-tok">—</div></div>
+  <div class="stat"><div class="label">Cost</div><div class="value" id="t-cost">—</div></div>
+</div>
+
+<div style="height: 14px"></div>
+
+<div class="panels">
+  <section class="panel" id="panel-quota">
+    <h2>Quota</h2>
+    <div id="quota-body"><div class="empty">Loading…</div></div>
+  </section>
+
+  <section class="panel" id="panel-analytics">
+    <h2>Activity (last 24h)</h2>
+    <svg class="spark" id="spark" viewBox="0 0 600 60" preserveAspectRatio="none">
+      <path class="area" d="" />
+      <path class="line" d="" />
+    </svg>
+    <div class="empty" id="spark-empty" style="display:none">No requests in the last 24 hours.</div>
+  </section>
+
+  <section class="panel" id="panel-clients" style="grid-column: 1/-1">
+    <h2>Clients</h2>
+    <div id="clients-body"><div class="empty">Loading…</div></div>
+  </section>
+
+  <section class="panel" id="panel-routes" style="grid-column: 1/-1">
+    <h2>Routes &amp; lanes</h2>
+    <div id="routes-body"><div class="empty">Loading…</div></div>
+  </section>
+</div>
+
+<script>
+const BRAND_SLUG = "__BRAND_SLUG__";
+const COCKPIT_URL = "__COCKPIT_URL__";
+
+function fmtPct(v) { return (v * 100).toFixed(1).replace(/\\.0$/, "") + "%"; }
+function fmtNum(v) { if (v === null || v === undefined) return "—";
+  if (v >= 1e6) return (v / 1e6).toFixed(1) + "M";
+  if (v >= 1e3) return (v / 1e3).toFixed(1) + "k";
+  return String(Math.round(v));
+}
+function fmtUSD(v) { if (!v) return "$0"; return "$" + v.toFixed(4).replace(/0+$/, "").replace(/\\.$/, ""); }
+
+function classify(pct) {
+  if (pct >= 1.0) return "exhausted";
+  if (pct >= 0.9) return "urgent";
+  if (pct >= 0.7) return "topup";
+  if (pct >= 0.5) return "watch";
+  return "ok";
+}
+
+function renderQuotaRow(s) {
+  const pct = Math.max(0, Math.min(1, s.used_ratio || 0));
+  const cls = classify(pct);
+  let paceHTML = "";
+  if (s.pace_delta !== null && s.pace_delta !== undefined
+      && s.elapsed_ratio !== null && s.elapsed_ratio !== undefined) {
+    const left = Math.max(0, Math.min(1, s.elapsed_ratio)) * 100;
+    paceHTML = `<div class="bar-pace" style="left:calc(${left}% - 1px)"></div>`;
+  }
+  const reset = s.reset_at
+    ? `resets ${new Date(s.reset_at).toLocaleString()}`
+    : (s.projected_days_left !== null && s.projected_days_left !== undefined
+        ? `~${s.projected_days_left}d left at current pace`
+        : "");
+  return `
+    <div class="pkg-row">
+      <div class="pkg-head">
+        <div class="pkg-title">${s.package_name || s.package_id}</div>
+        <div class="pkg-pct">${fmtPct(pct)}</div>
+      </div>
+      <div class="bar-wrap">
+        <div class="bar"><div class="bar-fill ${cls}" style="width:${pct * 100}%"></div></div>
+        ${paceHTML}
+      </div>
+      <div class="meta">
+        <span>${s.used_display || ""} / ${s.total_display || ""}</span>
+        <span>${reset}</span>
+      </div>
+    </div>`;
+}
+
+function renderQuotaPanel(brand, identity, statuses) {
+  const idLine = identity
+    ? `<div class="brand-identity">${identity.login_method}: <code>${identity.credential}</code></div>`
+    : "";
+  if (!statuses || !statuses.length) {
+    return idLine + `<div class="empty">No active packages for this brand.</div>`;
+  }
+  return idLine + statuses.map(renderQuotaRow).join("");
+}
+
+function renderClients(rows) {
+  if (!rows || !rows.length) return `<div class="empty">No client activity yet.</div>`;
+  const head = `<tr><th>Profile</th><th>Tag</th><th class="num">Requests</th>
+    <th class="num">Success</th><th class="num">Tokens</th><th class="num">Cost</th></tr>`;
+  const body = rows.map(r => `
+    <tr>
+      <td>${r.client_profile || "—"}</td>
+      <td>${r.client_tag || "—"}</td>
+      <td class="num">${fmtNum(r.requests)}</td>
+      <td class="num">${(r.success_pct ?? 0).toFixed(1)}%</td>
+      <td class="num">${fmtNum(r.total_tokens)}</td>
+      <td class="num">${fmtUSD(r.cost_usd || 0)}</td>
+    </tr>`).join("");
+  return `<table>${head}${body}</table>`;
+}
+
+function renderRoutes(lanes) {
+  if (!lanes || !lanes.length) return `<div class="empty">No routing activity yet.</div>`;
+  const head = `<tr><th>Lane family</th><th class="num">Requests</th>
+    <th class="num">Providers</th><th class="num">Cost</th>
+    <th class="num">Cooldown</th><th class="num">Degraded</th></tr>`;
+  const body = lanes.map(r => `
+    <tr>
+      <td>${r.lane_family || "—"}</td>
+      <td class="num">${fmtNum(r.requests)}</td>
+      <td class="num">${r.providers || 0}</td>
+      <td class="num">${fmtUSD(r.cost_usd || 0)}</td>
+      <td class="num">${fmtNum(r.cooldown_requests)}</td>
+      <td class="num">${fmtNum(r.degraded_requests)}</td>
+    </tr>`).join("");
+  return `<table>${head}${body}</table>`;
+}
+
+function renderSpark(hourly) {
+  const svg = document.getElementById("spark");
+  const emptyEl = document.getElementById("spark-empty");
+  const line = svg.querySelector("path.line");
+  const area = svg.querySelector("path.area");
+  if (!hourly || !hourly.length) {
+    line.setAttribute("d", ""); area.setAttribute("d", "");
+    emptyEl.style.display = "";
+    return;
+  }
+  emptyEl.style.display = "none";
+  const W = 600, H = 60, PAD = 2;
+  const xs = hourly.map(r => r.hour_offset);
+  const ys = hourly.map(r => r.requests || 0);
+  const xmin = Math.min(...xs), xmax = Math.max(...xs);
+  const ymax = Math.max(1, ...ys);
+  const sx = x => {
+    if (xmax === xmin) return W / 2;
+    return PAD + (x - xmin) * (W - 2 * PAD) / (xmax - xmin);
+  };
+  const sy = y => H - PAD - y * (H - 2 * PAD) / ymax;
+  const pts = hourly.map(r => `${sx(r.hour_offset).toFixed(1)},${sy(r.requests || 0).toFixed(1)}`);
+  line.setAttribute("d", "M " + pts.join(" L "));
+  area.setAttribute("d", "M " + pts[0]
+    + " L " + pts.slice(1).join(" L ")
+    + ` L ${sx(xmax).toFixed(1)},${H} L ${sx(xmin).toFixed(1)},${H} Z`);
+}
+
+function renderTotals(totals) {
+  document.getElementById("t-req").textContent  = fmtNum(totals.total_requests || 0);
+  document.getElementById("t-fail").textContent = fmtNum(totals.total_failures || 0);
+  const tok = (totals.total_prompt_tokens || 0) + (totals.total_compl_tokens || 0);
+  document.getElementById("t-tok").textContent  = fmtNum(tok);
+  document.getElementById("t-cost").textContent = fmtUSD(totals.total_cost_usd || 0);
+}
+
+async function refresh() {
+  const cockpit = document.getElementById("cockpit");
+  cockpit.href = `${COCKPIT_URL}/providers/${encodeURIComponent(BRAND_SLUG)}`;
+
+  try {
+    const [quotasRes, clientsRes, routesRes, analyticsRes] = await Promise.all([
+      fetch("/api/quotas"),
+      fetch(`/api/quotas/${encodeURIComponent(BRAND_SLUG)}/clients`),
+      fetch(`/api/quotas/${encodeURIComponent(BRAND_SLUG)}/routes`),
+      fetch(`/api/quotas/${encodeURIComponent(BRAND_SLUG)}/analytics`),
+    ]);
+
+    if (clientsRes.status === 404) {
+      document.getElementById("title").textContent = "Brand not found";
+      document.getElementById("subtitle").innerHTML =
+        `<code>${BRAND_SLUG}</code> has no active packages on this gate.`;
+      document.getElementById("quota-body").innerHTML = "";
+      document.getElementById("clients-body").innerHTML = "";
+      document.getElementById("routes-body").innerHTML = "";
+      return;
+    }
+
+    const quotas = await quotasRes.json();
+    const clients = await clientsRes.json();
+    const routes = await routesRes.json();
+    const analytics = await analyticsRes.json();
+
+    const statuses = (quotas.packages || []).filter(p => p.brand_slug === BRAND_SLUG);
+    const brand = clients.brand || BRAND_SLUG;
+    const identity = statuses.length ? statuses[0].identity : null;
+
+    document.getElementById("title").textContent = brand;
+    const providerList = (clients.providers || []).join(", ");
+    document.getElementById("subtitle").textContent =
+      `${statuses.length} active package${statuses.length === 1 ? "" : "s"} · providers: ${providerList || "—"}`;
+
+    document.getElementById("quota-body").innerHTML =
+      renderQuotaPanel(brand, identity, statuses);
+
+    renderTotals(analytics.totals || {});
+    renderSpark(analytics.hourly || []);
+    document.getElementById("clients-body").innerHTML = renderClients(clients.clients);
+    document.getElementById("routes-body").innerHTML = renderRoutes(routes.lane_families);
+  } catch (e) {
+    document.getElementById("subtitle").innerHTML =
+      `<span class="err">Error: ${e.message}</span>`;
+  }
+}
+
+refresh();
+setInterval(refresh, 60000);
+</script>
+</body>
+</html>
+"""
+
+
 def _cockpit_base_url() -> str:
     """Resolve the Operator Cockpit base URL the widget links out to.
 
@@ -3879,6 +4250,189 @@ def _cockpit_base_url() -> str:
 async def dashboard_quotas():
     """Self-contained quotas page. Polls /api/quotas every 60s."""
     return _QUOTAS_DASHBOARD_HTML.replace("__COCKPIT_URL__", _cockpit_base_url())
+
+
+def _brand_context(brand_slug: str) -> dict[str, Any] | None:
+    """Resolve a ``brand_slug`` to the runtime providers feeding it.
+
+    Returns ``None`` when the brand is unknown or has no active packages on
+    this machine — the endpoints then 404 rather than silently returning
+    empty payloads, so the widget can distinguish "typo in URL" from
+    "brand exists but no traffic yet".
+
+    The returned dict has:
+      - ``brand``: display name (e.g. ``"Claude"``)
+      - ``brand_slug``: echoed back for the client
+      - ``providers``: sorted list of ``provider_id`` strings feeding this
+        brand (the ``requests.provider`` column values to filter on)
+      - ``packages``: the list of active package dicts (for the detail
+        header — package names, tiers, pace markers)
+    """
+    from .provider_catalog import get_packages_catalog
+    from .quota_tracker import _derive_brand, _slugify_brand
+
+    slug = (brand_slug or "").strip().lower()
+    if not slug:
+        return None
+
+    try:
+        raw_packages = get_packages_catalog() or {}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("get_packages_catalog failed in _brand_context: %s", exc)
+        raw_packages = {}
+
+    filtered_packages, _ = _filter_packages_by_credentials(raw_packages)
+
+    providers: set[str] = set()
+    packages: list[dict[str, Any]] = []
+    brand_name = ""
+    for pkg in filtered_packages.values():
+        pkg_brand = str(pkg.get("brand") or _derive_brand(pkg.get("provider_group") or ""))
+        pkg_slug = str(pkg.get("brand_slug") or _slugify_brand(pkg_brand))
+        if pkg_slug != slug:
+            continue
+        if not brand_name:
+            brand_name = pkg_brand
+        pid = str(pkg.get("provider_id") or "").strip()
+        if pid:
+            providers.add(pid)
+        packages.append(pkg)
+
+    if not packages:
+        return None
+
+    return {
+        "brand": brand_name or slug.title(),
+        "brand_slug": slug,
+        "providers": sorted(providers),
+        "packages": packages,
+    }
+
+
+@app.get("/api/quotas/{brand_slug}/clients")
+async def api_quota_brand_clients(brand_slug: str):
+    """Clients (profile + tag) that hit this brand's providers.
+
+    Read-only aggregation over the SQLite ``requests`` table, scoped to the
+    providers feeding the given brand. Used by the per-brand detail view
+    (``/dashboard/quotas/<slug>``). Returns ``404`` when the brand has no
+    active packages — consistent with the widget's "active-first" story.
+    """
+    ctx = _brand_context(brand_slug)
+    if ctx is None:
+        return JSONResponse({"error": {"message": "Unknown brand"}}, status_code=404)
+
+    if not ctx["providers"]:
+        return {
+            "brand": ctx["brand"],
+            "brand_slug": ctx["brand_slug"],
+            "providers": [],
+            "clients": [],
+            "client_totals": [],
+        }
+
+    filters = {"providers": ctx["providers"]}
+    return {
+        "brand": ctx["brand"],
+        "brand_slug": ctx["brand_slug"],
+        "providers": ctx["providers"],
+        "clients": _metrics.get_client_breakdown(**filters),
+        "client_totals": _metrics.get_client_totals(**filters),
+    }
+
+
+@app.get("/api/quotas/{brand_slug}/routes")
+async def api_quota_brand_routes(brand_slug: str):
+    """Lane-family + routing breakdown for a brand's providers.
+
+    Feeds the "Routes" panel in the per-brand detail view. Mirrors the shape
+    of ``/api/stats.routing`` / ``.lane_families`` but scoped to a single
+    brand so the widget can render a focused table without client-side
+    filtering.
+    """
+    ctx = _brand_context(brand_slug)
+    if ctx is None:
+        return JSONResponse({"error": {"message": "Unknown brand"}}, status_code=404)
+
+    if not ctx["providers"]:
+        return {
+            "brand": ctx["brand"],
+            "brand_slug": ctx["brand_slug"],
+            "providers": [],
+            "lane_families": [],
+            "routing": [],
+            "selection_paths": [],
+        }
+
+    filters = {"providers": ctx["providers"]}
+    return {
+        "brand": ctx["brand"],
+        "brand_slug": ctx["brand_slug"],
+        "providers": ctx["providers"],
+        "lane_families": _metrics.get_lane_family_breakdown(**filters),
+        "routing": _metrics.get_routing_breakdown(**filters),
+        "selection_paths": _metrics.get_selection_path_breakdown(**filters),
+    }
+
+
+@app.get("/api/quotas/{brand_slug}/analytics")
+async def api_quota_brand_analytics(brand_slug: str, hours: int = 24, days: int = 14):
+    """Time-series + totals for a brand's providers.
+
+    Returns ``totals``, ``providers`` (per-provider summary), ``hourly``
+    (last N hours), and ``daily`` (last N days) — enough for the detail
+    view's sparkline + the single-number summary cards. Defaults cover a
+    2-week window so most operators see a meaningful chart on first load.
+    """
+    ctx = _brand_context(brand_slug)
+    if ctx is None:
+        return JSONResponse({"error": {"message": "Unknown brand"}}, status_code=404)
+
+    # Clamp to sane ranges so a typo can't hammer the DB with a 100-year
+    # scan. These are pulled straight from the widget's controls, so the
+    # upper bounds match the UI options we expose.
+    hours = max(1, min(int(hours or 24), 24 * 7))
+    days = max(1, min(int(days or 14), 90))
+
+    if not ctx["providers"]:
+        return {
+            "brand": ctx["brand"],
+            "brand_slug": ctx["brand_slug"],
+            "providers": [],
+            "totals": {},
+            "provider_summary": [],
+            "hourly": [],
+            "daily": [],
+        }
+
+    filters = {"providers": ctx["providers"]}
+    return {
+        "brand": ctx["brand"],
+        "brand_slug": ctx["brand_slug"],
+        "providers": ctx["providers"],
+        "totals": _metrics.get_totals(**filters),
+        "provider_summary": _metrics.get_provider_summary(**filters),
+        "hourly": _metrics.get_hourly_series(hours, **filters),
+        "daily": _metrics.get_daily_totals(days, **filters),
+    }
+
+
+@app.get("/dashboard/quotas/{brand_slug}", response_class=HTMLResponse)
+async def dashboard_quota_brand(brand_slug: str):
+    """Per-brand detail view — single-brand quota card + clients + routes + analytics.
+
+    Renders the same shell for every brand; JS pulls the four data sources
+    (``/api/quotas``, ``/api/quotas/<slug>/{clients,routes,analytics}``) on
+    load and every 60s. Unknown-brand 404s are handled client-side by
+    showing the "Back to overview" link.
+    """
+    slug = (brand_slug or "").strip().lower()
+    if not slug:
+        return JSONResponse({"error": {"message": "Unknown brand"}}, status_code=404)
+    html = _QUOTAS_BRAND_DETAIL_HTML
+    html = html.replace("__COCKPIT_URL__", _cockpit_base_url())
+    html = html.replace("__BRAND_SLUG__", slug)
+    return html
 
 
 @app.get("/dashboard/assets/{asset_kind}/{asset_name:path}")
