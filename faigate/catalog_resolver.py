@@ -19,10 +19,9 @@ from dataclasses import dataclass, field
 from importlib import resources
 from typing import Any
 
-from .catalog_cache import CachedCatalog, CatalogCache
+from .catalog_cache import CatalogCache
 from .metadata_catalog_sync import (
     DEFAULT_TIMEOUT_SECONDS,
-    FetchResult,
     MetadataCatalogSync,
     SyncStatus,
 )

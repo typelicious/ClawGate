@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import time
 from pathlib import Path
 from typing import Any
 
@@ -13,12 +12,9 @@ import pytest
 from faigate.catalog_cache import CatalogCache
 from faigate.catalog_resolver import CatalogResolver, ResolverConfig
 from faigate.metadata_catalog_sync import (
-    FetchResult,
-    HttpFetcher,
     MetadataCatalogSync,
     SyncStatus,
 )
-
 
 # ── fakes ─────────────────────────────────────────────────────────────
 

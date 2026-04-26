@@ -12,11 +12,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import time
 from typing import Any
 
 from .catalog_resolver import (
-    DEFAULT_REFRESH_INTERVAL_SECONDS,
     CatalogResolver,
     ResolverConfig,
 )
