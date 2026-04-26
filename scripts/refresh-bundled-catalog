@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Refresh the bundled provider catalog snapshot from the public metadata repo.
+# Run this at release-cut time so fresh installs ship with current pricing data.
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SNAPSHOT="$REPO_ROOT/faigate/assets/metadata/catalog.v1.json"
+SOURCE_URL="https://raw.githubusercontent.com/fusionAIze/fusionaize-metadata-public/main/providers/catalog.v1.json"
+
+echo "Pulling $SOURCE_URL"
+TMP=$(mktemp)
+trap 'rm -f "$TMP"' EXIT
+curl -fsSL "$SOURCE_URL" -o "$TMP"
+
+if ! python3 -c "import json,sys; data=json.load(open('$TMP')); assert 'providers' in data, 'no providers key'; print(f'  ok: {len(data[\"providers\"])} providers, schema_version={data.get(\"schema_version\")}')"; then
+  echo "ERROR: downloaded file failed validation"
+  exit 1
+fi
+
+mv "$TMP" "$SNAPSHOT"
+trap - EXIT
+echo "Updated $SNAPSHOT"

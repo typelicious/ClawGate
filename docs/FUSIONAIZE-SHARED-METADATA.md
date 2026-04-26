@@ -49,19 +49,50 @@ This gives us:
 - no database requirement
 - no forced fusionAIze-operated hosting
 
+## Repository split (2026-04-26)
+
+The metadata line is hosted across **two repos**:
+
+- **Public** — [fusionAIze/fusionaize-metadata-public](https://github.com/fusionAIze/fusionaize-metadata-public)
+  Anonymous-readable. Provider/model/offering catalogs and schemas. The
+  source of truth for pricing and capability data.
+- **Private** — [fusionAIze/fusionaize-metadata](https://github.com/fusionAIze/fusionaize-metadata)
+  Auth-only (fine-grained PAT). Routing overlays, operator quota packages,
+  evaluations. Anything that would leak IP if public.
+
+Rationale: pricing and capability data is reproducible from vendor docs and
+benefits from public eyeballs and contributions. Routing heuristics, scoring,
+and operator quota state are competitive surface and stay private.
+
 ## Proposed repo shape
+
+**Public repo** (`fusionaize-metadata-public`):
+
+```text
+fusionaize-metadata-public/
+  README.md
+  schemas/
+    provider-catalog.v1.schema.json
+    model-catalog.v1.schema.json
+    offering-catalog.v1.schema.json
+  providers/
+    catalog.v1.json
+    sources.v1.json
+  models/
+    catalog.v1.json
+  offerings/
+    catalog.v1.json
+```
+
+**Private repo** (`fusionaize-metadata`):
 
 ```text
 fusionaize-metadata/
   README.md
   schemas/
-    provider-catalog.v1.schema.json
-  providers/
-    catalog.v1.json
-    sources.v1.json
-  snapshots/
-    providers/
-      2026-03-31T18-00-00Z.catalog.v1.json
+    package-catalog.v1.schema.json
+  packages/
+    catalog.v1.json            # Operator quota packages
   products/
     gate/
       overlays.v1.json
@@ -141,21 +172,30 @@ That gives us a clean migration path:
 
 ## Current Gate hooks
 
-Gate now supports two operator-side import hooks:
+Gate supports per-file and per-directory env vars; after the 2026-04-26
+public/private split, the recommended dev configuration uses both:
 
-- `FAIGATE_PROVIDER_METADATA_FILE=/path/to/provider-catalog.snapshot.v1.json`
-- `FAIGATE_PROVIDER_METADATA_DIR=/path/to/fusionaize-metadata`
+```bash
+# Private overlays + packages
+export FAIGATE_PROVIDER_METADATA_DIR=/path/to/fusionaize-metadata
+export FAIGATE_PROVIDER_METADATA_PRODUCT=gate
 
-If `FAIGATE_PROVIDER_METADATA_FILE` is set, Gate loads that JSON snapshot
-directly and merges it into the embedded provider catalog.
+# Public catalog files (override the in-DIR fallback)
+export FAIGATE_PROVIDER_METADATA_FILE=/path/to/fusionaize-metadata-public/providers/catalog.v1.json
+export FAIGATE_OFFERINGS_METADATA_FILE=/path/to/fusionaize-metadata-public/offerings/catalog.v1.json
+```
 
-If `FAIGATE_PROVIDER_METADATA_DIR` is set, Gate loads:
+Resolution order per file (existing semantics, unchanged):
 
-- `providers/catalog.v1.json`
-- `products/gate/overlays.v1.json`
+1. If `FAIGATE_*_METADATA_FILE` is set → load that path directly.
+2. Otherwise, look under `FAIGATE_PROVIDER_METADATA_DIR/<relative-path>`.
+3. If neither is found → empty catalog (faigate falls back to embedded
+   `providers.py` definitions).
 
-and materializes an effective Gate catalog in memory before merging it into the
-embedded provider catalog.
+Once the upcoming `MetadataCatalogSync` lands (see
+`docs/blueprints/model-updater/`), the public repo will be fetched over
+HTTPS with ETag caching. Setting `FAIGATE_PROVIDER_METADATA_FILE` will only
+be needed for offline development against an in-progress branch.
 
 For runtime use, Gate also ships a small helper that materializes a repo
 checkout into one snapshot file:
