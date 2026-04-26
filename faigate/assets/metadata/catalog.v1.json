@@ -1,0 +1,1139 @@
+{
+  "schema_version": "fusionaize-provider-catalog/v1.1",
+  "generated_at": "2026-04-26T00:00:00Z",
+  "source_repo": "fusionaize-metadata-public",
+  "providers": {
+    "anthropic": {
+      "recommended_model": "claude-opus-4-7",
+      "aliases": [
+        "claude-opus-4-7",
+        "claude-opus-4-6",
+        "anthropic:opus",
+        "claude-sonnet-4-6",
+        "claude-haiku-4-5",
+        "claude-haiku-3-5"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "tier_status": "active",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://docs.anthropic.com/en/docs/about-claude/models",
+      "signup_url": "https://console.anthropic.com/",
+      "watch_sources": [],
+      "notes": "Anthropic Claude models (Opus, Sonnet, Haiku) - direct API. Recommended bumped to Opus 4.7 on 2026-04-26.",
+      "last_reviewed": "2026-04-26",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://www.anthropic.com/pricing#api",
+        "refreshed_at": "2026-04-26T00:00:00Z",
+        "freshness_status": "stale",
+        "input_cost_per_1m": 15.0,
+        "output_cost_per_1m": 75.0,
+        "cache_read_cost_per_1m": 1.5
+      }
+    },
+    "anthropic-haiku": {
+      "recommended_model": "claude-haiku-4-5",
+      "aliases": [
+        "claude-haiku-4-5",
+        "claude-haiku-3-5",
+        "anthropic:haiku"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "tier_status": "active",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://docs.anthropic.com/en/docs/about-claude/models",
+      "signup_url": "https://console.anthropic.com/",
+      "watch_sources": [],
+      "notes": "Anthropic Claude Haiku 4.5 - fast, cost-effective model for general tasks. Pricing carried forward from 3.5; verify against provider docs.",
+      "last_reviewed": "2026-04-26",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://www.anthropic.com/pricing#api",
+        "refreshed_at": "2026-04-26T00:00:00Z",
+        "freshness_status": "stale",
+        "input_cost_per_1m": 0.8,
+        "output_cost_per_1m": 4.0,
+        "cache_read_cost_per_1m": 0.08
+      }
+    },
+    "anthropic-sonnet": {
+      "recommended_model": "claude-sonnet-4-6",
+      "aliases": [
+        "claude-sonnet-4-6",
+        "anthropic:sonnet"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://docs.anthropic.com/en/docs/about-claude/models",
+      "signup_url": "https://console.anthropic.com/",
+      "watch_sources": [],
+      "notes": "Anthropic Claude Sonnet 4.6 - balanced quality and speed for coding and reasoning.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://www.anthropic.com/pricing#api",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 3.0,
+        "output_cost_per_1m": 15.0,
+        "cache_read_cost_per_1m": 0.3
+      }
+    },
+    "anthropic-claude": {
+      "recommended_model": "claude-opus-4-7",
+      "aliases": [
+        "claude-opus-4-7",
+        "claude-opus-4-6",
+        "anthropic:opus"
+      ],
+      "tier_status": "active",
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://docs.anthropic.com/en/docs/about-claude/models",
+      "signup_url": "https://console.anthropic.com/",
+      "watch_sources": [],
+      "notes": "Anthropic Claude Opus 4.6 - premium reasoning and quality for complex tasks.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://www.anthropic.com/pricing#api",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 15.0,
+        "output_cost_per_1m": 75.0,
+        "cache_read_cost_per_1m": 1.5
+      }
+    },
+    "openai": {
+      "recommended_model": "gpt-4o",
+      "aliases": [
+        "gpt-4o",
+        "gpt-4o-mini",
+        "gpt-4.1",
+        "gpt-image-1"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://platform.openai.com/docs/models",
+      "signup_url": "https://platform.openai.com/",
+      "watch_sources": [],
+      "notes": "OpenAI GPT models including GPT-4o, GPT-4.1 series, and image generation.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://openai.com/api/pricing/",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 2.5,
+        "output_cost_per_1m": 10.0,
+        "cache_read_cost_per_1m": 1.25
+      }
+    },
+    "openai-gpt4o": {
+      "recommended_model": "gpt-4o",
+      "aliases": [
+        "gpt-4o"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://platform.openai.com/docs/models",
+      "signup_url": "https://platform.openai.com/",
+      "watch_sources": [],
+      "notes": "OpenAI GPT-4o - balanced multimodal model for general use.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://openai.com/api/pricing/",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 2.5,
+        "output_cost_per_1m": 10.0,
+        "cache_read_cost_per_1m": 1.25
+      }
+    },
+    "openai-images": {
+      "recommended_model": "gpt-image-1",
+      "aliases": [
+        "gpt-image-1"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://platform.openai.com/docs/models",
+      "signup_url": "https://platform.openai.com/",
+      "watch_sources": [],
+      "notes": "OpenAI image generation and editing models.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://openai.com/api/pricing/",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh"
+      }
+    },
+    "google": {
+      "recommended_model": "gemini-3.1-pro",
+      "aliases": [
+        "gemini-3.1-pro",
+        "gemini-3-flash",
+        "gemini-3-flash-lite",
+        "gemini-2.5-pro"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://ai.google.dev/gemini-api/docs/models",
+      "signup_url": "https://aistudio.google.com/",
+      "watch_sources": [],
+      "notes": "Google Gemini models including Pro, Flash, and Flash Lite variants.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://api-docs.deepseek.com/pricing",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 0.14,
+        "output_cost_per_1m": 0.28,
+        "cache_read_cost_per_1m": 0.014
+      }
+    },
+    "gemini-flash": {
+      "recommended_model": "gemini-3-flash",
+      "aliases": [
+        "gemini-3-flash",
+        "gemini-2.5-flash"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://ai.google.dev/gemini-api/docs/models",
+      "signup_url": "https://aistudio.google.com/",
+      "watch_sources": [],
+      "notes": "Google Gemini Flash - fast, cost-effective model for general tasks.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://ai.google.dev/gemini-api/docs/pricing",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 0.075,
+        "output_cost_per_1m": 0.3,
+        "cache_read_cost_per_1m": 0.02
+      }
+    },
+    "gemini-flash-lite": {
+      "recommended_model": "gemini-3-flash-lite",
+      "aliases": [
+        "gemini-3-flash-lite",
+        "gemini-2.5-flash-lite"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://ai.google.dev/gemini-api/docs/models",
+      "signup_url": "https://aistudio.google.com/",
+      "watch_sources": [],
+      "notes": "Google Gemini Flash Lite - ultra-low cost model for lightweight tasks.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://ai.google.dev/gemini-api/docs/pricing",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 0.075,
+        "output_cost_per_1m": 0.3,
+        "cache_read_cost_per_1m": 0.02
+      }
+    },
+    "gemini-pro-high": {
+      "recommended_model": "gemini-3.1-pro",
+      "aliases": [
+        "gemini-3.1-pro",
+        "gemini-pro-high"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://ai.google.dev/gemini-api/docs/models",
+      "signup_url": "https://aistudio.google.com/",
+      "watch_sources": [],
+      "notes": "Google Gemini Pro High - quality model for complex reasoning and coding.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://ai.google.dev/gemini-api/docs/pricing",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 1.25,
+        "output_cost_per_1m": 10.0,
+        "cache_read_cost_per_1m": 0.31
+      }
+    },
+    "gemini-pro-low": {
+      "recommended_model": "gemini-3.1-pro",
+      "aliases": [
+        "gemini-3.1-pro",
+        "gemini-pro-low"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://ai.google.dev/gemini-api/docs/models",
+      "signup_url": "https://aistudio.google.com/",
+      "watch_sources": [],
+      "notes": "Google Gemini Pro Low - balanced quality and cost for general tasks.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://ai.google.dev/gemini-api/docs/pricing",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 0.8,
+        "output_cost_per_1m": 4.0,
+        "cache_read_cost_per_1m": 0.2
+      }
+    },
+    "deepseek-chat": {
+      "recommended_model": "deepseek-chat",
+      "aliases": [
+        "deepseek-chat",
+        "ds-v4",
+        "ds-v3"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "tier_status": "active",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "medium",
+      "evidence_level": "official",
+      "official_source_url": "https://api-docs.deepseek.com/",
+      "signup_url": "https://platform.deepseek.com/",
+      "watch_sources": [],
+      "notes": "DeepSeek Chat (V4 backing as of 2026-04). API model name stays 'deepseek-chat'; underlying weights/pricing may shift across versions. Verify pricing against api-docs.deepseek.com.",
+      "last_reviewed": "2026-04-26",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://api-docs.deepseek.com/quick_start/pricing",
+        "refreshed_at": "2026-04-26T00:00:00Z",
+        "freshness_status": "stale",
+        "input_cost_per_1m": 0.14,
+        "output_cost_per_1m": 0.28,
+        "cache_read_cost_per_1m": 0.014
+      }
+    },
+    "deepseek-reasoner": {
+      "recommended_model": "deepseek-reasoner",
+      "aliases": [
+        "deepseek-reasoner",
+        "r1"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "tier_status": "active",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "medium",
+      "evidence_level": "official",
+      "official_source_url": "https://api-docs.deepseek.com/",
+      "signup_url": "https://platform.deepseek.com/",
+      "watch_sources": [],
+      "notes": "DeepSeek Reasoner (V4 backing as of 2026-04). High-reasoning model. Verify pricing against api-docs.deepseek.com.",
+      "last_reviewed": "2026-04-26",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://api-docs.deepseek.com/quick_start/pricing",
+        "refreshed_at": "2026-04-26T00:00:00Z",
+        "freshness_status": "stale",
+        "input_cost_per_1m": 0.5,
+        "output_cost_per_1m": 1.0,
+        "cache_read_cost_per_1m": 0.05
+      }
+    },
+    "blackbox-free": {
+      "recommended_model": "blackboxai/x-ai/grok-code-fast-1",
+      "aliases": [
+        "blackboxai/x-ai/grok-code-fast-1"
+      ],
+      "track": "free",
+      "offer_track": "credit",
+      "provider_type": "aggregator",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "high",
+      "evidence_level": "mixed",
+      "official_source_url": "https://docs.blackbox.ai/api-reference/authentication",
+      "signup_url": "https://cloud.blackbox.ai/",
+      "watch_sources": [
+        "community"
+      ],
+      "notes": "BLACKBOX free tier with Grok Code Fast - volatile pricing and model availability.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://api-docs.deepseek.com/pricing",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 0.0,
+        "output_cost_per_1m": 0.0,
+        "cache_read_cost_per_1m": 0.0
+      }
+    },
+    "kilocode": {
+      "recommended_model": null,
+      "aliases": [
+        "z-ai/glm-5:free"
+      ],
+      "track": "free",
+      "offer_track": "free",
+      "provider_type": "aggregator",
+      "tier_status": "expired",
+      "expires_at": "2026-04-26",
+      "auth_modes": [
+        "api_key",
+        "byok"
+      ],
+      "volatility": "high",
+      "evidence_level": "official",
+      "official_source_url": "https://kilo.ai/docs/gateway/models-and-providers",
+      "signup_url": "https://kilo.ai/",
+      "watch_sources": [
+        "community"
+      ],
+      "notes": "Kilo free tier with GLM-5 expired 2026-04-26. Aliases retained for back-compat; do not auto-select.",
+      "last_reviewed": "2026-04-26",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://kilo.ai/pricing",
+        "refreshed_at": "2026-04-26T00:00:00Z",
+        "freshness_status": "stale",
+        "input_cost_per_1m": 0.0,
+        "output_cost_per_1m": 0.0,
+        "cache_read_cost_per_1m": 0.0
+      }
+    },
+    "openrouter-fallback": {
+      "recommended_model": "openrouter/auto",
+      "aliases": [
+        "openrouter/auto"
+      ],
+      "track": "stable",
+      "offer_track": "byok",
+      "provider_type": "aggregator",
+      "auth_modes": [
+        "api_key",
+        "byok"
+      ],
+      "volatility": "medium",
+      "evidence_level": "official",
+      "official_source_url": "https://openrouter.ai/docs/features/provider-routing",
+      "signup_url": "https://openrouter.ai/",
+      "watch_sources": [],
+      "notes": "OpenRouter fallback path with official provider routing and BYOK support.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://openrouter.ai/pricing",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 0.5,
+        "output_cost_per_1m": 1.5,
+        "cache_read_cost_per_1m": 0.1
+      }
+    },
+    "openai-codex": {
+      "recommended_model": "openai-codex/gpt-5.5-codex:medium",
+      "aliases": [
+        "openai-codex/gpt-5.5-codex:low",
+        "openai-codex/gpt-5.5-codex:medium",
+        "openai-codex/gpt-5.5-codex:high",
+        "openai-codex/gpt-5.5-codex",
+        "openai-codex/gpt-5.3-codex"
+      ],
+      "track": "stable",
+      "offer_track": "oauth",
+      "provider_type": "direct",
+      "tier_status": "active",
+      "auth_modes": [
+        "oauth"
+      ],
+      "volatility": "medium",
+      "evidence_level": "official",
+      "official_source_url": "https://platform.openai.com/docs/models",
+      "signup_url": "https://platform.openai.com/",
+      "watch_sources": [],
+      "notes": "OpenAI Codex via OAuth. GPT-5.5-codex ships in 3 reasoning tiers (low/medium/high) — alias suffix selects the tier. Pricing per tier pending verification.",
+      "last_reviewed": "2026-04-26",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://openai.com/api/pricing/",
+        "refreshed_at": "2026-04-26T00:00:00Z",
+        "freshness_status": "stale"
+      }
+    },
+    "opencode": {
+      "recommended_model": "opencode/claude-opus-4-6",
+      "aliases": [
+        "opencode/claude-opus-4-6"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://api.opencode.ai/docs",
+      "signup_url": "https://opencode.ai/",
+      "watch_sources": [],
+      "notes": "OpenCode Zen - Anthropic-compatible gateway.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://opencode.ai/pricing",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh"
+      }
+    },
+    "google-vertex": {
+      "recommended_model": "google-vertex/gemini-2.5-pro",
+      "aliases": [
+        "google-vertex/gemini-2.5-pro"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "oauth",
+        "adc"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference",
+      "signup_url": "https://cloud.google.com/vertex-ai",
+      "watch_sources": [],
+      "notes": "Google Vertex AI - uses gcloud ADC; interactive setup required.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://cloud.google.com/vertex-ai/pricing",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh"
+      }
+    },
+    "zai": {
+      "recommended_model": "z-ai/glm-5",
+      "aliases": [
+        "z-ai/glm-5"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://docs.z.ai/",
+      "signup_url": "https://z.ai/",
+      "watch_sources": [],
+      "notes": "Z-AI GLM models.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://z.ai/pricing",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh"
+      }
+    },
+    "groq": {
+      "recommended_model": "llama-3.3-70b-versatile",
+      "aliases": [
+        "llama-3.3-70b-versatile",
+        "groq/llama",
+        "mixtral-8x7b"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://console.groq.com/docs/models",
+      "signup_url": "https://console.groq.com/",
+      "watch_sources": [],
+      "notes": "Groq \u2013 ultra-fast inference (LPU), Llama / DeepSeek models.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://console.groq.com/docs/pricing",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 0.05,
+        "output_cost_per_1m": 0.1
+      }
+    },
+    "mistral": {
+      "recommended_model": "mistral-large-latest",
+      "aliases": [
+        "mistral-large-latest",
+        "codestral-latest"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://docs.mistral.ai/",
+      "signup_url": "https://console.mistral.ai/",
+      "watch_sources": [],
+      "notes": "Mistral AI \u2013 Mistral Large, Codestral, etc.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://mistral.ai/pricing",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 2.0,
+        "output_cost_per_1m": 6.0
+      }
+    },
+    "moonshot": {
+      "recommended_model": "moonshot-v1-8k",
+      "aliases": [
+        "moonshot-v1-8k",
+        "moonshot-v1-32k",
+        "moonshot-v1-128k"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://platform.moonshot.cn/docs/api/",
+      "signup_url": "https://platform.moonshot.cn/",
+      "watch_sources": [],
+      "notes": "Moonshot AI \u2013 long-context Chinese/English models.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://platform.moonshot.cn/pricing",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh"
+      }
+    },
+    "ollama": {
+      "recommended_model": "llama3.2",
+      "aliases": [
+        "llama3.2",
+        "mistral",
+        "codellama"
+      ],
+      "track": "stable",
+      "offer_track": "local",
+      "provider_type": "local",
+      "auth_modes": [
+        "none"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://github.com/ollama/ollama",
+      "signup_url": "https://ollama.com/",
+      "watch_sources": [],
+      "notes": "Ollama \u2013 local LLM runner, no API key required.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "free-local",
+        "source_url": "",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh"
+      }
+    },
+    "huggingface": {
+      "recommended_model": "HuggingFaceH4/zephyr-7b-beta",
+      "aliases": [
+        "HuggingFaceH4/zephyr-7b-beta",
+        "meta-llama/Llama-3.2-3B-Instruct"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "medium",
+      "evidence_level": "official",
+      "official_source_url": "https://huggingface.co/docs/inference-endpoints",
+      "signup_url": "https://huggingface.co/",
+      "watch_sources": [],
+      "notes": "Hugging Face Inference Endpoints \u2013 hosted open-weight models.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://huggingface.co/pricing",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh"
+      }
+    },
+    "lmstudio": {
+      "recommended_model": "local-model",
+      "aliases": [
+        "local-model"
+      ],
+      "track": "stable",
+      "offer_track": "local",
+      "provider_type": "local",
+      "auth_modes": [
+        "none"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://lmstudio.ai/",
+      "signup_url": "https://lmstudio.ai/",
+      "watch_sources": [],
+      "notes": "LM Studio \u2013 local LLM GUI with OpenAI-compatible server.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "free-local",
+        "source_url": "",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh"
+      }
+    },
+    "vllm": {
+      "recommended_model": "local-model",
+      "aliases": [
+        "local-model"
+      ],
+      "track": "stable",
+      "offer_track": "local",
+      "provider_type": "local",
+      "auth_modes": [
+        "none"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://github.com/vllm-project/vllm",
+      "signup_url": "https://vllm.ai/",
+      "watch_sources": [],
+      "notes": "vLLM \u2013 high-throughput local inference engine.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "free-local",
+        "source_url": "",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh"
+      }
+    },
+    "litellm": {
+      "recommended_model": "gpt-3.5-turbo",
+      "aliases": [
+        "gpt-3.5-turbo",
+        "claude-3-haiku"
+      ],
+      "track": "stable",
+      "offer_track": "aggregator",
+      "provider_type": "aggregator",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "medium",
+      "evidence_level": "official",
+      "official_source_url": "https://docs.litellm.ai/",
+      "signup_url": "https://litellm.ai/",
+      "watch_sources": [],
+      "notes": "LiteLLM \u2013 unified API for 100+ LLM providers.",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://litellm.ai/pricing",
+        "refreshed_at": "2026-04-01T12:00:00Z",
+        "freshness_status": "fresh"
+      }
+    },
+    "byteplus": {
+      "recommended_model": "byteplus/seed-1-8-251228",
+      "aliases": [
+        "byteplus/seed-1-8-251228"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://www.byteplus.com/en/docs/product/ark",
+      "signup_url": "https://www.byteplus.com/",
+      "watch_sources": [],
+      "notes": "BytePlus ARK \u2013 international access to Volcano Engine models",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "unknown",
+        "source_url": "",
+        "refreshed_at": "2026-04-01T02:22:11Z",
+        "freshness_status": "unknown"
+      }
+    },
+    "byteplus-plan": {
+      "recommended_model": "byteplus-plan/ark-code-latest",
+      "aliases": [
+        "byteplus-plan/ark-code-latest"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://www.byteplus.com/en/docs/product/ark",
+      "signup_url": "https://www.byteplus.com/",
+      "watch_sources": [],
+      "notes": "BytePlus ARK \u2013 coding models (ark-code-latest, doubao-seed-code, kimi-k2.5, kimi-k2-thinking, glm-4.7)",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "unknown",
+        "source_url": "",
+        "refreshed_at": "2026-04-01T02:22:11Z",
+        "freshness_status": "unknown"
+      }
+    },
+    "cerebras": {
+      "recommended_model": "llama3.3-70b",
+      "aliases": [
+        "llama3.3-70b"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://docs.cerebras.ai/",
+      "signup_url": "https://cerebras.ai/",
+      "watch_sources": [],
+      "notes": "Cerebras \u2013 fast inference, zai-glm-4.7 / zai-glm-4.6 compatible",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "registry-default",
+        "source_url": "",
+        "refreshed_at": "2026-04-01T02:22:11Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 0.1,
+        "output_cost_per_1m": 0.1
+      }
+    },
+    "github-copilot": {
+      "recommended_model": "gpt-4o",
+      "aliases": [
+        "gpt-4o"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "none"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://docs.github.com/en/copilot",
+      "signup_url": "https://github.com/features/copilot",
+      "watch_sources": [],
+      "notes": "GitHub Copilot \u2013 requires GH_TOKEN / COPILOT_GITHUB_TOKEN",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "unknown",
+        "source_url": "",
+        "refreshed_at": "2026-04-01T02:22:11Z",
+        "freshness_status": "unknown"
+      }
+    },
+    "kimi-coding": {
+      "recommended_model": "kimi-coding/k2p5",
+      "aliases": [
+        "kimi-coding/k2p5"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://platform.moonshot.cn/docs/api/",
+      "signup_url": "https://platform.moonshot.cn/",
+      "watch_sources": [],
+      "notes": "Kimi Coding \u2013 Anthropic-compat endpoint via Moonshot",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "unknown",
+        "source_url": "",
+        "refreshed_at": "2026-04-01T02:22:11Z",
+        "freshness_status": "unknown"
+      }
+    },
+    "minimax": {
+      "recommended_model": "minimax/MiniMax-M2.1",
+      "aliases": [
+        "minimax/MiniMax-M2.1"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://api.minimax.chat/",
+      "signup_url": "https://www.minimaxi.com/",
+      "watch_sources": [],
+      "notes": "MiniMax \u2013 Anthropic-compat custom endpoint",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "unknown",
+        "source_url": "",
+        "refreshed_at": "2026-04-01T02:22:11Z",
+        "freshness_status": "unknown"
+      }
+    },
+    "qwen-portal": {
+      "recommended_model": "qwen-portal/coder-model",
+      "aliases": [
+        "qwen-portal/coder-model"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "none"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://help.aliyun.com/zh/model-studio/getting-started/what-is-model-studio",
+      "signup_url": "https://modelscope.cn/",
+      "watch_sources": [],
+      "notes": "Qwen OAuth (free tier) \u2013 device-code flow; requires: openclaw plugins enable qwen-portal-auth",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "unknown",
+        "source_url": "",
+        "refreshed_at": "2026-04-01T02:22:11Z",
+        "freshness_status": "unknown"
+      }
+    },
+    "synthetic": {
+      "recommended_model": "synthetic/hf:MiniMaxAI/MiniMax-M2.1",
+      "aliases": [
+        "synthetic/hf:MiniMaxAI/MiniMax-M2.1"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://synthetic.com/docs",
+      "signup_url": "https://synthetic.com/",
+      "watch_sources": [],
+      "notes": "Synthetic \u2013 Anthropic-compat; exposes HuggingFace models (MiniMax, etc.)",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "unknown",
+        "source_url": "",
+        "refreshed_at": "2026-04-01T02:22:11Z",
+        "freshness_status": "unknown"
+      }
+    },
+    "vercel-ai-gateway": {
+      "recommended_model": "vercel-ai-gateway/anthropic/claude-opus-4.6",
+      "aliases": [
+        "vercel-ai-gateway/anthropic/claude-opus-4.6"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://vercel.com/docs/ai/ai-gateway",
+      "signup_url": "https://vercel.com/",
+      "watch_sources": [],
+      "notes": "Vercel AI Gateway \u2013 multi-model proxy",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "unknown",
+        "source_url": "",
+        "refreshed_at": "2026-04-01T02:22:11Z",
+        "freshness_status": "unknown"
+      }
+    },
+    "volcengine": {
+      "recommended_model": "volcengine/doubao-seed-1-8-251228",
+      "aliases": [
+        "volcengine/doubao-seed-1-8-251228"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://www.volcengine.com/docs/82379",
+      "signup_url": "https://www.volcengine.com/",
+      "watch_sources": [],
+      "notes": "Volcano Engine \u2013 Doubao, Kimi K2.5, GLM 4.7, DeepSeek V3.2 (CN)",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "unknown",
+        "source_url": "",
+        "refreshed_at": "2026-04-01T02:22:11Z",
+        "freshness_status": "unknown"
+      }
+    },
+    "volcengine-plan": {
+      "recommended_model": "volcengine-plan/ark-code-latest",
+      "aliases": [
+        "volcengine-plan/ark-code-latest"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://www.volcengine.com/docs/82379",
+      "signup_url": "https://www.volcengine.com/",
+      "watch_sources": [],
+      "notes": "Volcano Engine \u2013 coding models (ark-code-latest, doubao-seed-code, kimi-k2.5, kimi-k2-thinking, glm-4.7)",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "unknown",
+        "source_url": "",
+        "refreshed_at": "2026-04-01T02:22:11Z",
+        "freshness_status": "unknown"
+      }
+    },
+    "xai": {
+      "recommended_model": "grok-3",
+      "aliases": [
+        "grok-3"
+      ],
+      "track": "stable",
+      "offer_track": "direct",
+      "provider_type": "direct",
+      "auth_modes": [
+        "api_key"
+      ],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://docs.x.ai/",
+      "signup_url": "https://x.ai/",
+      "watch_sources": [],
+      "notes": "xAI / Grok models",
+      "last_reviewed": "2026-04-01",
+      "pricing": {
+        "source_type": "registry-default",
+        "source_url": "",
+        "refreshed_at": "2026-04-01T02:22:11Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 3.0,
+        "output_cost_per_1m": 15.0
+      }
+    }
+  }
+}

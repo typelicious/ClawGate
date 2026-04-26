@@ -7,6 +7,31 @@
   Architecture decisions confirmed by user: split metadata into public+private
   repos NOW; HTTPS+ETag first, signing on roadmap; both daemon-tick and
   on-demand refresh.
+- 2026-04-26 / iter 1 — Phase 1: Kilo expiry patch in private repo (HOT-001).
+- 2026-04-26 / iter 2 — Phase 2: Public repo created (afe5801). Migration of
+  providers/, models/, offerings/, schemas/. Private repo cleaned up (95ab0ab).
+  envctl cluster `faigate` set with 3 vars to bridge during transition.
+  faigate worktree branch claude/dreamy-williams-d8b6f9 documented split.
+- 2026-04-26 / iter 3 — Phase 3 core: schema v1.1 bumped, 4 model groups
+  updated (Opus 4.7, Haiku 4.5, GPT-5.5 reasoning tiers, DeepSeek V4).
+  faigate sync engine landed: metadata_catalog_sync.py + catalog_cache.py
+  + catalog_resolver.py. Bundled snapshot via importlib.resources. Wire-in
+  to provider_catalog.py loader. faigate-models CLI command. 25 unit tests
+  pass; live end-to-end test against GitHub Raw succeeds (41 providers,
+  ETag captured, bundled snapshot detected). docs/CATALOG-UPDATER.md.
+
+### Tasks completed
+HOT-001, INFRA-001, INFRA-002, SCHEMA-001, CODE-001, CODE-002, CODE-003,
+CODE-004, CODE-005, CODE-006, CAT-001, CAT-002, CAT-003, TEST-001, TEST-002,
+TEST-003, DOCS-001, plus the bundled-snapshot piece (added during execution
+when we discovered the wheel had no fallback today).
+
+### Tasks deferred to follow-up
+- HOT-002: openrouter audit (needs live pricing research)
+- INFRA-003: standalone PAT-setup screenshots (covered briefly in
+  CATALOG-UPDATER.md; full doc deferred)
+- CODE-007: 24h daemon-tick (lazy refresh + manual CLI works for now)
+- CODE-008: alert integration via build_catalog_alerts
 
 ### Key Decisions
 - D-001 Catalog sync is a NEW layer next to existing ProviderCatalogRefresher,

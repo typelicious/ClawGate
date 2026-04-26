@@ -1,0 +1,226 @@
+"""HTTPS sync for the curated fusionAIze provider catalog.
+
+Distinct layer from `provider_catalog_refresh.py`. The refresher scrapes
+vendor doc pages for model discovery; this module pulls the curated
+catalog file (`providers/catalog.v1.json`) from a metadata repo over
+HTTPS with conditional-GET ETag caching.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Protocol
+
+import httpx
+
+logger = logging.getLogger("faigate.metadata_catalog_sync")
+
+DEFAULT_TIMEOUT_SECONDS = 10.0
+
+
+class SyncStatus(str, Enum):
+    FRESH = "fresh"
+    NOT_MODIFIED = "not_modified"
+    AUTH_FAILED = "auth_failed"
+    NOT_FOUND = "not_found"
+    INVALID = "invalid"
+    ERROR = "error"
+
+
+class SyncError(Exception):
+    """Raised on unrecoverable sync failures (network, parse, schema)."""
+
+
+@dataclass
+class FetchResult:
+    status: SyncStatus
+    payload: dict[str, Any] | None
+    etag: str | None
+    http_status: int | None = None
+    error: str = ""
+
+
+class HttpFetcher(Protocol):
+    """Low-level HTTP protocol — returns (status, headers, body) or raises."""
+
+    def fetch(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str],
+        timeout_seconds: float,
+    ) -> tuple[int, dict[str, str], bytes]: ...
+
+
+class HttpxFetcher:
+    """Default HTTP fetcher backed by httpx."""
+
+    def fetch(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str],
+        timeout_seconds: float,
+    ) -> tuple[int, dict[str, str], bytes]:
+        timeout = httpx.Timeout(timeout_seconds, connect=min(timeout_seconds, 5.0))
+        with httpx.Client(timeout=timeout, follow_redirects=True) as client:
+            response = client.get(url, headers=headers)
+            return response.status_code, dict(response.headers), response.content
+
+
+def _redact(token: str | None) -> str:
+    if not token:
+        return "<none>"
+    if len(token) < 12:
+        return "<redacted>"
+    return f"{token[:4]}…{token[-4:]}"
+
+
+def _validate_payload_shape(payload: dict[str, Any]) -> None:
+    """Cheap structural check. Full schema validation lives elsewhere."""
+    schema_version = payload.get("schema_version", "")
+    if not isinstance(schema_version, str) or not schema_version.startswith(
+        "fusionaize-provider-catalog/"
+    ):
+        raise SyncError(
+            f"unexpected schema_version: {schema_version!r}"
+        )
+    providers = payload.get("providers")
+    if not isinstance(providers, dict):
+        raise SyncError("payload missing 'providers' object")
+
+
+class MetadataCatalogSync:
+    """Pull a curated catalog over HTTPS with ETag conditional-GET."""
+
+    def __init__(self, *, fetcher: HttpFetcher | None = None) -> None:
+        self._fetcher = fetcher or HttpxFetcher()
+
+    def fetch(
+        self,
+        url: str,
+        *,
+        etag: str | None = None,
+        token: str | None = None,
+        timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+    ) -> FetchResult:
+        """Fetch the catalog. Returns FetchResult; never raises for HTTP errors."""
+        headers: dict[str, str] = {"Accept": "application/json"}
+        if etag:
+            headers["If-None-Match"] = etag
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+
+        try:
+            status, response_headers, body = self._fetcher.fetch(
+                url,
+                headers=headers,
+                timeout_seconds=timeout_seconds,
+            )
+        except httpx.HTTPError as exc:
+            logger.warning(
+                "catalog sync: network error url=%s token=%s err=%s",
+                url,
+                _redact(token),
+                exc,
+            )
+            return FetchResult(
+                status=SyncStatus.ERROR,
+                payload=None,
+                etag=None,
+                error=f"network: {exc}",
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning(
+                "catalog sync: unexpected error url=%s err=%s", url, exc
+            )
+            return FetchResult(
+                status=SyncStatus.ERROR,
+                payload=None,
+                etag=None,
+                error=f"unexpected: {exc}",
+            )
+
+        new_etag = response_headers.get("etag") or response_headers.get("ETag")
+
+        if status == 304:
+            return FetchResult(
+                status=SyncStatus.NOT_MODIFIED,
+                payload=None,
+                etag=etag,
+                http_status=status,
+            )
+
+        if status in (401, 403):
+            logger.info(
+                "catalog sync: auth failed url=%s status=%d token=%s",
+                url,
+                status,
+                _redact(token),
+            )
+            return FetchResult(
+                status=SyncStatus.AUTH_FAILED,
+                payload=None,
+                etag=None,
+                http_status=status,
+                error=f"http {status}",
+            )
+
+        if status == 404:
+            return FetchResult(
+                status=SyncStatus.NOT_FOUND,
+                payload=None,
+                etag=None,
+                http_status=status,
+                error="http 404",
+            )
+
+        if status >= 400:
+            return FetchResult(
+                status=SyncStatus.ERROR,
+                payload=None,
+                etag=None,
+                http_status=status,
+                error=f"http {status}",
+            )
+
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError as exc:
+            return FetchResult(
+                status=SyncStatus.INVALID,
+                payload=None,
+                etag=None,
+                http_status=status,
+                error=f"json parse: {exc}",
+            )
+
+        if not isinstance(payload, dict):
+            return FetchResult(
+                status=SyncStatus.INVALID,
+                payload=None,
+                etag=None,
+                http_status=status,
+                error="payload is not a JSON object",
+            )
+
+        try:
+            _validate_payload_shape(payload)
+        except SyncError as exc:
+            return FetchResult(
+                status=SyncStatus.INVALID,
+                payload=None,
+                etag=None,
+                http_status=status,
+                error=str(exc),
+            )
+
+        return FetchResult(
+            status=SyncStatus.FRESH,
+            payload=payload,
+            etag=new_etag,
+            http_status=status,
+        )

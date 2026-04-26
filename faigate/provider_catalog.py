@@ -117,6 +117,31 @@ def _get_external_packages_path() -> Path:
     return root / "packages" / "catalog.v1.json"
 
 
+_CATALOG_RESOLVER: Any = None
+
+
+def _resolve_catalog_via_chain() -> dict[str, Any]:
+    """Fallback to the remote sync chain (private→public→bundled).
+
+    Used when neither FAIGATE_PROVIDER_METADATA_FILE nor a populated
+    FAIGATE_PROVIDER_METADATA_DIR yields a catalog file on disk.
+    """
+    global _CATALOG_RESOLVER
+    try:
+        from .catalog_resolver import CatalogResolver
+    except Exception:
+        return {}
+
+    if _CATALOG_RESOLVER is None:
+        _CATALOG_RESOLVER = CatalogResolver()
+    try:
+        resolved = _CATALOG_RESOLVER.resolve()
+    except Exception as exc:
+        logger.debug("catalog resolver fallback failed: %s", exc)
+        return {}
+    return resolved.payload.get("providers", {})
+
+
 def _load_external_catalog() -> dict[str, Any]:
     """Load external catalog.v1.json if available."""
     global _EXTERNAL_CATALOG_CACHE, _EXTERNAL_CATALOG_MTIME
@@ -132,9 +157,9 @@ def _load_external_catalog() -> dict[str, Any]:
         _EXTERNAL_CATALOG_CACHE = None
 
     if not catalog_path.exists():
-        _EXTERNAL_CATALOG_CACHE = {}
-        _EXTERNAL_CATALOG_MTIME = 0.0
-        return {}
+        # No file on disk: try the remote sync chain (private→public→bundled).
+        # CatalogResolver has its own caching, so we don't memoize here.
+        return _resolve_catalog_via_chain()
 
     try:
         with open(catalog_path, encoding="utf-8") as f:

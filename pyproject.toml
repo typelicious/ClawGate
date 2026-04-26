@@ -62,6 +62,7 @@ oauth = [
 faigate = "faigate.main:main"
 faigate-stats = "faigate.cli:main"
 faigate-auth = "faigate.oauth.cli:main"
+faigate-models = "faigate.models_cli:main"
 
 [project.urls]
 Homepage = "https://github.com/fusionAIze/faigate"
@@ -79,6 +80,7 @@ faigate = [
     "assets/brand/*.svg",
     "assets/fonts/Montserrat/*.ttf",
     "assets/fonts/Open-Sans/*.ttf",
+    "assets/metadata/*.json",
 ]
 
 [tool.ruff]
