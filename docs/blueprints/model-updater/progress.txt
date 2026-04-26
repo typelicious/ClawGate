@@ -1,0 +1,29 @@
+## Project: faigate-model-updater
+## Created: 2026-04-26
+## Status: Planning → ready for execution
+
+### Iteration History
+- 2026-04-26 / iter 0 — PRD + task graph created via /skillweave-blueprint.
+  Architecture decisions confirmed by user: split metadata into public+private
+  repos NOW; HTTPS+ETag first, signing on roadmap; both daemon-tick and
+  on-demand refresh.
+
+### Key Decisions
+- D-001 Catalog sync is a NEW layer next to existing ProviderCatalogRefresher,
+  not a replacement. Refresher = vendor doc scraping. Sync = curated catalog.
+- D-002 Public repo (fusionaize-metadata-public) holds providers/ + schemas/.
+  Private repo (fusionaize-metadata) keeps products/gate/overlays.v1.json.
+- D-003 Auth via fine-grained PAT with FAIGATE_METADATA_TOKEN env var.
+  No OAuth flow in v1 — too heavy.
+- D-004 Schema bumps additively to v1.1 with expires_at + tier_status.
+  Old faigate versions ignore the new fields.
+- D-005 Local FAIGATE_PROVIDER_METADATA_DIR override still wins over remote
+  sync — preserves dev workflow.
+
+### Learnings & Patterns
+- (Will accumulate during execution)
+
+### Open Questions
+- Should we publish a stable Raw URL via githubusercontent.com or use
+  jsdelivr CDN from day one? (jsdelivr has better caching but adds dep)
+- Daemon tick interval default — confirm 24h is right for OSS users.
