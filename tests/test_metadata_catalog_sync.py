@@ -297,9 +297,7 @@ def test_resolver_304_uses_cache(tmp_path: Path):
     assert second.payload["providers"]["anthropic"]["recommended_model"] == "claude-opus-4-7"
 
 
-def test_resolver_falls_back_to_bundled_when_all_remotes_fail(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_resolver_falls_back_to_bundled_when_all_remotes_fail(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     fake_bundled = {
         "schema_version": "fusionaize-provider-catalog/v1",
         "providers": {"bundled": {"recommended_model": "demo"}},
@@ -320,9 +318,7 @@ def test_resolver_falls_back_to_bundled_when_all_remotes_fail(
     assert "bundled" in resolved.payload["providers"]
 
 
-def test_resolver_returns_empty_when_nothing_works(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_resolver_returns_empty_when_nothing_works(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         "faigate.catalog_resolver._load_bundled_snapshot",
         lambda: None,

@@ -82,12 +82,8 @@ def _redact(token: str | None) -> str:
 def _validate_payload_shape(payload: dict[str, Any]) -> None:
     """Cheap structural check. Full schema validation lives elsewhere."""
     schema_version = payload.get("schema_version", "")
-    if not isinstance(schema_version, str) or not schema_version.startswith(
-        "fusionaize-provider-catalog/"
-    ):
-        raise SyncError(
-            f"unexpected schema_version: {schema_version!r}"
-        )
+    if not isinstance(schema_version, str) or not schema_version.startswith("fusionaize-provider-catalog/"):
+        raise SyncError(f"unexpected schema_version: {schema_version!r}")
     providers = payload.get("providers")
     if not isinstance(providers, dict):
         raise SyncError("payload missing 'providers' object")
@@ -134,9 +130,7 @@ class MetadataCatalogSync:
                 error=f"network: {exc}",
             )
         except Exception as exc:  # pragma: no cover - defensive
-            logger.warning(
-                "catalog sync: unexpected error url=%s err=%s", url, exc
-            )
+            logger.warning("catalog sync: unexpected error url=%s err=%s", url, exc)
             return FetchResult(
                 status=SyncStatus.ERROR,
                 payload=None,

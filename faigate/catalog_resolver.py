@@ -29,12 +29,10 @@ from .metadata_catalog_sync import (
 logger = logging.getLogger("faigate.catalog_resolver")
 
 DEFAULT_PUBLIC_URL = (
-    "https://raw.githubusercontent.com/fusionAIze/fusionaize-metadata-public"
-    "/main/providers/catalog.v1.json"
+    "https://raw.githubusercontent.com/fusionAIze/fusionaize-metadata-public/main/providers/catalog.v1.json"
 )
 DEFAULT_PRIVATE_URL = (
-    "https://raw.githubusercontent.com/fusionAIze/fusionaize-metadata"
-    "/master/providers/catalog.v1.json"
+    "https://raw.githubusercontent.com/fusionAIze/fusionaize-metadata/master/providers/catalog.v1.json"
 )
 DEFAULT_REFRESH_INTERVAL_SECONDS = 24 * 60 * 60  # 24h
 
@@ -55,12 +53,8 @@ class ResolverConfig:
     @classmethod
     def from_env(cls) -> ResolverConfig:
         token = os.environ.get(ENV_TOKEN, "").strip() or None
-        public_url = (
-            os.environ.get(ENV_PUBLIC_URL, "").strip() or DEFAULT_PUBLIC_URL
-        )
-        private_url = (
-            os.environ.get(ENV_PRIVATE_URL, "").strip() or DEFAULT_PRIVATE_URL
-        )
+        public_url = os.environ.get(ENV_PUBLIC_URL, "").strip() or DEFAULT_PUBLIC_URL
+        private_url = os.environ.get(ENV_PRIVATE_URL, "").strip() or DEFAULT_PRIVATE_URL
         refresh = os.environ.get(ENV_REFRESH_INTERVAL, "").strip()
         try:
             refresh_seconds = float(refresh) if refresh else DEFAULT_REFRESH_INTERVAL_SECONDS
@@ -87,9 +81,7 @@ def _load_bundled_snapshot() -> dict[str, Any] | None:
     """Load the snapshot shipped inside the wheel, if present."""
     try:
         # Python 3.9+ files() API
-        catalog_resource = resources.files("faigate.assets.metadata").joinpath(
-            "catalog.v1.json"
-        )
+        catalog_resource = resources.files("faigate.assets.metadata").joinpath("catalog.v1.json")
         with catalog_resource.open("r", encoding="utf-8") as f:
             return json.load(f)
     except (FileNotFoundError, ModuleNotFoundError, AttributeError):
@@ -179,11 +171,7 @@ class CatalogResolver:
         ttl = self._config.refresh_interval_seconds
 
         # Use cache without network roundtrip if it's fresh enough
-        if (
-            cached is not None
-            and not force_refresh
-            and (time.time() - cached.written_at) < ttl
-        ):
+        if cached is not None and not force_refresh and (time.time() - cached.written_at) < ttl:
             return ResolvedCatalog(
                 payload=cached.payload,
                 source=f"{tier}-cache",
@@ -222,9 +210,7 @@ class CatalogResolver:
 
         # Remote unhealthy but we have stale cache — use it
         if cached is not None:
-            notes.append(
-                f"{tier}: remote returned {result.status.value}; using stale cache"
-            )
+            notes.append(f"{tier}: remote returned {result.status.value}; using stale cache")
             logger.info(
                 "catalog resolve: %s remote %s — falling back to cached",
                 tier,

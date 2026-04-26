@@ -32,16 +32,12 @@ def _format_age(seconds: float | None) -> str:
     return f"{seconds / 86400:.1f}d"
 
 
-def _diff_providers(
-    before: dict[str, Any], after: dict[str, Any]
-) -> dict[str, list[str]]:
+def _diff_providers(before: dict[str, Any], after: dict[str, Any]) -> dict[str, list[str]]:
     before_keys = set(before.keys())
     after_keys = set(after.keys())
     added = sorted(after_keys - before_keys)
     removed = sorted(before_keys - after_keys)
-    changed = sorted(
-        k for k in before_keys & after_keys if before[k] != after[k]
-    )
+    changed = sorted(k for k in before_keys & after_keys if before[k] != after[k])
     return {"added": added, "removed": removed, "changed": changed}
 
 
