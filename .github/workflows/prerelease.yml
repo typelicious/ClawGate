@@ -1,0 +1,84 @@
+name: Prerelease — filtered release notes
+
+# Runs on tag push, before release-artifacts.yml builds the dist.
+# Generates a changelog with git-cliff, strips lines that mention
+# non-faigate topics (personal tooling, local setup details), and
+# attaches the filtered notes to the GitHub release.
+#
+# Content boundary policy lives in .github/scripts/filter-changelog.py
+# and is documented in AGENTS.md → "Content boundary".
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)generate notes for"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  filtered-notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve target tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "ref=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install git-cliff
+        uses: orhun/git-cliff-action@v4
+        with:
+          version: latest
+          config: .cliff.toml
+          args: --tag ${{ steps.tag.outputs.ref }} --strip header --unreleased
+        env:
+          OUTPUT: raw-notes.md
+
+      - name: Self-test the filter
+        run: python3 .github/scripts/filter-changelog.py --self-test
+
+      - name: Apply content-boundary filter
+        run: |
+          python3 .github/scripts/filter-changelog.py raw-notes.md > filtered-notes.md
+          echo "--- raw notes ---"
+          wc -l raw-notes.md
+          echo "--- filtered notes ---"
+          wc -l filtered-notes.md
+          echo "--- filtered preview ---"
+          head -40 filtered-notes.md
+
+      - name: Update GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.ref }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --notes-file filtered-notes.md
+            echo "updated existing release $TAG"
+          else
+            gh release create "$TAG" --title "$TAG" --notes-file filtered-notes.md
+            echo "created release $TAG"
+          fi
+
+      - name: Upload filtered notes artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: filtered-release-notes
+          path: |
+            raw-notes.md
+            filtered-notes.md
+          retention-days: 30

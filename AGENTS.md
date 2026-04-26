@@ -153,3 +153,23 @@ Do not document features that do not exist.
 - prefer minor bumps for meaningful features or operational behavior changes
 - prefer patch bumps for fixes, polish, and small compatibility updates
 - reserve major bumps for explicit breaking changes and documented migrations
+
+## Content boundary
+
+Release notes, changelogs, PR descriptions, and commit messages **must
+not** reference non-faigate topics — personal tooling, local setup
+details, operator-machine specifics, or unrelated projects. The
+prerelease workflow (`.github/workflows/prerelease.yml`) filters these
+automatically using `.github/scripts/filter-changelog.py`, but agents
+and humans should keep the source clean so the filter is a safety net,
+not a load-bearing rewrite step.
+
+Concrete examples that don't belong in faigate-public surfaces:
+
+- personal memory or env-management tools running on the operator's box
+- absolute paths under `/Users/<name>/`, `~/Library/`, `~/Documents/`
+- operator-specific machine setup steps unrelated to faigate runtime
+
+When such context is genuinely relevant to a change, keep it in the PR
+conversation or in `docs/process/` — never in user-visible commit
+messages, release titles, or `CHANGELOG.md` entries.
