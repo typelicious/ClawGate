@@ -21,6 +21,39 @@ OAuthBackend = None
 logger = logging.getLogger("faigate.providers")
 _UNRESOLVED_ENV_RE = re.compile(r"\$\{[^}]+}")
 
+_CODEX_PLAN_TIER_CACHE: str | None = None
+
+
+def _detect_codex_chatgpt_plan_tier() -> str:
+    """Detect ChatGPT plan tier from ~/.codex/auth.json id_token.
+
+    Returns 'pro', 'plus', 'free', or 'unknown'. Result is cached for the process
+    lifetime so we never re-parse the JWT on every Codex request.
+    """
+    global _CODEX_PLAN_TIER_CACHE
+    if _CODEX_PLAN_TIER_CACHE is not None:
+        return _CODEX_PLAN_TIER_CACHE
+    plan = "unknown"
+    try:
+        import base64
+        import pathlib
+
+        auth_path = pathlib.Path.home() / ".codex" / "auth.json"
+        data = json.loads(auth_path.read_text(encoding="utf-8"))
+        id_token = str(data.get("tokens", {}).get("id_token") or "")
+        parts = id_token.split(".")
+        if len(parts) >= 2:
+            payload_b64 = parts[1] + "=" * ((4 - len(parts[1]) % 4) % 4)
+            payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+            claim = payload.get("https://api.openai.com/auth", {}) or {}
+            raw_plan = str(claim.get("chatgpt_plan_type") or "").strip().lower()
+            if raw_plan:
+                plan = raw_plan
+    except Exception as exc:
+        logger.debug("Codex plan-tier detection failed: %s", exc)
+    _CODEX_PLAN_TIER_CACHE = plan
+    return plan
+
 
 def classify_runtime_issue(
     *,
@@ -201,10 +234,21 @@ class ProviderBackend:
         return str(content or "")
 
     def _codex_effective_model(self, model: str) -> str:
-        """Map Gate-facing Codex aliases onto currently accepted upstream models."""
+        """Map Gate-facing Codex aliases onto currently accepted upstream models.
+
+        The ChatGPT-auth Codex backend gates models by plan tier: Pro accounts may
+        request `gpt-5-codex` directly; Plus accounts must request `gpt-5-codex-mini`;
+        unknown/free accounts get the raw model name and let the upstream reject it
+        explicitly (avoids hard-coding a wrong default that breaks paid users).
+        """
         normalized = str(model or "").strip()
         if normalized == "gpt-5.4":
-            return "gpt-5-codex"
+            plan = _detect_codex_chatgpt_plan_tier()
+            if plan == "pro":
+                return "gpt-5-codex"
+            if plan == "plus":
+                return "gpt-5-codex-mini"
+            return normalized
         if normalized in {"gpt-5.3-codex-high", "gpt-5.3-codex-xhigh", "gpt-5.3-codex-low"}:
             return "gpt-5.3-codex"
         return normalized
@@ -1122,6 +1166,25 @@ class ProviderBackend:
             body["tools"] = tools
         if stream:
             body["stream"] = True
+
+        # DeepSeek V4 thinking-mode safeguard. V4 requires `reasoning_content`
+        # round-trip on assistant messages when thinking is active; clients that
+        # don't track it (OpenCode, Codenomad, generic openai-compat) would break
+        # on every follow-up turn with HTTP 400. Auto-disable thinking when prior
+        # assistant turns lack reasoning_content so multi-turn keeps working,
+        # while single-turn reasoning is still available. The DeepSeek V4 API
+        # accepts an Anthropic-style ThinkingOptions struct, not a boolean —
+        # `{"thinking": {"type": "disabled"}}`. Explicit overrides via provider
+        # extra_body or request extra_body always win because they are merged
+        # in after this auto-set.
+        if self.lane.get("family") == "deepseek" and isinstance(messages, list):
+            has_unreasoned_assistant = any(
+                isinstance(m, dict) and m.get("role") == "assistant" and not m.get("reasoning_content")
+                for m in messages
+            )
+            if has_unreasoned_assistant:
+                body["thinking"] = {"type": "disabled"}
+
         if self.default_extra_body:
             body.update(self.default_extra_body)
         if extra_body:

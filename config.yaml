@@ -62,8 +62,8 @@ client_profiles:
       routing_mode: coding-auto
     deepseek-cli:
       prefer_providers:
-      - deepseek-chat
-      - deepseek-reasoner
+      - deepseek-v4-flash
+      - deepseek-v4-pro
       - anthropic-haiku
       prefer_tiers:
       - default
@@ -84,9 +84,34 @@ client_profiles:
     openclaw:
       routing_mode: coding-auto
     opencode:
+      # The chatgpt.com Codex backend gates `gpt-5-codex` to Pro accounts only,
+      # so the auto-router must not pick codex providers as a fallback for the
+      # opencode client. Explicit invocation via model_shortcuts still works.
+      deny_providers:
+      - openai-codex
+      - openai-codex-mini
+      - openai-codex-spark
+      - openai-codex-high
+      - openai-codex-xhigh
+      - openai-codex-low
+      - openai-codex-5.4-low
+      - openai-codex-5.4-medium
+      - openai-codex-5.4-high
+      - openai-codex-5.4-xhigh
       routing_mode: coding-auto
     # ── opencode named profiles (selectable as model in opencode UI) ─────────
     coding:
+      deny_providers:
+      - openai-codex
+      - openai-codex-mini
+      - openai-codex-spark
+      - openai-codex-high
+      - openai-codex-xhigh
+      - openai-codex-low
+      - openai-codex-5.4-low
+      - openai-codex-5.4-medium
+      - openai-codex-5.4-high
+      - openai-codex-5.4-xhigh
       routing_mode: coding-auto
     coding-free:
       prefer_providers:
@@ -165,10 +190,10 @@ client_profiles:
           - research
     profile: research
 fallback_chain:
-- deepseek-chat
+- deepseek-v4-flash
 - anthropic-haiku
 - gemini-flash
-- deepseek-reasoner
+- deepseek-v4-pro
 - anthropic-sonnet
 - gemini-pro-high
 - openai-gpt4o
@@ -214,7 +239,7 @@ heuristic_rules:
         - "\u0434\u043E\u043A\u0430\u0437\u0430\u0442\u044C"
         min_matches: 2
     name: math-reasoning
-    route_to: deepseek-reasoner
+    route_to: deepseek-v4-pro
   - match:
       message_keywords:
         any_of:
@@ -233,7 +258,7 @@ heuristic_rules:
         - deadlock
         min_matches: 2
     name: complex-code
-    route_to: deepseek-reasoner
+    route_to: deepseek-v4-pro
   - match:
       message_keywords:
         any_of:
@@ -261,30 +286,30 @@ heuristic_rules:
   - match:
       has_tools: true
     name: tool-use
-    route_to: deepseek-chat
+    route_to: deepseek-v4-flash
   - match:
       estimated_tokens:
         less_than: 100
     name: short-message
-    route_to: deepseek-chat
+    route_to: deepseek-v4-flash
   - match:
       estimated_tokens:
         greater_than: 50000
     name: long-context
-    route_to: deepseek-chat
+    route_to: deepseek-v4-flash
   - match:
       fallthrough: true
     name: general-default
-    route_to: deepseek-chat
+    route_to: deepseek-v4-flash
 llm_classifier:
   category_routing:
-    AGENT: deepseek-chat
-    CODING: deepseek-chat
-    REASONING: deepseek-reasoner
+    AGENT: deepseek-v4-flash
+    CODING: deepseek-v4-flash
+    REASONING: deepseek-v4-pro
     SIMPLE: gemini-flash-lite
   classifier_provider: gemini-flash-lite
   enabled: false
-  fallback_on_timeout: deepseek-chat
+  fallback_on_timeout: deepseek-v4-flash
   max_classify_tokens: 50
   prompt: 'Classify this task into exactly one category. Reply with ONLY the category
     name.
@@ -351,16 +376,16 @@ model_shortcuts:
       - bb
       description: BLACKBOX budget burst route (legacy id)
       target: blackbox-free
-    deepseek-chat:
+    deepseek-v4-flash:
       aliases:
       - chat
       - ds
       description: DeepSeek Chat
-      target: deepseek-chat
-    deepseek-reasoner:
+      target: deepseek-v4-flash
+    deepseek-v4-pro:
       aliases: []
       description: DeepSeek reasoning path
-      target: deepseek-reasoner
+      target: deepseek-v4-pro
     flash:
       aliases:
       - gemini
@@ -394,7 +419,7 @@ model_shortcuts:
       - reasoner
       - think
       description: DeepSeek reasoning path
-      target: deepseek-reasoner
+      target: deepseek-v4-pro
 prompt_caching:
   stabilize_prefix: false
   track_metrics: true
@@ -420,7 +445,7 @@ providers:
       cluster: fast-workhorse
       context_strength: mid
       degrade_to:
-      - deepseek/chat
+      - deepseek/v4-flash
       - google/gemini-flash
       family: anthropic
       freshness_hint: benchmark and cost assumptions were reviewed recently
@@ -459,7 +484,7 @@ providers:
       context_strength: high
       degrade_to:
       - anthropic/haiku-3.5
-      - deepseek/chat
+      - deepseek/v4-flash
       - google/gemini-flash
       family: anthropic
       freshness_hint: benchmark and cost assumptions were reviewed recently
@@ -498,7 +523,7 @@ providers:
       degrade_to:
       - anthropic/sonnet-4.6
       - openai/gpt-4o
-      - deepseek/reasoner
+      - deepseek/v4-pro
       family: anthropic
       freshness_hint: benchmark and cost assumptions were reviewed recently
       freshness_status: fresh
@@ -548,40 +573,44 @@ providers:
     timeout:
       connect_s: 10
       read_s: 60
-  deepseek-chat:
+  deepseek-v4-flash:
     api_key: ${DEEPSEEK_API_KEY}
     backend: openai-compat
     base_url: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
     capabilities:
-      cost_tier: standard
+      cost_tier: cheap
       latency_tier: fast
       streaming: true
     lane:
       benchmark_cluster: balanced-coding
-      canonical_model: deepseek/chat
+      canonical_model: deepseek/v4-flash
       cluster: balanced-workhorse
-      context_strength: mid
+      context_strength: high
       degrade_to:
       - google/gemini-flash
       - aggregator/openrouter-auto
       family: deepseek
-      freshness_hint: benchmark and cost assumptions were reviewed recently
+      freshness_hint: DeepSeek V4 (Apr 2026) — replaces V3.2 chat lane, 1M ctx
       freshness_status: fresh
-      last_reviewed: '2026-03-22'
+      last_reviewed: '2026-04-26'
       name: workhorse
       quality_tier: mid
       reasoning_strength: mid
-      review_age_days: 1
+      review_age_days: 0
       route_type: direct
-      same_model_group: deepseek/chat
+      same_model_group: deepseek/v4-flash
       tool_strength: medium
-    max_tokens: 8000
-    model: deepseek-chat
+    max_tokens: 64000
+    model: deepseek-v4-flash
+    pricing:
+      cache_read: 0.028
+      input: 0.14
+      output: 0.28
     tier: default
     timeout:
       connect_s: 10
       read_s: 60
-  deepseek-reasoner:
+  deepseek-v4-pro:
     api_key: ${DEEPSEEK_API_KEY}
     backend: openai-compat
     base_url: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
@@ -592,25 +621,29 @@ providers:
       streaming: true
     lane:
       benchmark_cluster: reasoning-coding
-      canonical_model: deepseek/reasoner
+      canonical_model: deepseek/v4-pro
       cluster: elite-reasoning
-      context_strength: mid
+      context_strength: high
       degrade_to:
-      - deepseek/chat
+      - deepseek/v4-flash
       - google/gemini-pro-high
       family: deepseek
-      freshness_hint: benchmark and cost assumptions were reviewed recently
+      freshness_hint: DeepSeek V4 Pro (Apr 2026) — replaces V3.2 reasoner, 1M ctx, unified reasoning
       freshness_status: fresh
-      last_reviewed: '2026-03-22'
+      last_reviewed: '2026-04-26'
       name: reasoning
-      quality_tier: high
+      quality_tier: premium
       reasoning_strength: high
-      review_age_days: 1
+      review_age_days: 0
       route_type: direct
-      same_model_group: deepseek/reasoner
-      tool_strength: medium
-    max_tokens: 8000
-    model: deepseek-reasoner
+      same_model_group: deepseek/v4-pro
+      tool_strength: high
+    max_tokens: 64000
+    model: deepseek-v4-pro
+    pricing:
+      cache_read: 0.145
+      input: 1.74
+      output: 3.48
     tier: reasoning
     timeout:
       connect_s: 10
@@ -629,7 +662,7 @@ providers:
       context_strength: mid
       degrade_to:
       - google/gemini-flash-lite
-      - deepseek/chat
+      - deepseek/v4-flash
       family: google
       freshness_hint: benchmark and cost assumptions were reviewed recently
       freshness_status: fresh
@@ -699,7 +732,7 @@ providers:
       degrade_to:
       - google/gemini-pro-low
       - google/gemini-flash
-      - deepseek/reasoner
+      - deepseek/v4-pro
       family: google
       freshness_hint: benchmark and cost assumptions were reviewed recently
       freshness_status: fresh
@@ -736,7 +769,7 @@ providers:
       context_strength: high
       degrade_to:
       - google/gemini-flash
-      - deepseek/chat
+      - deepseek/v4-flash
       family: google
       freshness_hint: benchmark and cost assumptions were reviewed recently
       freshness_status: fresh
@@ -1488,14 +1521,14 @@ providers:
   # Additional providers (LLMAIRouter parity) – uncomment to activate
   # ---------------------------------------------------------------------------
 
-  # DeepSeek – NOTE: deepseek-chat and deepseek-reasoner are already configured
+  # DeepSeek – NOTE: deepseek-v4-flash and deepseek-v4-pro are already configured
   # above as active providers. This entry is a convenience alias using the
   # registry key; the active configs above take precedence.
   # deepseek:
   #   api_key: ${DEEPSEEK_API_KEY}
   #   backend: openai-compat
   #   base_url: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
-  #   model: deepseek-reasoner
+  #   model: deepseek-v4-pro
   #   tier: reasoning
   #   timeout:
   #     connect_s: 10
@@ -1675,7 +1708,7 @@ routing_modes:
         - gemini-flash-lite
         - gemini-flash
         - anthropic-haiku
-        - deepseek-chat
+        - deepseek-v4-flash
         routing_mode: eco
     coding-premium:
       aliases:
@@ -1706,7 +1739,7 @@ routing_modes:
         - anthropic-haiku
         - gemini-flash-lite
         - gemini-flash
-        - deepseek-chat
+        - deepseek-v4-flash
         prefer_tiers:
         - cheap
         - fallback
@@ -1735,7 +1768,7 @@ routing_modes:
         - openai-gpt4o
         - gemini-pro-high
         - anthropic-claude
-        - deepseek-reasoner
+        - deepseek-v4-pro
         prefer_tiers:
         - high
         - mid
@@ -1800,9 +1833,9 @@ static_rules:
       - reasoner
       - r1
       - think
-      - deepseek-reasoner
+      - deepseek-v4-pro
     name: explicit-reasoner
-    route_to: deepseek-reasoner
+    route_to: deepseek-v4-pro
   - match:
       model_requested:
       - flash
@@ -1815,9 +1848,9 @@ static_rules:
       - chat
       - ds
       - default
-      - deepseek-chat
+      - deepseek-v4-flash
     name: explicit-chat
-    route_to: deepseek-chat
+    route_to: deepseek-v4-flash
   - match:
       model_requested:
       - codex-mini
@@ -1897,7 +1930,7 @@ static_rules:
           - subagent
           - sub-agent
     name: subagent
-    route_to: deepseek-chat
+    route_to: deepseek-v4-flash
 update_check:
   api_base: https://api.github.com
   check_interval_seconds: 21600
