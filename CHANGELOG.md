@@ -1,6 +1,6 @@
 # fusionAIze Gate Changelog
 
-## v2.4.1 - 2026-04-27
+## v2.5.0 - 2026-04-27
 
 ### Fixed
 

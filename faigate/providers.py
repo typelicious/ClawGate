@@ -1179,9 +1179,7 @@ class ProviderBackend:
         # in after this auto-set.
         if self.lane.get("family") == "deepseek" and isinstance(messages, list):
             has_unreasoned_assistant = any(
-                isinstance(m, dict)
-                and m.get("role") == "assistant"
-                and not m.get("reasoning_content")
+                isinstance(m, dict) and m.get("role") == "assistant" and not m.get("reasoning_content")
                 for m in messages
             )
             if has_unreasoned_assistant:
