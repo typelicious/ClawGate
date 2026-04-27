@@ -44,8 +44,25 @@ _httpx.TimeoutException = Exception
 _httpx.ConnectError = Exception
 sys.modules["httpx"] = _httpx
 
+import faigate.providers as _providers_module  # noqa: E402
 from faigate.oauth.backend import OAuthBackend  # noqa: E402
 from faigate.providers import ProviderBackend  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _pin_codex_plan_tier_to_pro():
+    """Pin the ChatGPT plan-tier cache to 'pro' for the entire file.
+
+    `_codex_effective_model` now adapts `gpt-5.4` → `gpt-5-codex` (Pro) or
+    `gpt-5-codex-mini` (Plus) based on the cached id_token plan claim. The
+    legacy fixture-based codex tests in this file all assert the Pro mapping
+    (`gpt-5-codex`); without this pin they would flake based on whoever runs
+    pytest (their actual ChatGPT plan reads through `~/.codex/auth.json`).
+    Plan-tier *detection* itself is covered by `tests/test_provider_safeguards.py`.
+    """
+    _providers_module._CODEX_PLAN_TIER_CACHE = "pro"
+    yield
+    _providers_module._CODEX_PLAN_TIER_CACHE = None
 
 
 def _make_google_backend() -> ProviderBackend:

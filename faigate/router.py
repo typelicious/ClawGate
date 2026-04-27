@@ -1414,6 +1414,25 @@ class Router:
                 return provider_name, ranking
         return (ranked[0] if ranked else None), ranking
 
+    def _provider_in_hard_cooldown(
+        self,
+        name: str,
+        ctx: _RoutingContext | None,
+    ) -> tuple[bool, dict[str, Any]]:
+        """Return whether the adaptive runtime has placed `name` in a hard cooldown.
+
+        A hard cooldown is set by `RoutePressure` for *persistent* failure classes
+        (auth-invalid, quota-exhausted, model-unavailable, endpoint-mismatch,
+        rate-limited) — issues that won't fix themselves on the next request, so
+        repeated routing wastes the user's request budget and pollutes logs. Soft
+        "degraded" windows (transport-error, timeout) intentionally stay routable
+        and are handled via the additive `adaptation_penalty` in ranking.
+        """
+        if ctx is None:
+            return False, {}
+        runtime_state = ctx.provider_runtime_state.get(name, {}) or {}
+        return bool(runtime_state.get("request_blocked")), runtime_state
+
     def _provider_matches_policy(self, provider: dict, name: str, select: dict, ctx: _RoutingContext) -> bool:
         """Return whether a provider is eligible for a policy rule."""
         capabilities = provider.get("capabilities", {})
@@ -1423,6 +1442,24 @@ class Router:
         if allow and name not in allow:
             return False
         if name in deny:
+            return False
+
+        # Hard-cooldown exclusion: if the adaptive route-pressure tracker has
+        # placed the provider in a persistent-failure cooldown window, never
+        # offer it as a policy candidate — even if it sits at the top of
+        # `prefer_providers`. This is what stops a 400-loop on a structurally
+        # broken provider (e.g. wrong model name, expired token) from burning
+        # the user's request budget for the entire cooldown window.
+        is_blocked, runtime_state = self._provider_in_hard_cooldown(name, ctx)
+        if is_blocked:
+            issue = str(runtime_state.get("last_issue_type") or "unknown")
+            remaining = int(runtime_state.get("cooldown_remaining_s") or 0)
+            logger.debug(
+                "Skipping provider %s in hard cooldown: %s (%ds remaining)",
+                name,
+                issue,
+                remaining,
+            )
             return False
 
         for capability in select.get("require_capabilities", []):
@@ -2488,8 +2525,16 @@ class Router:
         """If chosen provider is unhealthy or over limits, fall through the chain."""
         health = ctx.provider_health.get(decision.provider_name)
         primary = self.config.provider(decision.provider_name) or {}
+        primary_blocked, primary_runtime_state = self._provider_in_hard_cooldown(
+            decision.provider_name,
+            ctx,
+        )
         reason_suffix = None
-        if health and not health.get("healthy", True):
+        if primary_blocked:
+            issue = str(primary_runtime_state.get("last_issue_type") or "unknown")
+            remaining = int(primary_runtime_state.get("cooldown_remaining_s") or 0)
+            reason_suffix = f"primary in cooldown ({issue}, {remaining}s remaining)"
+        elif health and not health.get("healthy", True):
             reason_suffix = "primary unhealthy"
         elif not self._provider_fits_request_dimensions(decision.provider_name, primary, ctx):
             reason_suffix = "primary exceeded request dimensions"
@@ -2505,6 +2550,13 @@ class Router:
                 provider = self.config.provider(fallback) or {}
                 fb_health = ctx.provider_health.get(fallback, {})
                 if not fb_health.get("healthy", True):
+                    continue
+                fb_blocked, _ = self._provider_in_hard_cooldown(fallback, ctx)
+                if fb_blocked:
+                    # Skip fallbacks in their own hard-cooldown — same reasoning as
+                    # the primary check above. If every fallback is blocked, we
+                    # fall out of the loop and return the original decision: the
+                    # caller-level retry/error is the right surface in that case.
                     continue
                 if required_capabilities and any(
                     not provider.get("capabilities", {}).get(capability) for capability in required_capabilities

@@ -114,7 +114,7 @@ class TestStaticRouting:
             [{"role": "user", "content": "hello"}],
             model_requested="r1",
         )
-        assert d.provider_name == "deepseek-reasoner"
+        assert d.provider_name == "deepseek-v4-pro"
         assert d.layer == "static"
 
     @pytest.mark.asyncio
@@ -132,7 +132,7 @@ class TestStaticRouting:
             model_requested="auto",
             headers={"x-openclaw-source": "subagent-42"},
         )
-        assert d.provider_name == "deepseek-chat"
+        assert d.provider_name == "deepseek-v4-flash"
         assert d.rule_name == "subagent"
 
     def test_static_match_requires_all_fields_by_default(self, router):
@@ -173,7 +173,7 @@ class TestHeuristicRouting:
             [{"role": "user", "content": "Prove the theorem step by step using induction"}],
             model_requested="auto",
         )
-        assert d.provider_name == "deepseek-reasoner"
+        assert d.provider_name == "deepseek-v4-pro"
         assert "math" in d.rule_name or "reasoning" in d.rule_name
 
     @pytest.mark.asyncio
@@ -187,7 +187,7 @@ class TestHeuristicRouting:
             ],
             model_requested="auto",
         )
-        assert d.provider_name == "deepseek-reasoner"
+        assert d.provider_name == "deepseek-v4-pro"
 
     @pytest.mark.asyncio
     async def test_tool_use(self, router):
@@ -196,7 +196,7 @@ class TestHeuristicRouting:
             model_requested="auto",
             has_tools=True,
         )
-        assert d.provider_name == "deepseek-chat"
+        assert d.provider_name == "deepseek-v4-flash"
         assert d.rule_name == "tool-use"
 
     @pytest.mark.asyncio
@@ -222,7 +222,7 @@ class TestHeuristicRouting:
             [{"role": "user", "content": "ok"}],
             model_requested="auto",
         )
-        assert d.provider_name == "deepseek-chat"
+        assert d.provider_name == "deepseek-v4-flash"
 
     @pytest.mark.asyncio
     async def test_system_prompt_not_scored(self, router):
@@ -240,8 +240,8 @@ class TestHeuristicRouting:
             ],
             model_requested="auto",
         )
-        # Should NOT be deepseek-reasoner despite system prompt keywords
-        assert d.provider_name != "deepseek-reasoner"
+        # Should NOT be deepseek-v4-pro despite system prompt keywords
+        assert d.provider_name != "deepseek-v4-pro"
 
     def test_heuristic_match_requires_all_fields_by_default(self, router):
         ctx = types.SimpleNamespace(
@@ -281,12 +281,12 @@ class TestHealthFallback:
             [{"role": "user", "content": "hello"}],
             model_requested="r1",
             provider_health={
-                "deepseek-reasoner": {"healthy": False},
-                "deepseek-chat": {"healthy": True},
+                "deepseek-v4-pro": {"healthy": False},
+                "deepseek-v4-flash": {"healthy": True},
             },
         )
         # Should fall through to next healthy provider
-        assert d.provider_name != "deepseek-reasoner"
+        assert d.provider_name != "deepseek-v4-pro"
         assert "fallback" in d.rule_name
 
 
