@@ -70,7 +70,7 @@ jobs:
             gh release edit "$TAG" --notes-file filtered-notes.md
             echo "updated existing release $TAG"
           else
-            gh release create "$TAG" --title "$TAG" --notes-file filtered-notes.md
+            gh release create "$TAG" --title "fusionAIze Gate $TAG" --notes-file filtered-notes.md
             echo "created release $TAG"
           fi
 
