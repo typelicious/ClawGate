@@ -1141,6 +1141,167 @@
         "input_cost_per_1m": 3.0,
         "output_cost_per_1m": 15.0
       }
+    },
+    "pollinations": {
+      "recommended_model": "pollinations/openai",
+      "aliases": ["pollinations", "pol", "pollinations/openai"],
+      "track": "free",
+      "offer_track": "free",
+      "provider_type": "aggregator",
+      "auth_modes": ["none"],
+      "volatility": "high",
+      "evidence_level": "official",
+      "official_source_url": "https://pollinations.ai/",
+      "signup_url": "https://enter.pollinations.ai",
+      "watch_sources": [],
+      "notes": "Pollinations free text+image+video+audio — no API key required. Supports GPT-5, Claude, Llama 4.",
+      "last_reviewed": "2026-05-04",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://pollinations.ai/",
+        "refreshed_at": "2026-05-04T00:00:00Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 0.0,
+        "output_cost_per_1m": 0.0
+      }
+    },
+    "groq": {
+      "recommended_model": "groq/llama-3.3-70b",
+      "aliases": ["groq", "groq/llama-3.3-70b", "llama-3.3-70b"],
+      "track": "free",
+      "offer_track": "free",
+      "provider_type": "direct",
+      "auth_modes": ["api_key"],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://console.groq.com/",
+      "signup_url": "https://console.groq.com/keys",
+      "watch_sources": [],
+      "notes": "Groq ultra-fast LPU inference — 300-500 tok/s. Free tier: 30 RPM, 14,400 RPD, 6K TPM.",
+      "last_reviewed": "2026-05-04",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://console.groq.com/docs/rate-limits",
+        "refreshed_at": "2026-05-04T00:00:00Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 0.0,
+        "output_cost_per_1m": 0.0
+      }
+    },
+    "cerebras": {
+      "recommended_model": "cerebras/qwen3-235b",
+      "aliases": ["cerebras", "cerebras/qwen3-235b"],
+      "track": "free",
+      "offer_track": "free",
+      "provider_type": "direct",
+      "auth_modes": ["api_key"],
+      "volatility": "low",
+      "evidence_level": "official",
+      "official_source_url": "https://cloud.cerebras.ai/",
+      "signup_url": "https://cloud.cerebras.ai/",
+      "watch_sources": [],
+      "notes": "Cerebras wafer-scale inference ~2600 tok/s. Free tier: 30 RPM, 1M TPD.",
+      "last_reviewed": "2026-05-04",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://cloud.cerebras.ai/",
+        "refreshed_at": "2026-05-04T00:00:00Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 0.0,
+        "output_cost_per_1m": 0.0
+      }
+    },
+    "longcat": {
+      "recommended_model": "longcat/flash-lite",
+      "aliases": ["longcat", "lc", "longcat/flash-lite"],
+      "track": "free",
+      "offer_track": "free",
+      "provider_type": "direct",
+      "auth_modes": ["api_key"],
+      "volatility": "high",
+      "evidence_level": "official",
+      "official_source_url": "https://longcat.ai/",
+      "signup_url": "https://longcat.ai/",
+      "watch_sources": [],
+      "notes": "LongCat AI free tier: Flash-Lite, 50M tokens/day free.",
+      "last_reviewed": "2026-05-04",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://longcat.ai/",
+        "refreshed_at": "2026-05-04T00:00:00Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 0.0,
+        "output_cost_per_1m": 0.0
+      }
+    },
+    "nvidia-nim": {
+      "recommended_model": "nvidia/nemotron",
+      "aliases": ["nvidia-nim", "nvidia", "nim"],
+      "track": "free",
+      "offer_track": "free",
+      "provider_type": "direct",
+      "auth_modes": ["api_key"],
+      "volatility": "medium",
+      "evidence_level": "official",
+      "official_source_url": "https://build.nvidia.com/",
+      "signup_url": "https://build.nvidia.com/explore/discover",
+      "watch_sources": [],
+      "notes": "NVIDIA NIM free: 129 models, 40 RPM. Includes DeepSeek-R1, Llama 405B, Qwen3 Coder 480B.",
+      "last_reviewed": "2026-05-04",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://build.nvidia.com/",
+        "refreshed_at": "2026-05-04T00:00:00Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 0.0,
+        "output_cost_per_1m": 0.0
+      }
+    },
+    "kiro": {
+      "recommended_model": "kiro/claude-sonnet",
+      "aliases": ["kiro", "kr", "kiro/claude-sonnet"],
+      "track": "free",
+      "offer_track": "free",
+      "provider_type": "aggregator",
+      "auth_modes": ["oauth"],
+      "volatility": "high",
+      "evidence_level": "official",
+      "official_source_url": "https://kiro.dev/",
+      "signup_url": "https://kiro.dev/",
+      "watch_sources": [],
+      "notes": "Kiro free tier via AWS Builder ID OAuth — Claude Sonnet 4.5 and Haiku 4.5 unlimited.",
+      "last_reviewed": "2026-05-04",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://kiro.dev/",
+        "refreshed_at": "2026-05-04T00:00:00Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 0.0,
+        "output_cost_per_1m": 0.0
+      }
+    },
+    "qoder": {
+      "recommended_model": "qoder/kimi-k2",
+      "aliases": ["qoder", "qoder/kimi-k2", "qd"],
+      "track": "free",
+      "offer_track": "free",
+      "provider_type": "aggregator",
+      "auth_modes": ["oauth"],
+      "volatility": "high",
+      "evidence_level": "official",
+      "official_source_url": "https://qoder.ai/",
+      "signup_url": "https://qoder.ai/",
+      "watch_sources": [],
+      "notes": "Qoder free via Google OAuth — kimi-k2-thinking, qwen3-coder-plus, deepseek-r1 unlimited.",
+      "last_reviewed": "2026-05-04",
+      "pricing": {
+        "source_type": "provider-docs",
+        "source_url": "https://qoder.ai/",
+        "refreshed_at": "2026-05-04T00:00:00Z",
+        "freshness_status": "fresh",
+        "input_cost_per_1m": 0.0,
+        "output_cost_per_1m": 0.0
+      }
     }
   }
 }

@@ -91,6 +91,8 @@ def test_pricing_lookup_prefers_offerings(tmp_path, monkeypatch):
 
     # Set environment variable
     monkeypatch.setenv("FAIGATE_PROVIDER_METADATA_DIR", str(metadata_dir))
+    monkeypatch.setenv("FAIGATE_OFFERINGS_METADATA_FILE", str(offerings_catalog))
+    monkeypatch.setenv("FAIGATE_PACKAGES_METADATA_FILE", str(packages_catalog))
 
     # Clear caches to force reload
     faigate.provider_catalog._EXTERNAL_OFFERINGS_CACHE = None
@@ -195,12 +197,12 @@ def test_package_scoring_in_routing(tmp_path, monkeypatch):
 
     # Set environment variable
     monkeypatch.setenv("FAIGATE_PROVIDER_METADATA_DIR", str(metadata_dir))
+    monkeypatch.setenv("FAIGATE_OFFERINGS_METADATA_FILE", str(offerings_catalog))
+    monkeypatch.setenv("FAIGATE_PACKAGES_METADATA_FILE", str(packages_catalog))
 
     # Clear caches
     faigate.provider_catalog._EXTERNAL_OFFERINGS_CACHE = None
     faigate.provider_catalog._EXTERNAL_OFFERINGS_MTIME = 0.0
-    faigate.provider_catalog._EXTERNAL_PACKAGES_CACHE = None
-    faigate.provider_catalog._EXTERNAL_PACKAGES_MTIME = 0.0
 
     # Get packages for provider
     packages = _get_packages_for_provider("kilocode")
@@ -302,6 +304,8 @@ metrics:
     )
 
     monkeypatch.setenv("FAIGATE_PROVIDER_METADATA_DIR", str(metadata_dir))
+    monkeypatch.setenv("FAIGATE_OFFERINGS_METADATA_FILE", str(offerings_catalog))
+    monkeypatch.setenv("FAIGATE_PACKAGES_METADATA_FILE", str(packages_catalog))
 
     # Clear caches
     faigate.provider_catalog._EXTERNAL_OFFERINGS_CACHE = None
@@ -363,6 +367,8 @@ def test_packages_catalog_loading(tmp_path, monkeypatch):
 
     # Set environment variable
     monkeypatch.setenv("FAIGATE_PROVIDER_METADATA_DIR", str(metadata_dir))
+    monkeypatch.setenv("FAIGATE_OFFERINGS_METADATA_FILE", "")
+    monkeypatch.setenv("FAIGATE_PACKAGES_METADATA_FILE", str(packages_catalog))
 
     # Clear cache
     faigate.provider_catalog._EXTERNAL_PACKAGES_CACHE = None
