@@ -1,20 +1,26 @@
 import SwiftUI
 
-/// The menubar popover contents. Mirrors the web widget's page composition:
+/// The menubar popover. Two views selectable via a segment picker:
 ///
-///   1. Active brand cards (sorted worst-alert first).
-///   2. A mini catalog "Available to add" block.
-///   3. A footer with Cockpit + Refresh controls.
+///   "Töpfe"  — real quota data fetched directly from provider web APIs
+///              via fetch_quotas.py (Chrome cookies + faigate .env keys).
+///   "faigate" — requests routed through the local faigate proxy, sourced
+///              from /api/quotas on the gateway.
 ///
-/// Skipped-package block is collapsed into a subtle footer line to keep the
-/// popover short; the web widget is the place to inspect skipped entries in
-/// detail.
+/// Both share the same header and footer; only the content scrollview
+/// changes based on the selection.
 struct PopoverView: View {
     @ObservedObject var store: QuotaStore
+    @ObservedObject var helperStore: QuotaHelperStore
     @ObservedObject var preferences: Preferences
-    /// Parent (the MenuBarExtra scene) owns the settings window-presentation
-    /// so this view just signals intent.
     var onOpenPreferences: () -> Void
+
+    @State private var selectedView: PopoverTab = .topfe
+
+    enum PopoverTab: String, CaseIterable {
+        case topfe   = "Töpfe"
+        case faigate = "faigate"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -24,8 +30,8 @@ struct PopoverView: View {
             Divider().background(Theme.border)
             footer
         }
-        .frame(width: 360)
-        .frame(minHeight: 200, maxHeight: 640)
+        .frame(width: 440)
+        .frame(minHeight: 560, maxHeight: 1100)
         .background(Theme.background)
         .foregroundColor(Theme.foreground)
     }
@@ -33,53 +39,55 @@ struct PopoverView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 8) {
-            Text("fusionAIze Gate Bar")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Theme.foreground)
-            Spacer(minLength: 8)
-            if store.isLoading {
-                ProgressView()
-                    .controlSize(.small)
+        VStack(spacing: 8) {
+            HStack(alignment: .center, spacing: 8) {
+                Text("fusionAIze Gate Bar")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Theme.foreground)
+                Spacer(minLength: 8)
+                if isLoading {
+                    ProgressView().controlSize(.small)
+                }
+                Text(lastRefreshLabel)
+                    .font(.system(size: 11))
+                    .foregroundColor(Theme.dim)
             }
-            Text(lastRefreshLabel)
-                .font(.system(size: 10))
-                .foregroundColor(Theme.dim)
+            Picker("View", selection: $selectedView) {
+                ForEach(PopoverTab.allCases, id: \.self) { tab in
+                    Text(tab.rawValue).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 10)
+    }
+
+    private var isLoading: Bool {
+        selectedView == .topfe ? helperStore.isLoading : store.isLoading
     }
 
     private var lastRefreshLabel: String {
-        guard let refreshed = store.lastRefresh else {
-            return store.lastError == nil ? "never refreshed" : "offline"
+        let refreshed = selectedView == .topfe ? helperStore.lastRefresh : store.lastRefresh
+        let hasError  = selectedView == .topfe ? helperStore.lastError != nil : store.lastError != nil
+        guard let refreshed else {
+            return hasError ? "offline" : "never refreshed"
         }
         let f = RelativeDateTimeFormatter()
         f.unitsStyle = .short
         return "updated \(f.localizedString(for: refreshed, relativeTo: Date()))"
     }
 
-    // MARK: - Main content
+    // MARK: - Content
 
     @ViewBuilder
     private var content: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                if let error = store.lastError {
-                    errorBanner(error)
-                }
-                if store.brands.isEmpty && store.lastError == nil {
-                    emptyBanner
-                } else {
-                    ForEach(store.brands) { brand in
-                        BrandCardView(brand: brand)
-                    }
-                }
-                if !store.catalogSuggestions.isEmpty {
-                    catalogBlock
-                }
-                if !store.skippedPackages.isEmpty {
-                    skippedBlock
+                switch selectedView {
+                case .topfe:   topfeContent
+                case .faigate: faigateContent
                 }
             }
             .padding(.horizontal, 12)
@@ -87,31 +95,72 @@ struct PopoverView: View {
         }
     }
 
-    private var emptyBanner: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("No active providers")
-                .font(.system(size: 12, weight: .semibold))
-            Text("Start the faigate gateway or check the gateway URL in Preferences.")
-                .font(.system(size: 11))
+    // MARK: Töpfe view — real provider quotas
+
+    @ViewBuilder
+    private var topfeContent: some View {
+        if let err = helperStore.lastError, helperStore.snapshots.isEmpty {
+            errorBanner("fetch_quotas.py error", detail: err)
+        } else if helperStore.snapshots.isEmpty {
+            emptyBanner(
+                title: "No provider data",
+                detail: "Fetching quotas from your providers…"
+            )
+        } else {
+            ForEach(helperStore.snapshots) { snap in
+                ProviderCardView(snapshot: snap)
+            }
+        }
+    }
+
+    // MARK: faigate view — proxied traffic
+
+    @ViewBuilder
+    private var faigateContent: some View {
+        if let error = store.lastError {
+            errorBanner("Can't reach the gateway", detail: error)
+        }
+        if store.brands.isEmpty && store.lastError == nil {
+            emptyBanner(
+                title: "No active providers",
+                detail: "Start the faigate gateway or check the gateway URL in Preferences."
+            )
+        } else {
+            ForEach(store.brands) { brand in
+                BrandCardView(brand: brand)
+            }
+        }
+        if !store.catalogSuggestions.isEmpty { catalogBlock }
+        if !store.skippedPackages.isEmpty    { skippedBlock }
+    }
+
+    // MARK: - Shared sub-views
+
+    private func emptyBanner(title: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+            Text(detail)
+                .font(.system(size: 12))
                 .foregroundColor(Theme.dim)
         }
-        .padding(12)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.card)
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
-    private func errorBanner(_ message: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Can't reach the gateway")
-                .font(.system(size: 12, weight: .semibold))
+    private func errorBanner(_ heading: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(heading)
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(Theme.color(for: .urgent))
-            Text(message)
-                .font(.system(size: 11))
+            Text(detail)
+                .font(.system(size: 12))
                 .foregroundColor(Theme.dim)
                 .lineLimit(3)
         }
-        .padding(10)
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.card)
         .overlay(
@@ -121,33 +170,32 @@ struct PopoverView: View {
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
-    // Design doc §3.3: max 6 rows, anything past collapses into "N more".
     private var catalogBlock: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("Available to add")
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(Theme.dim)
                 .textCase(.uppercase)
-                .padding(.top, 4)
+                .padding(.top, 6)
             ForEach(store.catalogSuggestions.prefix(6)) { suggestion in
                 HStack(alignment: .firstTextBaseline) {
                     Text(suggestion.brand)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundColor(Theme.foreground)
                     Text(suggestion.tagline)
-                        .font(.system(size: 11))
+                        .font(.system(size: 13))
                         .foregroundColor(Theme.dim)
                         .lineLimit(1)
                     Spacer(minLength: 8)
                     Link("Add ↗", destination: cockpitLink(for: suggestion.brandSlug, path: "providers/add"))
-                        .font(.system(size: 11))
+                        .font(.system(size: 13))
                         .foregroundColor(Theme.link)
                 }
             }
             if store.catalogSuggestions.count > 6 {
                 let extra = store.catalogSuggestions.count - 6
                 Link("… \(extra) more in Cockpit ↗", destination: cockpitLink())
-                    .font(.system(size: 11))
+                    .font(.system(size: 13))
                     .foregroundColor(Theme.link)
             }
         }
@@ -155,57 +203,47 @@ struct PopoverView: View {
 
     private var skippedBlock: some View {
         Text("Skipped: \(store.skippedPackages.map { $0.brand ?? $0.packageId }.joined(separator: ", "))")
-            .font(.system(size: 10))
+            .font(.system(size: 11))
             .foregroundColor(Theme.dim)
             .lineLimit(2)
-            .padding(.top, 4)
+            .padding(.top, 6)
     }
 
     // MARK: - Footer
 
     private var footer: some View {
         HStack(spacing: 12) {
-            // Opens the gateway's /dashboard/quotas — the server-side
-            // redirect honors `dashboard.quotas.default_view`, so if the
-            // operator pinned a brand or Cockpit this button goes straight
-            // there. No client-side branching needed.
             Link(destination: dashboardLink()) {
-                Text("Dashboard ↗")
-                    .font(.system(size: 12))
+                Text("Dashboard ↗").font(.system(size: 13))
             }
             .foregroundColor(Theme.link)
 
             Link(destination: cockpitLink()) {
-                Text("Cockpit ↗")
-                    .font(.system(size: 12))
+                Text("Cockpit ↗").font(.system(size: 13))
             }
             .foregroundColor(Theme.link)
 
             Button {
-                Task { await store.refresh() }
+                Task {
+                    await store.refresh()
+                    await helperStore.refresh()
+                }
             } label: {
-                Text("Refresh")
-                    .font(.system(size: 12))
+                Text("Refresh").font(.system(size: 13))
             }
             .buttonStyle(.plain)
             .foregroundColor(Theme.link)
 
             Spacer()
 
-            Button {
-                onOpenPreferences()
-            } label: {
-                Text("Preferences…")
-                    .font(.system(size: 12))
+            Button { onOpenPreferences() } label: {
+                Text("Preferences…").font(.system(size: 13))
             }
             .buttonStyle(.plain)
             .foregroundColor(Theme.dim)
 
-            Button {
-                NSApp.terminate(nil)
-            } label: {
-                Text("Quit")
-                    .font(.system(size: 12))
+            Button { NSApp.terminate(nil) } label: {
+                Text("Quit").font(.system(size: 13))
             }
             .buttonStyle(.plain)
             .foregroundColor(Theme.dim)
@@ -214,28 +252,22 @@ struct PopoverView: View {
         .padding(.vertical, 10)
     }
 
-    /// Deep-link into the gateway's dashboard. The gateway's redirect
-    /// handler decides whether to land on the overview, a pinned brand,
-    /// or Cockpit, per the operator's ``dashboard.quotas.default_view``
-    /// setting.
+    // MARK: - URL helpers
+
     private func dashboardLink() -> URL {
         let base = preferences.gatewayURL.hasSuffix("/")
-            ? String(preferences.gatewayURL.dropLast())
-            : preferences.gatewayURL
+            ? String(preferences.gatewayURL.dropLast()) : preferences.gatewayURL
         return URL(string: "\(base)/dashboard/quotas") ?? URL(string: base)!
     }
 
     private func cockpitLink(for brandSlug: String? = nil, path: String? = nil) -> URL {
         let base = preferences.cockpitURL.hasSuffix("/")
-            ? String(preferences.cockpitURL.dropLast())
-            : preferences.cockpitURL
+            ? String(preferences.cockpitURL.dropLast()) : preferences.cockpitURL
         if let brandSlug, let path {
             let encoded = brandSlug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? brandSlug
             return URL(string: "\(base)/\(path)?brand=\(encoded)") ?? URL(string: base)!
         }
-        if let path {
-            return URL(string: "\(base)/\(path)") ?? URL(string: base)!
-        }
+        if let path { return URL(string: "\(base)/\(path)") ?? URL(string: base)! }
         return URL(string: base) ?? URL(string: "https://cockpit.fusionaize.ai")!
     }
 }

@@ -324,7 +324,7 @@ def test_provider_catalog_report_can_track_provider_from_external_snapshot(tmp_p
       "signup_url": "https://console.anthropic.com/",
       "watch_sources": [],
       "notes": "External snapshot entry",
-      "last_reviewed": "2026-03-31"
+       "last_reviewed": "2026-05-04"
     }
   }
 }
@@ -371,7 +371,7 @@ def test_provider_catalog_external_snapshot_can_override_embedded_entry(tmp_path
   "providers": {
     "deepseek-chat": {
       "notes": "External override note",
-      "last_reviewed": "2026-03-31"
+       "last_reviewed": "2026-05-04"
     }
   }
 }
@@ -383,7 +383,7 @@ def test_provider_catalog_external_snapshot_can_override_embedded_entry(tmp_path
     entry = get_provider_catalog_entry("deepseek-chat")
 
     assert entry["notes"] == "External override note"
-    assert entry["last_reviewed"] == "2026-03-31"
+    assert entry["last_reviewed"] == "2026-05-04"
 
 
 def test_provider_catalog_can_load_repo_catalog_with_gate_overlay(tmp_path: Path, monkeypatch):
@@ -431,7 +431,7 @@ def test_provider_catalog_can_load_repo_catalog_with_gate_overlay(tmp_path: Path
       "signup_url": "https://console.anthropic.com/",
       "watch_sources": [],
       "notes": "Added by Gate overlay",
-      "last_reviewed": "2026-03-31"
+       "last_reviewed": "2026-05-04"
     }
   }
 }
@@ -550,8 +550,16 @@ def test_offerings_and_packages_catalog_loading(tmp_path, monkeypatch):
     packages_catalog = metadata_dir / "packages" / "catalog.v1.json"
     packages_catalog.write_text('{"schema_version":"fusionaize-package-catalog/v1","packages":{}}')
 
-    # Set environment variable
+    # Set environment variable and reset global cache
     monkeypatch.setenv("FAIGATE_PROVIDER_METADATA_DIR", str(metadata_dir))
+    monkeypatch.setenv("FAIGATE_OFFERINGS_METADATA_FILE", str(offerings_catalog))
+    monkeypatch.setenv("FAIGATE_PACKAGES_METADATA_FILE", str(packages_catalog))
+    import faigate.provider_catalog as pc
+
+    pc._EXTERNAL_OFFERINGS_CACHE = None
+    pc._EXTERNAL_OFFERINGS_MTIME = 0.0
+    pc._EXTERNAL_PACKAGES_CACHE = None
+    pc._EXTERNAL_PACKAGES_MTIME = 0.0
 
     # Load catalogs
     offerings = get_offerings_catalog()
