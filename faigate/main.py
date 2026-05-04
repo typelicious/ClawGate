@@ -33,6 +33,7 @@ from starlette.datastructures import UploadFile
 from . import __version__
 from .adaptation import AdaptiveRouteState
 from .api.anthropic.models import AnthropicBridgeError, parse_anthropic_messages_request
+from .breakers import breaker_registry
 from .bridges.anthropic import (
     anthropic_request_to_canonical,
     canonical_response_to_anthropic,
@@ -1825,6 +1826,26 @@ async def _execute_chat_completion_body(
         provider = _providers.get(provider_name)
         if not provider:
             continue
+
+        breaker = breaker_registry.get_or_create(provider_name)
+        if not breaker.allow_request():
+            logger.info(
+                "Skipping provider %s — circuit breaker %s (cooldown %.0fs remaining)",
+                provider_name,
+                breaker.state,
+                breaker.cooldown_remaining_s,
+            )
+            errors.append(
+                {
+                    "provider": provider_name,
+                    "status": 0,
+                    "category": "circuit-open",
+                    "circuit_state": str(breaker.state),
+                    "cooldown_remaining_s": round(breaker.cooldown_remaining_s, 1),
+                }
+            )
+            continue
+
         if not provider.health.healthy and provider_name != attempt_order[0]:
             continue
         quota_group = _provider_quota_group(provider)
@@ -1859,6 +1880,7 @@ async def _execute_chat_completion_body(
                 tools=tools,
                 extra_body=extra_body,
             )
+            breaker.record_success()
             _adaptive_state.record_success(
                 provider_name,
                 latency_ms=(result.get("_faigate") or {}).get("latency_ms", 0) if isinstance(result, dict) else 0.0,
@@ -1917,6 +1939,7 @@ async def _execute_chat_completion_body(
             )
         except ProviderError as e:
             _adaptive_state.record_failure(provider_name, error=e.detail[:500])
+            breaker.record_failure(error=e.detail[:500])
             classify_issue = getattr(provider, "classify_runtime_issue", None)
             if callable(classify_issue):
                 issue_type = classify_issue(status=e.status, detail=e.detail)
@@ -2378,6 +2401,10 @@ async def lifespan(app: FastAPI):
     _metrics = MetricsStore(db_path=_config.metrics["db_path"])
     if _config.metrics.get("enabled"):
         _metrics.init()
+
+    # Circuit breakers — persist state in the same SQLite database
+    breaker_registry.configure_persistence(_config.metrics["db_path"])
+
     try:
         _provider_catalog_store = ProviderCatalogStore(_config.metrics["db_path"])
         _provider_catalog_store.init()
@@ -3093,6 +3120,110 @@ async def get_alerts(lookback_hours: int = 1, baseline_hours: int = 24):
         "count": len(anomalies),
         "has_high_severity": any(a["severity"] == "high" for a in anomalies),
     }
+
+
+# ── Cockpit API (operator dashboard backend) ──────────────────────────
+
+
+@app.get("/api/cockpit/health")
+async def cockpit_health():
+    """Provider health with circuit breaker state — wraps /health plumbing."""
+    await _refresh_local_worker_probes()
+    readiness = _request_readiness_summary()
+    providers = {}
+    for name, p in _providers.items():
+        breaker = breaker_registry.get(name)
+        providers[name] = {
+            "name": name,
+            "healthy": p.health.healthy,
+            "circuit": str(breaker.state) if breaker else "CLOSED",
+            "circuit_failures": breaker.failure_count if breaker else 0,
+            "circuit_cooldown_remaining_s": round(breaker.cooldown_remaining_s, 1) if breaker else 0.0,
+            "latency_ms": round(p.health.avg_latency_ms, 1),
+            "last_check": p.health.last_check,
+            "last_error": p.health.last_error,
+            "ready": readiness.get("providers_ready", 0) > 0,
+            "status": (
+                "ready-verified"
+                if p.health.healthy and p.health.avg_latency_ms > 0
+                else "ready"
+                if p.health.healthy
+                else "unhealthy"
+            ),
+        }
+    return {
+        "providers": providers,
+        "summary": {
+            "total": len(providers),
+            "healthy": sum(1 for v in providers.values() if v["healthy"]),
+            "degraded": sum(1 for v in providers.values() if v["healthy"] and v["latency_ms"] > 2000),
+            "unhealthy": sum(1 for v in providers.values() if not v["healthy"]),
+            "circuits_open": sum(1 for v in providers.values() if v["circuit"] == "OPEN"),
+        },
+    }
+
+
+@app.get("/api/cockpit/providers")
+async def cockpit_providers(provider: str | None = None):
+    """Provider catalog with runtime state — wraps provider inventory."""
+    await _refresh_local_worker_probes()
+    rows = _build_provider_inventory(capability=None, healthy=None)
+    providers_out = []
+    for p in rows:
+        if provider and p.get("name") != provider:
+            continue
+        name = p.get("name", "")
+        breaker = breaker_registry.get(name)
+        p["circuit"] = str(breaker.state) if breaker else "CLOSED"
+        p["circuit_failures"] = breaker.failure_count if breaker else 0
+        p["circuit_cooldown_remaining_s"] = round(breaker.cooldown_remaining_s, 1) if breaker else 0.0
+        providers_out.append(p)
+    return {"providers": providers_out}
+
+
+@app.get("/api/cockpit/stats")
+async def cockpit_stats(provider: str | None = None):
+    """Lightweight stats for cockpit dashboard consumption."""
+    filters: dict[str, Any] = {}
+    if provider:
+        filters["provider"] = provider
+    totals = _metrics.get_totals(**filters) if _config.metrics.get("enabled") else {}
+    return {
+        "total_requests": totals.get("requests", 0),
+        "tokens_in": totals.get("tokens_prompt", 0),
+        "tokens_out": totals.get("tokens_completion", 0),
+        "providers_active": totals.get("unique_providers", 0),
+        "requests_24h": totals.get("requests_24h", 0),
+        "errors_24h": totals.get("errors_24h", 0),
+        "top_providers": totals.get("top_providers", []),
+    }
+
+
+@app.get("/api/cockpit/circuits")
+async def cockpit_circuits():
+    """All circuit breaker states."""
+    return {"circuits": breaker_registry.all_states()}
+
+
+@app.post("/api/cockpit/circuits/{provider_name}/reset")
+async def cockpit_circuit_reset(provider_name: str):
+    """Force-reset a circuit breaker to CLOSED."""
+    if not breaker_registry.force_closed(provider_name):
+        return JSONResponse(
+            {"error": f"Provider '{provider_name}' not found"},
+            status_code=404,
+        )
+    return {"provider": provider_name, "circuit": "CLOSED", "reset": True}
+
+
+@app.get("/api/cockpit/routes/log")
+async def cockpit_routes_log(limit: int = 50, provider: str | None = None):
+    """Recent routing decisions."""
+    logs = _metrics.get_recent(limit=limit, provider=provider) if _config.metrics.get("enabled") else []
+    return {"routes": logs}
+
+
+# ── Anomaly detection helpers ─────────────────────────────────────────
 
 
 def _build_cache_intelligence(
@@ -4817,6 +4948,12 @@ async def chat_completions(request: Request):
     if isinstance(execution, _ChatExecutionFailure):
         return JSONResponse(execution.body, status_code=execution.status_code)
 
+    circuit_state = (
+        str(breaker_registry.get(execution.provider_name).state)
+        if breaker_registry.get(execution.provider_name)
+        else "unknown"
+    )
+
     if execution.stream:
         return StreamingResponse(
             _safe_openai_sse_stream(
@@ -4828,6 +4965,7 @@ async def chat_completions(request: Request):
             headers={
                 "X-faigate-Provider": execution.provider_name,
                 "X-faigate-Profile": execution.client_profile,
+                "X-faigate-Circuit": circuit_state,
                 "X-faigate-Hooks": ",".join(execution.hook_state.applied_hooks),
                 "X-faigate-Hook-Errors": str(len(execution.hook_state.errors)),
                 "x-faigate-trace-id": execution.trace_id or str(uuid.uuid4()),
@@ -4837,6 +4975,7 @@ async def chat_completions(request: Request):
     resp = JSONResponse(execution.result)
     resp.headers["X-faigate-Provider"] = execution.provider_name
     resp.headers["X-faigate-Profile"] = execution.client_profile
+    resp.headers["X-faigate-Circuit"] = circuit_state
     if execution.resolved_mode:
         resp.headers["X-faigate-Mode"] = execution.resolved_mode
     if execution.resolved_shortcut:
@@ -5032,7 +5171,28 @@ def main():
         action="version",
         version=f"%(prog)s {__version__}",
     )
+    subparsers = parser.add_subparsers(dest="command", help="Subcommands")
+    cockpit_parser = subparsers.add_parser("cockpit", help="Launch terminal cockpit")
+    cockpit_parser.add_argument(
+        "--agent",
+        nargs="?",
+        const="health",
+        choices=["health", "providers", "circuits", "stats", "routes"],
+        help="Agent mode: output JSON for the given endpoint",
+    )
+
     args = parser.parse_args()
+
+    if args.command == "cockpit":
+        from .cockpit_tui import agent_json_output, run_tui
+
+        agent_value = getattr(args, "agent", None)
+        if agent_value:
+            agent_json_output(agent_value)
+        else:
+            run_tui()
+        return
+
     if args.config:
         os.environ["FAIGATE_CONFIG_FILE"] = args.config
 

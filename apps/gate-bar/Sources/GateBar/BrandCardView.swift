@@ -40,12 +40,12 @@ struct BrandCardView: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             Text(brand.brand)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(Theme.foreground)
             Spacer(minLength: 8)
             if let identity = brand.identity {
                 Text("\(identity.loginMethod): \(identity.credential)")
-                    .font(.system(size: 10, design: .monospaced))
+                    .font(.system(size: 11, design: .monospaced))
                     .foregroundColor(Theme.dim)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -84,23 +84,23 @@ struct PackageRow: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
                 Text(package.packageName ?? package.packageId)
-                    .font(.system(size: 12))
+                    .font(.system(size: 13))
                     .foregroundColor(Theme.mid)
                 Spacer(minLength: 8)
                 Text(percentageLabel)
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
                     .foregroundColor(Theme.foreground)
             }
             bar
             HStack {
                 if let used = package.usedDisplay, let total = package.totalDisplay {
                     Text("\(used) / \(total)")
-                        .font(.system(size: 10, design: .monospaced))
+                        .font(.system(size: 11, design: .monospaced))
                         .foregroundColor(Theme.dim)
                 }
                 Spacer(minLength: 8)
                 Text(resetLabel)
-                    .font(.system(size: 10))
+                    .font(.system(size: 11))
                     .foregroundColor(Theme.dim)
                     .lineLimit(1)
             }
@@ -154,7 +154,7 @@ struct PackageRow: View {
                 }
             }
         }
-        .frame(height: 6)
+        .frame(height: 7)
     }
 }
 

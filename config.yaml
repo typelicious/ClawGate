@@ -115,6 +115,9 @@ client_profiles:
       routing_mode: coding-auto
     coding-free:
       prefer_providers:
+      - pollinations
+      - groq
+      - cerebras
       - kilocode
       - blackbox-free
       - gemini-flash-lite
@@ -962,6 +965,240 @@ providers:
       connect_s: 10
       read_s: 90
 
+  # ── Free Providers (OmniRoute-inspired zero-cost fallback stack) ────────────
+  pollinations:
+    api_key: ""
+    backend: openai-compat
+    base_url: https://text.pollinations.ai/openai
+    capabilities:
+      cost_tier: free
+      latency_tier: balanced
+      streaming: true
+    lane:
+      benchmark_cluster: budget-chat
+      canonical_model: aggregator/pollinations-openai
+      cluster: budget-general
+      context_strength: mid
+      degrade_to: []
+      family: pollinations
+      freshness_hint: free no-key provider — polling models endpoint for availability
+      freshness_status: fresh
+      last_reviewed: '2026-05-04'
+      name: free
+      quality_tier: free
+      reasoning_strength: variable
+      review_age_days: 0
+      route_type: aggregator
+      same_model_group: aggregator/pollinations-openai
+      tool_strength: low
+    max_tokens: 8000
+    model: openai
+    tier: free
+    timeout:
+      connect_s: 10
+      read_s: 60
+    transport:
+      auth_mode: none
+      profile: free-generative
+      requires_api_key: false
+  groq:
+    api_key: ${GROQ_API_KEY}
+    backend: openai-compat
+    base_url: https://api.groq.com/openai/v1
+    capabilities:
+      cost_tier: free
+      latency_tier: fast
+      streaming: true
+    lane:
+      benchmark_cluster: budget-chat
+      canonical_model: groq/llama-3.3-70b
+      cluster: budget-general
+      context_strength: mid
+      degrade_to: []
+      family: groq
+      freshness_hint: free tier — 30 RPM, 14,400 RPD, 6K TPM
+      freshness_status: fresh
+      last_reviewed: '2026-05-04'
+      name: free
+      quality_tier: free
+      reasoning_strength: mid
+      review_age_days: 0
+      route_type: direct
+      same_model_group: groq/llama-3.3-70b
+      tool_strength: low
+    max_tokens: 8000
+    model: llama-3.3-70b-versatile
+    tier: free
+    timeout:
+      connect_s: 10
+      read_s: 30
+  cerebras:
+    api_key: ${CEREBRAS_API_KEY}
+    backend: openai-compat
+    base_url: https://api.cerebras.ai/v1
+    capabilities:
+      cost_tier: free
+      latency_tier: fast
+      streaming: true
+      reasoning: true
+    lane:
+      benchmark_cluster: budget-chat
+      canonical_model: cerebras/qwen3-235b
+      cluster: budget-general
+      context_strength: mid
+      degrade_to: []
+      family: cerebras
+      freshness_hint: free tier — 30 RPM, 1M TPD
+      freshness_status: fresh
+      last_reviewed: '2026-05-04'
+      name: free
+      quality_tier: free
+      reasoning_strength: high
+      review_age_days: 0
+      route_type: direct
+      same_model_group: cerebras/qwen3-235b
+      tool_strength: medium
+    max_tokens: 8000
+    model: qwen-3-235b-a22b-instruct-2507
+    tier: free
+    timeout:
+      connect_s: 10
+      read_s: 60
+  longcat:
+    api_key: ${LONGCAT_API_KEY}
+    backend: openai-compat
+    base_url: https://api.longcat.ai/v1
+    capabilities:
+      cost_tier: free
+      latency_tier: balanced
+      streaming: true
+    lane:
+      benchmark_cluster: budget-chat
+      canonical_model: longcat/flash-lite
+      cluster: budget-general
+      context_strength: mid
+      degrade_to: []
+      family: longcat
+      freshness_hint: free tier — 50M tokens/day
+      freshness_status: fresh
+      last_reviewed: '2026-05-04'
+      name: free
+      quality_tier: free
+      reasoning_strength: low
+      review_age_days: 0
+      route_type: direct
+      same_model_group: longcat/flash-lite
+      tool_strength: low
+    max_tokens: 8000
+    model: longcat-flash-lite
+    tier: free
+    timeout:
+      connect_s: 10
+      read_s: 60
+  nvidia-nim:
+    api_key: ${NVIDIA_API_KEY}
+    backend: openai-compat
+    base_url: https://integrate.api.nvidia.com/v1
+    capabilities:
+      cost_tier: free
+      latency_tier: fast
+      streaming: true
+      reasoning: true
+    lane:
+      benchmark_cluster: budget-chat
+      canonical_model: nvidia/nemotron
+      cluster: budget-general
+      context_strength: mid
+      degrade_to: []
+      family: nvidia
+      freshness_hint: free tier — 129 models, 40 RPM
+      freshness_status: fresh
+      last_reviewed: '2026-05-04'
+      name: free
+      quality_tier: free
+      reasoning_strength: high
+      review_age_days: 0
+      route_type: direct
+      same_model_group: nvidia/nemotron
+      tool_strength: medium
+    max_tokens: 8000
+    model: nvidia/nemotron-super-49b-v1
+    tier: free
+    timeout:
+      connect_s: 10
+      read_s: 60
+  kiro:
+    api_key: ${KIRO_API_KEY:-}
+    backend: openai-compat
+    base_url: ${KIRO_BASE_URL:-https://api.kiro.dev/v1}
+    capabilities:
+      cost_tier: free
+      latency_tier: balanced
+      streaming: true
+    lane:
+      benchmark_cluster: budget-chat
+      canonical_model: aggregator/kiro-claude-sonnet
+      cluster: budget-general
+      context_strength: high
+      degrade_to: []
+      family: kiro
+      freshness_hint: free via AWS Builder ID OAuth — Claude Sonnet 4.5 unlimited
+      freshness_status: fresh
+      last_reviewed: '2026-05-04'
+      name: free
+      quality_tier: free
+      reasoning_strength: high
+      review_age_days: 0
+      route_type: aggregator
+      same_model_group: aggregator/kiro-claude-sonnet
+      tool_strength: high
+    max_tokens: 8000
+    model: claude-sonnet-4-6
+    tier: free
+    timeout:
+      connect_s: 10
+      read_s: 90
+    transport:
+      auth_mode: none
+      profile: free-generative
+      requires_api_key: false
+  qoder:
+    api_key: ${QODER_API_KEY:-}
+    backend: openai-compat
+    base_url: ${QODER_BASE_URL:-https://api.qoder.ai/v1}
+    capabilities:
+      cost_tier: free
+      latency_tier: balanced
+      streaming: true
+      reasoning: true
+    lane:
+      benchmark_cluster: free-coding
+      canonical_model: aggregator/qoder-kimi-k2
+      cluster: budget-general
+      context_strength: high
+      degrade_to: []
+      family: qoder
+      freshness_hint: free via Google OAuth — kimi-k2-thinking unlimited
+      freshness_status: fresh
+      last_reviewed: '2026-05-04'
+      name: free
+      quality_tier: free
+      reasoning_strength: high
+      review_age_days: 0
+      route_type: aggregator
+      same_model_group: aggregator/qoder-kimi-k2
+      tool_strength: medium
+    max_tokens: 8000
+    model: kimi-k2-thinking
+    tier: free
+    timeout:
+      connect_s: 10
+      read_s: 90
+    transport:
+      auth_mode: none
+      profile: free-generative
+      requires_api_key: false
+
   # ── Local runtimes (uncomment and configure) ──────────────────────────────
   # ollama:
   #   api_key: ""
@@ -1705,6 +1942,8 @@ routing_modes:
         - default
         - fallback
         prefer_providers:
+        - groq
+        - cerebras
         - gemini-flash-lite
         - gemini-flash
         - anthropic-haiku
@@ -1736,6 +1975,9 @@ routing_modes:
           - cheap
           - standard
         prefer_providers:
+        - pollinations
+        - groq
+        - cerebras
         - anthropic-haiku
         - gemini-flash-lite
         - gemini-flash

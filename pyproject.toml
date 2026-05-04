@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "faigate"
-version = "2.5.0"
+version = "2.6.0"
 description = "Local OpenAI-compatible routing gateway for OpenClaw and other AI-native clients."
 readme = "README.md"
 license = "Apache-2.0"
@@ -52,6 +52,7 @@ dev = [
     "pre-commit>=3.0",
     "bandit[toml]>=1.8.0",
     "jinja2>=3.1.0",
+    "textual>=0.52.0",
 ]
 oauth = [
     "requests>=2.31.0",

@@ -19,7 +19,7 @@ set -euo pipefail
 
 APP_NAME="Gate Bar"
 APP_BUNDLE_ID="ai.fusionaize.gate-bar"
-APP_VERSION="0.1.0"
+APP_VERSION="0.1.4"
 APP_MIN_MACOS="14.0"
 BIN_NAME="GateBar"
 

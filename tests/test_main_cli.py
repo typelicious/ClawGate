@@ -32,7 +32,7 @@ def test_main_uses_explicit_config_arg(monkeypatch):
     monkeypatch.setattr(
         main_module.argparse.ArgumentParser,
         "parse_args",
-        lambda self: type("Args", (), {"config": "/tmp/faigate-config.yaml"})(),
+        lambda self: type("Args", (), {"config": "/tmp/faigate-config.yaml", "command": None})(),
     )
 
     main_module.main()

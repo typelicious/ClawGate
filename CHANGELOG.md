@@ -1,5 +1,28 @@
 # fusionAIze Gate Changelog
 
+## v2.6.0 - 2026-05-04
+
+### Added
+
+- **Free provider catalog** — 7 zero-cost providers: Pollinations (no API key required), Groq (ultra-fast LPU, 14.4K RPD), Cerebras (wafer-scale, 1M TPD), LongCat (Flash-Lite, 50M tokens/day), NVIDIA NIM (129 models, 40 RPM), Kiro (OAuth via AWS Builder ID, Sonnet 4.5 unlimited), Qoder (OAuth via Google, kimi-k2-thinking unlimited). All providers are commented out in `config.yaml` by default; operators opt in.
+- **Circuit breaker system** (`faigate/breakers.py`) — per-provider state machine (CLOSED → OPEN → HALF_OPEN) with configurable failure threshold, cooldown, and jitter. Integrated into the provider dispatch loop in `main.py`. State is persisted in the metrics SQLite database (`circuit_breakers` table). Auto-closes on successful HALF_OPEN probe.
+- **Cockpit API endpoints** (`/api/cockpit/*`) — 6 endpoints: `GET /health` (provider health + circuit snapshot), `GET /providers` (full config view), `GET /circuits` (breaker state), `POST /circuits/{provider}/reset` (force-close), `GET /stats` (totals, 24h counts, top providers), `GET /routes/log` (recent request log).
+- **Terminal cockpit TUI** (`faigate/cockpit_tui.py`) — Textual-based 4-tab dashboard (Dashboard, Providers, Circuits, Routes) with auto-refreshing data from `/api/cockpit/*` endpoints. Agent mode (`faigate cockpit --agent <endpoint>`) outputs JSON for script/programmatic consumption.
+- **Circuit breaker response headers** — `X-faigate-Circuit` and `X-faigate-Circuit-Provider` added to all chat completion responses for client-side circuit awareness.
+
+### Changed
+
+- **Routing mode updates** — `coding-free`, `coding-fast`, and `eco` profiles now include free providers (pollinations, groq, cerebras) as backup chains.
+- **Catalog freshness** — `last_reviewed` dates refreshed across provider catalog entries.
+- **Groq and Cerebras catalog entries** migrated from `track: stable` to `track: free` with updated recommended models and notes.
+
+### Fixed
+
+- Duplicate `groq` and `cerebras` entries in `_CATALOG` merged into single entries.
+- `catalog-stale` alert false positives resolved by bumping review dates to 2026-05-04.
+- Mock `Namespace` in `test_main_cli` updated for subparser compatibility.
+- External offerings/packages catalog env var isolation in test fixtures.
+
 ## v2.5.0 - 2026-04-27
 
 ### Fixed
